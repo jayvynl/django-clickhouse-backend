@@ -1,0 +1,199 @@
+import ipaddress
+
+from django.conf import settings
+from django.db.backends.base.operations import BaseDatabaseOperations
+
+
+class DatabaseOperations(BaseDatabaseOperations):
+    # Use this class attribute control whether using fake transaction.
+    # Fake transaction is used in test, prevent other database such as postgresql
+    # from flush at the end of each testcase. Only use this feature when you are
+    # aware of the effect in TransactionTestCase.
+    fake_transaction = False
+
+    compiler_module = 'clickhouse_backend.models.sql.compiler'
+    cast_char_field_without_max_length = 'String'
+
+    integer_field_ranges = {
+        'SmallIntegerField': (-32768, 32767),
+        'IntegerField': (-2147483648, 2147483647),
+        'BigIntegerField': (-9223372036854775808, 9223372036854775807),
+        'PositiveBigIntegerField': (0, 18446744073709551615),
+        'PositiveSmallIntegerField': (0, 65535),
+        'PositiveIntegerField': (0, 4294967295),
+        'SmallAutoField': (-32768, 32767),
+        'AutoField': (-2147483648, 2147483647),
+        'BigAutoField': (-9223372036854775808, 9223372036854775807),
+    }
+    set_operators = {
+        'union': 'UNION ALL',
+        'intersection': 'INTERSECT',
+        'difference': 'EXCEPT',
+    }
+
+    def unification_cast_sql(self, output_field):
+        return 'CAST(%%s, %s)' % output_field.db_type(self.connection)
+
+    def date_extract_sql(self, lookup_type, field_name):
+        # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions/
+        if lookup_type == 'year':
+            return "toYear(%s)" % field_name
+        elif lookup_type == 'iso_year':
+            return "toISOYear(%s)" % field_name
+        elif lookup_type == 'month':
+            return "toMonth(%s)" % field_name
+        elif lookup_type == 'day':
+            return "toDayOfMonth(%s)" % field_name
+        elif lookup_type == 'week':
+            return "toISOWeek(%s)" % field_name
+        elif lookup_type == 'week_day':
+            return "modulo(toDayOfWeek(%s), 7) + 1" % field_name
+        elif lookup_type == 'iso_week_day':
+            return "toDayOfWeek(%s)" % field_name
+        elif lookup_type == 'quarter':
+            return "toQuarter(%s)" % field_name
+        elif lookup_type == 'hour':
+            return "toHour(%s)" % field_name
+        elif lookup_type == 'minute':
+            return "toMinute(%s)" % field_name
+        elif lookup_type == 'second':
+            return "toSecond(%s)" % field_name
+
+    def date_trunc_sql(self, lookup_type, field_name, tzname=None):
+        # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions/#date_trunc
+        if tzname:
+            return "date_trunc('%s', %s, '%s')" % (lookup_type, field_name, tzname)
+        else:
+            return "date_trunc('%s', %s)" % (lookup_type, field_name)
+
+    def _convert_field_to_tz(self, field_name, tzname):
+        if tzname and settings.USE_TZ:
+            field_name = "toTimeZone(%s, '%s')" % (field_name, tzname)
+        return field_name
+
+    def datetime_cast_date_sql(self, field_name, tzname):
+        field_name = self._convert_field_to_tz(field_name, tzname)
+        return 'toDate(%s)' % field_name
+
+    def datetime_extract_sql(self, lookup_type, field_name, tzname):
+        field_name = self._convert_field_to_tz(field_name, tzname)
+        return self.date_extract_sql(lookup_type, field_name)
+
+    def datetime_trunc_sql(self, lookup_type, field_name, tzname):
+        return self.date_trunc_sql(lookup_type, field_name, tzname)
+
+    def distinct_sql(self, fields, params):
+        if fields:
+            params = [param for param_list in params for param in param_list]
+            return (['DISTINCT ON (%s)' % ', '.join(fields)], params)
+        else:
+            return ['DISTINCT'], []
+
+    def lookup_cast(self, lookup_type, internal_type=None):
+        lookup = '%s'
+
+        # Cast text lookups to text to allow things like filter(x__contains=4)
+        if lookup_type in ('iexact', 'contains', 'icontains', 'startswith',
+                           'istartswith', 'endswith', 'iendswith', 'regex', 'iregex'):
+            if internal_type == 'IPAddressField':
+                lookup = "IPv4NumToString(%s)"
+            elif internal_type == 'GenericIPAddressField':
+                lookup = "replaceRegexpOne(IPv6NumToString(%s), '^::ffff:', '')"
+            else:
+                lookup = "cast(%s, 'String')"
+
+        # Use UPPER(x) for case-insensitive lookups; it's faster.
+        if lookup_type in ('iexact', 'icontains', 'istartswith', 'iendswith'):
+            lookup = 'UPPER(%s)' % lookup
+
+        return lookup
+
+    def max_name_length(self):
+        """
+        Return the maximum length of an identifier.
+
+        https://stackoverflow.com/a/68362429/15096024
+        Clickhouse does not have own limits on identifiers length.
+        But you're limited by a filesystems' limits, because CH uses filenames as table/column names.
+        Ext4 max filename length -- ext4 255 bytes. And a maximum path of 4096 characters.
+
+        A example metadata_path from system.tables:
+        /var/lib/clickhouse_backend/store/c13/c13f3d33-7a2e-4e30-813f-3d337a2e7e30/test.sql
+        Take off the .sql suffix, actual length limit is 251
+        """
+        return 251
+
+    def no_limit_value(self):
+        return None
+
+    def prepare_sql_script(self, sql):
+        return [sql]
+
+    def quote_name(self, name):
+        if name.startswith('"') and name.endswith('"'):
+            return name  # Quoting once is enough.
+        return '"%s"' % name
+
+    def regex_lookup(self, lookup_type):
+        if lookup_type == 'regex':
+            return "match(%s, %s)"
+        else:
+            return "match(%s, concat('(?i)', %s))"
+
+    def sql_flush(self, style, tables, *, reset_sequences=False, allow_cascade=False):
+        return ['%s %s' % (style.SQL_KEYWORD('TRUNCATE'),
+                           style.SQL_FIELD(self.quote_name(table)))
+                for table in tables]
+
+    def prep_for_iexact_query(self, x):
+        return x
+
+    def bulk_insert_sql(self, fields, placeholder_rows):
+        # https://clickhouse-driver.readthedocs.io/en/latest/quickstart.html#inserting-data
+        # To insert data efficiently, provide data separately,
+        # and end your statement with a VALUES clause:
+        return "VALUES"
+
+    def adapt_datefield_value(self, value):
+        return value
+
+    def adapt_datetimefield_value(self, value):
+        return value
+
+    def adapt_timefield_value(self, value):
+        return value
+
+    def adapt_decimalfield_value(self, value, max_digits=None, decimal_places=None):
+        return value
+
+    def adapt_ipaddressfield_value(self, value):
+        if value:
+            try:
+                value = ipaddress.ip_address(value)
+            except ValueError:
+                pass
+            else:
+                if isinstance(value, ipaddress.IPv4Address):
+                    value = ipaddress.IPv6Address('::ffff:%s' % value)
+        return value
+
+    def last_insert_id(self, cursor, table_name, pk_name):
+        query = 'SELECT %s FROM %s ORDER BY %s DESC LIMIT 1'
+        params = (self.quote_name(pk_name), self.quote_name(table_name), self.quote_name(pk_name))
+        cursor.execute(query % params)
+        return cursor.fetchone()[0]
+
+    def savepoint_create_sql(self, sid):
+        if self.fake_transaction:
+            return 'SELECT 1'
+        return super().savepoint_create_sql(sid)
+
+    def savepoint_commit_sql(self, sid):
+        if self.fake_transaction:
+            return 'SELECT 1'
+        return super().savepoint_commit_sql(sid)
+
+    def savepoint_rollback_sql(self, sid):
+        if self.fake_transaction:
+            return 'SELECT 1'
+        return super().savepoint_rollback_sql(sid)

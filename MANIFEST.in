@@ -1,0 +1,1 @@
+include clickhouse_backend/VERSION
