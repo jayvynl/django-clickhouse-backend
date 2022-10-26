@@ -3,3 +3,4 @@ venv
 **/__pycache__
 django_clickhouse_backend.egg-info
 build
+tests/unsupported/

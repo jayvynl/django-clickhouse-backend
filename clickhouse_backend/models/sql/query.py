@@ -1,16 +1,11 @@
-from typing import Dict
+from collections import namedtuple
 
 from django.db.models.sql import query
 from django.db.models.sql import subqueries
 
 from clickhouse_backend.compat import dj4
 
-
-def settings_to_str(settings_dict: Dict) -> str:
-    string = ', '.join(f'{k}={v}' for k, v in settings_dict.items())
-    if string:
-        return 'SETTINGS ' + string
-    return ''
+ExplainInfo = namedtuple("ExplainInfo", ("format", "type", "options"))
 
 
 class Query(query.Query):
@@ -19,17 +14,20 @@ class Query(query.Query):
             super().__init__(model, alias_cols)
         else:
             super().__init__(model, where, alias_cols)
-        self.settings = {}
+        self.setting_info = {}
 
     def clone(self):
         obj = super().clone()
-        obj.settings = self.settings.copy()
+        obj.settings = self.setting_info.copy()
         return obj
 
-    def get_settings(self):
-        return settings_to_str(self.settings)
+    def explain(self, using, format=None, type=None, **settings):
+        q = self.clone()
+        q.explain_info = ExplainInfo(format, type, settings)
+        compiler = q.get_compiler(using=using)
+        return "\n".join(compiler.explain_query())
 
 
 for query_class in [subqueries.UpdateQuery, subqueries.DeleteQuery]:
-    for attr in ['clone', 'get_settings']:
+    for attr in ['clone', 'explain']:
         setattr(query_class, attr, getattr(Query, attr))

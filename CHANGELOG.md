@@ -1,75 +1,81 @@
+0.2.0 (2022-10-26)
+---
+
+- Adopt some testcase from django project.
+- Fix bugs such as datetime escaping and update field use F expression.
+
 0.1.0 (2022-10-16)
 ---
 
-- ID worker 接口变动以及配置项调整.
-- 支持数据库连接池.
-- 重构了 Engine 的实现，更加简洁稳定.
-- 数据库相关特性集中在 SQLCompiler 实现.
-- 忽略不支持的字段级别 db_index 属性，以及 AlterUniqueTogether 迁移操作，以支持django内置model或第三方model迁移.
+- ID worker interface changes and configuration item adjustments.
+- Support database connection pool.
+- Refactored the implementation of Engine to be more concise and stable.
+- Database related features are concentrated in the SQLCompiler implementation.
+- Ignore unsupported field-level db_index attribute, and AlterUniqueTogether migration operation in favor of django built-in model or 3rd party model migration.
 
 0.0.14 (2022-08-18)
 ---
 
-- 匹配 Django 4.x 。
+- matches Django 4.x.
 
 0.0.13 (2022-08-18)
 ---
 
-- 修复了搜索 GenericIPAddressField 字段。
+- Fixed searching for GenericIPAddressField field.
 
 0.0.12 (2022-08-09)
 ---
 
-- 修复了创建表时，多个 order by 字段出错的问题。
+- Fixed an issue where multiple order by fields were wrong when creating a table.
 
 0.0.11 (2022-08-01)
 ---
 
-- 修复了 AlterField migration ，支持 Nullable 到非 Nullable 类型改变，使用提供的默认值更新旧的 `NULL` 值。
+- Fixed AlterField migration to support Nullable to non-Nullable type changes, update old `NULL` values with provided defaults.
 
 0.0.10
 ---
 
-- 支持字段类型变化migration
+- Support field type change migration
 
 0.0.9
 ---
 
-- 修复删除、更新模型对象不能同步执行的问题
+- Fixed the problem that deleting and updating model objects could not be executed synchronously
 
 0.0.8
 ---
 
-- QuerySet 支持 setting 查询，可用传入 Clickhouse 设置项，参考[SETTINGS in SELECT Query](https://clickhouse.com/docs/en/sql-reference/statements/select/#settings-in-select)
-- 修复插入数据时不能设置正确的对象id，bulk_create 和 create 和 save 均能展示正确的id
+- QuerySet supports setting query, you can pass in Clickhouse setting items, refer to [SETTINGS in SELECT Query](https://clickhouse.com/docs/en/sql-reference/statements/select/#settings-in-select)
+- Fixed that the correct object id cannot be set when inserting data, bulk_create and create and save can display the correct id
 
 0.0.7
 ---
 
-- 数据库连接加入fake_transaction属性，测试时设置这个属性可以使postgresql等支持事物的其他数据库数据不清空
-- 加入AutoField类型，映射到Int32
-- 完善文档中关于测试/迁移/主键的说明
+- The fake_transaction attribute is added to the database connection. Setting this attribute during testing can prevent other database data that supports transactions such as postgresql from being emptied between transaction testcase.
+- Added AutoField type, mapped to Int32
+- Improve documentation about testing/migration/primary keys
 
 0.0.6
 ---
 
-- 优化了GenericIPAddressField类型字段在存储ipv4地址时，默认输出类型为Ipv6格式，将其转换为对应的Ipv4类型
+- When the GenericIPAddressField type field is optimized to store ipv4 addresses, the default output type is Ipv6 format, and it is converted to the corresponding Ipv4 type
 
 0.0.5
 ---
 
-- 修复了clickhouse driver转义datetime类型值后，丢失时区的问题
+- Fixed the issue that the time zone is lost after the clickhouse driver escapes the datetime type value
 
 0.0.4
 ---
 
-- 新增PositiveSmallIntegerField, PositiveIntegerField, PositiveBigIntegerField字段类型，分别对应正确的clickhouse uint类型范围。
+- Added PositiveSmallIntegerField, PositiveIntegerField, PositiveBigIntegerField field types, corresponding to the correct clickhouse uint type range.
 
-- 修改README，修正关于单元测试的说明。
+- Modified the README and corrected the description about unit testing.
 
 0.0.3
 ---
 
-- 解决了多app时，clickhouse.models 中 options.DEFAULT_NAMES monkey patch未生效的问题。
+- Solved the problem that the options.DEFAULT_NAMES monkey patch in clickhouse.models did not take effect when there were multiple apps.
 
-- 完善README，增加了自增主键的说明，调整了格式。
+- Improve the README, add the description of the auto-increment primary key, and adjust the format.

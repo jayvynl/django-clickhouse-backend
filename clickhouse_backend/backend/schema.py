@@ -1,4 +1,7 @@
-from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.backends.base.schema import (
+    BaseDatabaseSchemaEditor,
+    _related_non_m2m_objects,
+)
 from django.db.backends.ddl_references import (
     Expressions, IndexName, Statement, Table,
 )
@@ -24,37 +27,48 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         "WHERE %(column)s IS NULL SETTINGS mutations_sync=1"
     )
 
-    sql_table_index = 'INDEX %(name)s (%(columns)s) TYPE %(type)s GRANULARITY %(granularity)s'
-    sql_create_index = 'ALTER TABLE %(table)s ADD ' + sql_table_index
-    sql_delete_index = "ALTER TABLE %(table)s DROP INDEX %(name)s"
+    sql_index = 'INDEX %(name)s (%(columns)s) TYPE %(type)s GRANULARITY %(granularity)s'
+    sql_create_index = 'ALTER TABLE %(table)s ADD ' + sql_index
+    sql_delete_index = 'ALTER TABLE %(table)s DROP INDEX %(name)s'
 
-    sql_nullable_field = 'Nullable(%s)'
+    sql_create_constraint = 'ALTER TABLE %(table)s ADD %(constraint)s'
 
-    def create_model(self, model):
-        """
-        Create a table and any accompanying indexes or constraints for
-        the given `model`.
-        """
-        sql, params = self.table_sql(model)
-        # Prevent using [] as params, in the case a literal '%' is used in the definition
-        self.execute(sql, params or None)
-        self.deferred_sql.extend(self._model_indexes_sql(model))
+    # def create_model(self, model):
+    #     """
+    #     Create a table and any accompanying indexes or constraints for
+    #     the given `model`.
+    #     """
+    #     sql, params = self.table_sql(model)
+    #     # Prevent using [] as params, in the case a literal '%' is used in the definition
+    #     self.execute(sql, params or None)
+    #     self.deferred_sql.extend(self._model_indexes_sql(model))
 
-    def delete_model(self, model):
-        """Delete a model from the database."""
-        # Delete the table
-        self.execute(self.sql_delete_table % {
-            "table": self.quote_name(model._meta.db_table),
-        })
+    # def delete_model(self, model):
+    #     """Delete a model from the database."""
+    #     # Delete the table
+    #     self.execute(self.sql_delete_table % {
+    #         "table": self.quote_name(model._meta.db_table),
+    #     })
 
-    def alter_db_table(self, model, old_db_table, new_db_table):
-        """Rename the table a model points to."""
-        if old_db_table == new_db_table:
-            return
-        self.execute(self.sql_rename_table % {
-            "old_table": self.quote_name(old_db_table),
-            "new_table": self.quote_name(new_db_table),
-        })
+    # def alter_db_table(self, model, old_db_table, new_db_table):
+    #     """Rename the table a model points to."""
+    #     if old_db_table == new_db_table:
+    #         return
+    #     self.execute(self.sql_rename_table % {
+    #         "old_table": self.quote_name(old_db_table),
+    #         "new_table": self.quote_name(new_db_table),
+    #     })
+
+    def _column_check_name(self, field):
+        return 'check_%s' % field.column
+
+    def _column_check_sql(self, field):
+        db_params = field.db_parameters(connection=self.connection)
+        if db_params["check"]:
+            return self._check_sql(
+                name=self._column_check_name(field),
+                check=self.sql_check_constraint % db_params
+            )
 
     def table_sql(self, model):
         # https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree/#table_engine-mergetree-creating-a-table
@@ -63,25 +77,32 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # Create column SQL, include constraint and index.
         column_sqls = []
         params = []
+        constraints = []
         for field in model._meta.local_fields:
             definition, extra_params = self.column_sql(model, field)
             if definition is None:
                 continue
-            # if field.db_index:
-            #     raise ValueError('Column level index is not supported in clickhouse_backend, '
-            #                      'use table level index instead.')
             params.extend(extra_params)
             # Add the SQL to our big list.
             column_sqls.append('%s %s' % (
                 self.quote_name(field.column),
                 definition,
             ))
+            constraints.append(self._column_check_sql(field))
+        for constraint in model._meta.constraints:
+            constraints.append(
+                constraint.constraint_sql(model, self)
+            )
         from clickhouse_backend.models.engines import MergeTree
         engine = getattr(model._meta, 'engine', MergeTree(order_by=model._meta.pk.attname))
         extra_parts = self._model_extra_sql(model, engine)
         sql = self.sql_create_table % {
             'table': self.quote_name(model._meta.db_table),
-            'definition': ', '.join(column_sqls),
+            'definition': ", ".join(
+                str(constraint)
+                for constraint in (*column_sqls, *constraints)
+                if constraint
+            ),
             'engine': self._get_engine(model, engine),
             'extra': ' '.join(extra_parts)
         }
@@ -109,19 +130,19 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if sql is None:
             return None, None
         if field.null:
-            sql = self.sql_nullable_field % sql
+            sql = 'Nullable(%s)' % sql
         if include_default:
             default_value = self.effective_default(field)
-            column_default = ' DEFAULT ' + self._column_default_sql(field)
             if default_value is not None:
+                column_default = ' DEFAULT ' + self._column_default_sql(field)
                 sql += column_default
-                params += [default_value]
+                params.append(default_value)
         return sql, params
 
     def _model_indexes_sql(self, model):
         """
-        Return a list of all index SQL statements (field indexes,
-        index_together, Meta.indexes) for the specified model.
+        Return a list of all index SQL statements for the specified model.
+        field indexes and index_together are ignored, only Meta.indexes is considered.
         """
         if not model._meta.managed or model._meta.proxy or model._meta.swapped:
             return []
@@ -182,6 +203,82 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 )
         return extra_parts
 
+    def add_field(self, model, field):
+        """
+        Create a field on a model. Usually involves adding a column, but may
+        involve adding a table instead (for M2M fields).
+        """
+        # Special-case implicit M2M tables
+        if field.many_to_many and field.remote_field.through._meta.auto_created:
+            return self.create_model(field.remote_field.through)
+        # Get the column's definition
+        definition, params = self.column_sql(model, field, include_default=True)
+        # It might not actually have a column behind it
+        if definition is None:
+            return
+
+        check_sql = self._column_check_sql(field)
+        if check_sql:
+            self.deferred_sql.append(
+                self.sql_create_constraint % {
+                    'table': self.quote_name(model._meta.db_table),
+                    'constraint': check_sql
+                }
+            )
+
+        # Build the SQL and run it
+        sql = self.sql_create_column % {
+            "table": self.quote_name(model._meta.db_table),
+            "column": self.quote_name(field.column),
+            "definition": definition,
+        }
+        self.execute(sql, params)
+        # Drop the default if we need to
+        # (Django usually does not use in-database defaults)
+        if (
+            not self.skip_default_on_alter(field)
+            and self.effective_default(field) is not None
+        ):
+            changes_sql, params = self._alter_column_default_sql(
+                model, None, field, drop=True
+            )
+            sql = self.sql_alter_column % {
+                "table": self.quote_name(model._meta.db_table),
+                "changes": changes_sql,
+            }
+            self.execute(sql, params)
+
+    def remove_field(self, model, field):
+        """
+        Remove a field from a model. Usually involves deleting a column,
+        but for M2Ms may involve deleting a table.
+        """
+        # Special-case implicit M2M tables
+        if field.many_to_many and field.remote_field.through._meta.auto_created:
+            return self.delete_model(field.remote_field.through)
+        # It might not actually have a column behind it
+        db_params = field.db_parameters(connection=self.connection)
+        if db_params["type"] is None:
+            return
+        # Delete the column
+        sql = self.sql_delete_column % {
+            "table": self.quote_name(model._meta.db_table),
+            "column": self.quote_name(field.column),
+        }
+        self.execute(sql)
+        if db_params["check"]:
+            constraint_name = self._column_check_name(field)
+            self.execute(self._delete_check_sql(model, constraint_name))
+        # Reset connection if required
+        if self.connection.features.connection_persists_old_columns:
+            self.connection.close()
+        # Remove all deferred statements referencing the deleted column.
+        for sql in list(self.deferred_sql):
+            if isinstance(sql, Statement) and sql.references_column(
+                model._meta.db_table, field.column
+            ):
+                self.deferred_sql.remove(sql)
+
     def quote_value(self, value):
         if isinstance(value, str):
             value = value.replace('%', '%%')
@@ -212,8 +309,9 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # - changing only a field name
         # - changing an attribute that doesn't affect the schema
         # - adding only a db_column and the column name is not changed
-        non_database_attrs = [
+        non_database_attrs = (
             'blank',
+            'choices',
             'db_column',
             'editable',
             'error_messages',
@@ -227,12 +325,12 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             'verbose_name',
             # Clickhouse dont have unique constraint
             'unique',
-            # Clickhouse dont support inline index, use meta index instead
+            # Clickhouse don't support inline index, use meta index instead
             'db_index',
             # field primary_key is an internal concept of django,
-            # clickhouse_backend use meta primary_key
+            # clickhouse MergeTree primary_key is a different concept.
             'primary_key',
-        ]
+        )
         for attr in non_database_attrs:
             old_kwargs.pop(attr, None)
             new_kwargs.pop(attr, None)
@@ -244,31 +342,32 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     def _alter_field(self, model, old_field, new_field, old_type, new_type,
                      old_db_params, new_db_params, strict=False):
         # Change check constraints?
-        if old_db_params['check'] != new_db_params['check'] and old_db_params['check']:
-            meta_constraint_names = {constraint.name for constraint in model._meta.constraints}
-            constraint_names = self._constraint_names(
-                model, [old_field.column], check=True,
-                exclude=meta_constraint_names,
-            )
-            if strict and len(constraint_names) != 1:
-                raise ValueError("Found wrong number (%s) of check constraints for %s.%s" % (
-                    len(constraint_names),
-                    model._meta.db_table,
-                    old_field.column,
-                ))
-            for constraint_name in constraint_names:
-                self.execute(self._delete_check_sql(model, constraint_name))
+        if (old_db_params['check'] != new_db_params['check'] and old_db_params['check']
+                or old_field.column != new_field.column):
+            constraint_name = self._column_check_name(old_field)
+            self.execute(self._delete_check_sql(model, constraint_name))
         # Have they renamed the column?
         if old_field.column != new_field.column:
-            self.execute(self._rename_field_sql(model._meta.db_table, old_field, new_field, new_type))
+            self.execute(
+                self._rename_field_sql(
+                    model._meta.db_table, old_field, new_field, new_type
+                )
+            )
+            # Rename all references to the renamed column.
+            for sql in self.deferred_sql:
+                if isinstance(sql, Statement):
+                    sql.rename_column_references(
+                        model._meta.db_table, old_field.column, new_field.column
+                    )
         # Next, start accumulating actions to do
         actions = []
         null_actions = []
         post_actions = []
-
         # Type change?
         if old_type != new_type:
-            fragment, other_actions = self._alter_column_type_sql(model, old_field, new_field, new_type)
+            fragment, other_actions = self._alter_column_type_sql(
+                model, old_field, new_field, new_type
+            )
             actions.append(fragment)
             post_actions.extend(other_actions)
         # When changing a column NULL constraint to NOT NULL with a given
@@ -284,11 +383,13 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             new_default = self.effective_default(new_field)
             if (
                 not self.skip_default_on_alter(new_field) and
-                old_default != new_default and
-                new_default is not None
+                old_default != new_default
+                and new_default is not None
             ):
                 needs_database_default = True
-                actions.append(self._alter_column_default_sql(model, old_field, new_field))
+                actions.append(
+                    self._alter_column_default_sql(model, old_field, new_field)
+                )
         # Nullability change?
         if old_field.null != new_field.null:
             fragment = self._alter_column_null_sql(model, old_field, new_field)
@@ -340,14 +441,55 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if post_actions:
             for sql, params in post_actions:
                 self.execute(sql, params)
+        # Type alteration on primary key? Then we need to alter the column
+        # referring to us.
+        drop_foreign_keys = (
+            (old_field.primary_key and new_field.primary_key)
+            and (old_type != new_type)
+        )
+        rels_to_update = []
+        if drop_foreign_keys:
+            rels_to_update.extend(_related_non_m2m_objects(old_field, new_field))
+        # Changed to become primary key?
+        if self._field_became_primary_key(old_field, new_field):
+            # Update all referencing columns
+            rels_to_update.extend(_related_non_m2m_objects(old_field, new_field))
+        # Handle our type alters on the other end of rels from the PK stuff above
+        for old_rel, new_rel in rels_to_update:
+            rel_db_params = new_rel.field.db_parameters(connection=self.connection)
+            rel_type = rel_db_params["type"]
+            if new_rel.field.null:
+                rel_type = 'Nullable(%s)' % rel_type
+            fragment, other_actions = self._alter_column_type_sql(
+                new_rel.related_model, old_rel.field, new_rel.field, rel_type
+            )
+            self.execute(
+                self.sql_alter_column
+                % {
+                    "table": self.quote_name(new_rel.related_model._meta.db_table),
+                    "changes": fragment[0],
+                },
+                fragment[1],
+            )
+            for sql, params in other_actions:
+                self.execute(sql, params)
         # Does it have check constraints we need to add?
-        if old_db_params['check'] != new_db_params['check'] and new_db_params['check']:
-            constraint_name = self._create_index_name(model._meta.db_table, [new_field.column], suffix='_check')
-            self.execute(self._create_check_sql(model, constraint_name, new_db_params['check']))
+        if (old_db_params['check'] != new_db_params['check'] and new_db_params['check']
+                or old_field.column != new_field.column):
+            check_sql = self._column_check_sql(new_field)
+            if check_sql:
+                self.execute(
+                    self.sql_create_constraint % {
+                        'table': self.quote_name(model._meta.db_table),
+                        'constraint': check_sql
+                    }
+                )
         # Drop the default if we need to
         # (Django usually does not use in-database defaults)
         if needs_database_default:
-            changes_sql, params = self._alter_column_default_sql(model, old_field, new_field, drop=True)
+            changes_sql, params = self._alter_column_default_sql(
+                model, old_field, new_field, drop=True
+            )
             sql = self.sql_alter_column % {
                 "table": self.quote_name(model._meta.db_table),
                 "changes": changes_sql,
@@ -371,7 +513,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             connection=self.connection,
         )
         columns = [model._meta.get_field(field).column for field in fields]
-        sql_create_index = sql or (self.sql_table_index if inline else self.sql_create_index)
+        sql_create_index = sql or (self.sql_index if inline else self.sql_create_index)
         table = model._meta.db_table
 
         def create_index_name(*args, **kwargs):

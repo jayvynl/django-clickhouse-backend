@@ -1,5 +1,15 @@
+import re
+
 from django.db.backends.base.introspection import (
     BaseDatabaseIntrospection, FieldInfo, TableInfo,
+)
+from django.utils.functional import cached_property
+
+constraint_pattern = re.compile(
+    r'CONSTRAINT (`)?((?(1)(?:[^\\`]|\\.)+|\S+))(?(1)`|) (CHECK .+?),?\n'
+)
+index_pattern = re.compile(
+    r'INDEX (`)?((?(1)(?:[^\\`]|\\.)+|\S+))(?(1)`|) (.+? TYPE ([a-zA-Z_][0-9a-zA-Z_]*)\(.+?\) GRANULARITY \d+)'
 )
 
 
@@ -70,3 +80,46 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             )
             for line in cursor.fetchall()
         ]
+
+    def get_constraints(self, cursor, table_name):
+        """
+        Retrieve any constraints and indexes.
+        """
+        constraints = {}
+        # No way to get structured data, parse from SHOW CREATE TABLE.
+        # https://clickhouse.com/docs/en/sql-reference/statements/show#show-create-table
+        cursor.execute('SHOW CREATE TABLE "%s"' % table_name)
+        table_sql, = cursor.fetchone()
+        for backtick, name, definition in constraint_pattern.findall(table_sql):
+            constraints[name] = {
+                "columns": [],
+                "primary_key": False,
+                "unique": False,
+                "foreign_key": None,
+                "check": True,
+                "index": False,
+                "definition": definition,
+                "options": None,
+            }
+
+        for backtick, name, definition, type_ in index_pattern.findall(table_sql):
+            constraints[name] = {
+                "columns": [],
+                "orders": [],
+                "primary_key": False,
+                "unique": False,
+                "foreign_key": None,
+                "check": False,
+                "index": True,
+                "type": type_,
+                "definition": definition,
+                "options": None,
+            }
+        return constraints
+
+    @cached_property
+    def settings(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute("SELECT name from system.settings")
+            rows = cursor.fetchall()
+        return {row[0] for row in rows}

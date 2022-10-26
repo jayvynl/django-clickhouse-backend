@@ -15,7 +15,7 @@ def escape_datetime(item: datetime, context):
     """
     if item.tzinfo is not None:
         item = item.astimezone(timezone.utc)
-    time_string = '%s.%s' % (item.strftime('%Y-%m-%d %H:%M:%S'), item.microsecond)
+    time_string = item.strftime('%Y-%m-%d %H:%M:%S.%f')
 
     if item.tzinfo is not None:
         return "toDateTime64('%s', 6, 'UTC')" % time_string

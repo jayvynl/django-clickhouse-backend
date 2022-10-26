@@ -4,10 +4,10 @@ from django.utils.functional import cached_property
 
 
 class DatabaseFeatures(BaseDatabaseFeatures):
-    # Use this class attribute control whether or not using fake transaction.
+    # Use this class attribute control whether using fake transaction.
     # Fake transaction is used in test, prevent other database such as postgresql
     # from flush at the end of each testcase. Only use this feature when you are
-    # aware of the affect in TransactionTestCase.
+    # aware of the effect in TransactionTestCase.
     fake_transaction = False
     # Clickhouse do support Geo Data Types, but they are based on GeoJSON instead GIS.
     # https://clickhouse.com/docs/en/sql-reference/data-types/geo/
@@ -116,10 +116,13 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # Does the backend support non-deterministic collations?
     supports_non_deterministic_collations = False
 
+    # SQL template override for tests.aggregation.tests.NowUTC
+    test_now_utc_template = 'now64()'
+
     @cached_property
     def supports_explaining_query_execution(self):
         """Does this backend support explaining query execution?"""
-        return False
+        return True
 
     @cached_property
     def supports_transactions(self):

@@ -17,7 +17,7 @@ from .schema import DatabaseSchemaEditor  # NOQA
 
 
 class DatabaseWrapper(BaseDatabaseWrapper):
-    vendor = 'clickhouse_backend'
+    vendor = 'clickhouse'
     display_name = 'ClickHouse'
     # This dictionary maps Field objects to their associated ClickHouse column
     # types, as strings. Column-type strings can contain format strings; they'll
@@ -45,6 +45,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'SmallIntegerField': 'Int16',
         'TextField': 'String',
         'UUIDField': 'UUID',
+        'BooleanField': 'Int8',
     }
     operators = {
         'exact': '= %s',
@@ -108,7 +109,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     def get_connection_params(self):
         settings_dict = self.settings_dict
-        if len(settings_dict['NAME']) > self.ops.max_name_length():
+        if len(settings_dict['NAME'] or '') > self.ops.max_name_length():
             raise ImproperlyConfigured(
                 "The database name '%s' (%d characters) is longer than "
                 "Clickhouse's limit of %d characters. Supply a shorter NAME "

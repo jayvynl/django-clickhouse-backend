@@ -5,23 +5,34 @@ from clickhouse_backend.compat import dj4
 from clickhouse_backend.idworker import id_worker
 
 
-class ClickhouseSettingsMixin:
+class ClickhouseMixin:
     def as_sql(self, *args, **kwargs):
-        query, params = super().as_sql(*args, **kwargs)
-        if hasattr(self.query, 'get_settings'):
-            settings_string = self.query.get_settings()
-            if settings_string:
-                query += f' {settings_string}'
-        return query, params
+        sql, params = super().as_sql(*args, **kwargs)
+        if self.query.explain_info:
+            prefix, suffix = self.connection.ops.explain_query(
+                format=self.query.explain_info.format,
+                type=self.query.explain_info.type,
+                **self.query.explain_info.options,
+            )
+            sql = "%s %s" % (prefix, sql.lstrip())
+            if suffix:
+                sql = "%s %s" % (sql, suffix)
+        if hasattr(self.query, "setting_info") and self.query.setting_info:
+            setting_sql, setting_params = self.connection.ops.settings_sql(
+                **self.query.setting_info
+            )
+            sql = "%s %s" % (sql, setting_sql)
+            params = (*params, *setting_params)
+        return sql, params
 
 
-class SQLCompiler(ClickhouseSettingsMixin, compiler.SQLCompiler):
+class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
     pass
 
 
-class SQLInsertCompiler(ClickhouseSettingsMixin, compiler.SQLInsertCompiler):
+class SQLInsertCompiler(ClickhouseMixin, compiler.SQLInsertCompiler):
     def as_sql(self):
-        # We don't need quote_name_unless_alias() here, since these are all
+        # We don"t need quote_name_unless_alias() here, since these are all
         # going to be column names (so we can avoid the extra overhead).
         qn = self.connection.ops.quote_name
         opts = self.query.get_meta()
@@ -43,10 +54,10 @@ class SQLInsertCompiler(ClickhouseSettingsMixin, compiler.SQLInsertCompiler):
                 setattr(obj, opts.pk.attname, id_worker.get_id())
 
         result = [
-            '%s %s(%s)' % (
+            "%s %s(%s)" % (
                 insert_statement,
                 qn(opts.db_table),
-                ', '.join(qn(f.column) for f in fields),
+                ", ".join(qn(f.column) for f in fields),
             )
         ]
 
@@ -58,11 +69,11 @@ class SQLInsertCompiler(ClickhouseSettingsMixin, compiler.SQLInsertCompiler):
 
         placeholder_rows, param_rows = self.assemble_as_sql(fields, value_rows)
         result.append(self.connection.ops.bulk_insert_sql(fields, placeholder_rows))
-        if hasattr(self.query, 'get_settings'):
+        if hasattr(self.query, "get_settings"):
             settings_string = self.query.get_settings()
             if settings_string:
                 result.append(settings_string)
-        return [(' '.join(result), param_rows)]
+        return [(" ".join(result), param_rows)]
 
     def execute_sql(self, returning_fields=None):
         as_sql = self.as_sql()
@@ -72,7 +83,7 @@ class SQLInsertCompiler(ClickhouseSettingsMixin, compiler.SQLInsertCompiler):
                 cursor.execute(sql, params)
 
 
-class SQLDeleteCompiler(ClickhouseSettingsMixin, compiler.SQLDeleteCompiler):
+class SQLDeleteCompiler(ClickhouseMixin, compiler.SQLDeleteCompiler):
     def _as_sql(self, query):
         """
         When execute DELETE and UPDATE query. Clickhouse does not support
@@ -80,18 +91,18 @@ class SQLDeleteCompiler(ClickhouseSettingsMixin, compiler.SQLDeleteCompiler):
         """
         table = self.quote_name_unless_alias(query.base_table)
         result = [
-            'ALTER TABLE %s DELETE' % table
+            "ALTER TABLE %s DELETE" % table
         ]
         where, params = self.compile(query.where)
-        where = where.replace(f'{table}.', '')
+        where = where.replace(table + ".", "")
         if where:
-            result.append('WHERE %s' % where)
+            result.append("WHERE %s" % where)
         else:
-            result.append('WHERE 1')
-        return ' '.join(result), tuple(params)
+            result.append("WHERE 1")
+        return " ".join(result), tuple(params)
 
 
-class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
+class SQLUpdateCompiler(ClickhouseMixin, compiler.SQLUpdateCompiler):
     def as_sql(self):
         """
         When execute DELETE and UPDATE query. Clickhouse does not support
@@ -99,25 +110,25 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
         """
         self.pre_sql_setup()
         if not self.query.values:
-            return '', ()
+            return "", ()
         qn = self.quote_name_unless_alias
         values, update_params = [], []
         for field, model, val in self.query.values:
-            if hasattr(val, 'resolve_expression'):
+            if hasattr(val, "resolve_expression"):
                 val = val.resolve_expression(
                     self.query, allow_joins=False, for_save=True
                 )
                 if val.contains_aggregate:
                     raise compiler.FieldError(
-                        'Aggregate functions are not allowed in this query '
-                        '(%s=%r).' % (field.name, val)
+                        "Aggregate functions are not allowed in this query "
+                        "(%s=%r)." % (field.name, val)
                     )
                 if val.contains_over_clause:
                     raise compiler.FieldError(
-                        'Window expressions are not allowed in this query '
-                        '(%s=%r).' % (field.name, val)
+                        "Window expressions are not allowed in this query "
+                        "(%s=%r)." % (field.name, val)
                     )
-            elif hasattr(val, 'prepare_database_save'):
+            elif hasattr(val, "prepare_database_save"):
                 if field.remote_field:
                     val = field.get_db_prep_save(
                         val.prepare_database_save(field),
@@ -133,37 +144,44 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler):
                 val = field.get_db_prep_save(val, connection=self.connection)
 
             # Getting the placeholder for the field.
-            if hasattr(field, 'get_placeholder'):
+            if hasattr(field, "get_placeholder"):
                 placeholder = field.get_placeholder(val, self, self.connection)
             else:
-                placeholder = '%s'
+                placeholder = "%s"
             name = field.column
-            if hasattr(val, 'as_sql'):
+            if hasattr(val, "as_sql"):
                 sql, params = self.compile(val)
-                values.append('%s = %s' % (qn(name), placeholder % sql))
+                values.append("%s = %s" % (qn(name), placeholder % sql))
                 update_params.extend(params)
             elif val is not None:
-                values.append('%s = %s' % (qn(name), placeholder))
+                values.append("%s = %s" % (qn(name), placeholder))
                 update_params.append(val)
             else:
-                values.append('%s = NULL' % qn(name))
+                values.append("%s = NULL" % qn(name))
+
+        # Replace "table"."field" to "field", clickhouse does not support that.
         table = qn(self.query.base_table)
         result = [
-            'ALTER TABLE %s UPDATE' % table,
-            ', '.join(values),
+            "ALTER TABLE %s UPDATE" % table,
+            ", ".join(values).replace(table + ".", ""),
         ]
         where, params = self.compile(self.query.where)
-        where = where.replace(f'{table}.', '')
+        where = where.replace(table + ".", "")
+
         if where:
-            result.append('WHERE %s' % where)
+            result.append("WHERE %s" % where)
         else:
-            result.append('WHERE 1')
-        if hasattr(self.query, 'get_settings'):
-            settings_string = self.query.get_settings()
-            if settings_string:
-                result.append(settings_string)
-        return ' '.join(result), tuple(update_params + params)
+            result.append("WHERE 1")
+
+        params = (*update_params, *params)
+        if hasattr(self.query, "setting_info") and self.query.setting_info:
+            setting_sql, setting_params = self.connection.ops.settings_sql(
+                **self.query.setting_info
+            )
+            result.append(setting_sql)
+            params = (*params, *setting_params)
+        return " ".join(result), params
 
 
-class SQLAggregateCompiler(ClickhouseSettingsMixin, compiler.SQLAggregateCompiler):
+class SQLAggregateCompiler(ClickhouseMixin, compiler.SQLAggregateCompiler):
     pass
