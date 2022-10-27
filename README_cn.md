@@ -58,7 +58,7 @@ pip install git+https://github.com/jayvynl/django-clickhouse-backend
           'USER': 'DB_USER',
           'PASSWORD': 'DB_PASSWORD'
       },
-      'clickhouse_backend': {
+      'clickhouse': {
           'ENGINE': 'clickhouse_backend.backend',
           'NAME': 'default',
           'HOST': 'localhost',
