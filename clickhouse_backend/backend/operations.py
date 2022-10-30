@@ -2,6 +2,7 @@ import ipaddress
 
 from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
+
 from clickhouse_backend import compat
 
 
@@ -211,10 +212,6 @@ class DatabaseOperations(BaseDatabaseOperations):
             else:
                 lookup = "CAST(%s, 'Nullable(String)')"
 
-        # Use UPPER(x) for case-insensitive lookups; it"s faster.
-        if lookup_type in ("iexact", "icontains", "istartswith", "iendswith"):
-            lookup = "UPPER(%s)" % lookup
-
         return lookup
 
     def max_name_length(self):
@@ -351,6 +348,13 @@ class DatabaseOperations(BaseDatabaseOperations):
         if self.fake_transaction:
             return "SELECT 1"
         return super().savepoint_rollback_sql(sid)
+
+    def last_executed_query(self, cursor, sql, params):
+        if sql.startswith("INSERT INTO"):
+            return "%s %s" % (sql, ", ".join(map(str, params)))
+        if params:
+            return sql % params
+        return sql
 
     def settings_sql(self, **settings):
         result = []

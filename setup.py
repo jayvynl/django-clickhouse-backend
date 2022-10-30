@@ -19,6 +19,7 @@ setup(
     author_email='zhiwenlin1116@gmail.com',
     long_description=read('README.md'),
     long_description_content_type='text/markdown',
+    license='MIT',
     install_requires=[
         'django>=3.2',
         'clickhouse-driver==0.2.4',

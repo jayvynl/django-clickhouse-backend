@@ -3,7 +3,7 @@ services:
     image: clickhouse/clickhouse-server
     container_name: test-clickhouse
     environment:
-      - "CLICKHOUSE_DB=test"
+      - "CLICKHOUSE_DB=other"
     volumes:
       - "test-clickhouse:/var/lib/clickhouse/"
     ports:

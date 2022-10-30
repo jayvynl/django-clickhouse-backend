@@ -1,7 +1,7 @@
 Django ClickHouse Database Backend
 ===
 
-[中文文档](README_cn.md)
+[中文文档](https://github.com/jayvynl/django-clickhouse-backend/blob/main/README_cn.md)
 
 Django clickhouse backend is a [django database backend](https://docs.djangoproject.com/en/4.1/ref/databases/) for 
 [clickhouse](https://clickhouse.com/docs/en/home/) database. This project allows using django ORM to interact with 
@@ -26,7 +26,7 @@ Get started
 ### Installation
 
 ```shell
-pip install git+https://github.com/jayvynl/django-clickhouse-backend
+pip install django-clickhouse-backend
 ```
 
 or

@@ -50,26 +50,6 @@ class ClickhouseModel(models.Model):
     class Meta:
         abstract = True
 
-    # def delete(self, using=None, keep_parents=False):
-    #     """
-    #     When execute DELETE and UPDATE query. Clickhouse does not support
-    #     "table"."column" in WHERE clause.
-    #
-    #     Clickhouse does not support Model inheritance or ForeignKey, so no
-    #     complicated checking is needed. Simple deletion is faster.
-    #     And Clickhouse can't return deleted rowcount, Cursor.rowcount is -1.
-    #     """
-    #     if self.pk is None:
-    #         raise ValueError(
-    #             "%s object can't be deleted because its %s attribute is set "
-    #             "to None." % (self._meta.object_name, self._meta.pk.attname)
-    #         )
-    #     self.__class__._base_manager.filter(pk=self.pk).delete()
-    #     setattr(self, self._meta.pk.attname, None)
-    #     return 1, {self._meta.label: 1}
-    #
-    # delete.alters_data = True
-
     def _do_update(self, base_qs, using, pk_val, values, update_fields, forced_update):
         """
          Try to update the model. Return True if the model was updated (if an

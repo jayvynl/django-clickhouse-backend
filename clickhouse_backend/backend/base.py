@@ -14,6 +14,7 @@ from .features import DatabaseFeatures  # NOQA
 from .introspection import DatabaseIntrospection  # NOQA
 from .operations import DatabaseOperations  # NOQA
 from .schema import DatabaseSchemaEditor  # NOQA
+from django.utils.functional import cached_property
 
 
 class DatabaseWrapper(BaseDatabaseWrapper):
@@ -58,8 +59,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'lte': '<= %s',
         'startswith': 'LIKE %s',
         'endswith': 'LIKE %s',
-        'istartswith': 'LIKE UPPER(%s)',
-        'iendswith': 'LIKE UPPER(%s)',
+        'istartswith': 'ILIKE %s',
+        'iendswith': 'ILIKE %s',
     }
 
     # The patterns below are used to generate SQL pattern lookup clauses when
@@ -73,11 +74,11 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     pattern_esc = r"replaceAll(replaceAll(replaceAll({}, '\\', '\\\\'), '%', '\\%'), '_', '\\_')"
     pattern_ops = {
         'contains': "LIKE '%%' || {} || '%%'",
-        'icontains': "LIKE '%%' || UPPER({}) || '%%'",
+        'icontains': "ILIKE '%%' || {} || '%%'",
         'startswith': "LIKE {} || '%%'",
-        'istartswith': "LIKE UPPER({}) || '%%'",
+        'istartswith': "ILIKE {} || '%%'",
         'endswith': "LIKE '%%' || {}",
-        'iendswith': "LIKE '%%' || UPPER({})",
+        'iendswith': "ILIKE '%%' || {}",
     }
 
     Database = Database
@@ -151,7 +152,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     def is_usable(self):
         try:
-            # Use a psycopg cursor directly, bypassing Django's utilities.
+            # Use a clickhouse_driver cursor directly, bypassing Django's utilities.
             with self.connection.cursor() as cursor:
                 cursor.execute('SELECT 1')
         except Database.Error:
@@ -159,9 +160,16 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         else:
             return True
 
-    def make_debug_cursor(self, cursor):
-        return CursorDebugWrapper(cursor, self)
+    @cached_property
+    def ch_version(self):
+        with self.temporary_connection() as cursor:
+            cursor.execute("SELECT version()")
+            row = cursor.fetchone()
+        return row[0]
 
-
-class CursorDebugWrapper(BaseCursorDebugWrapper):
-    pass
+    def get_database_version(self):
+        """
+        Return a tuple of the database's version.
+        E.g. for ch_version "22.9.3.18", return (22, 9, 3, 18).
+        """
+        return tuple(map(int, self.ch_version.split(".")))

@@ -85,7 +85,7 @@ if __name__ == '__main__':
     options.modules = [os.path.normpath(labels) for labels in options.modules]
 
     os.environ['DJANGO_SETTINGS_MODULE'] = 'settings'
-    modules = get_test_modules()
+    modules = list(get_test_modules())
     settings.INSTALLED_APPS.extend(modules)
     django.setup()
 
@@ -98,5 +98,5 @@ if __name__ == '__main__':
         debug_sql=options.debug_sql,
         parallel=options.parallel,
     )
-    failures = test_runner.run_tests(options.modules)
+    failures = test_runner.run_tests(options.modules or modules)
     sys.exit(bool(failures))

@@ -4,6 +4,8 @@ from typing import Sequence, Dict, Union
 
 from clickhouse_driver.util import escape
 
+from . import types
+
 Params = Union[Sequence, Dict]
 
 
@@ -29,6 +31,9 @@ def escape_param(item, context, **kwargs):
         return "toIPv6('%s')" % item.compressed
     elif isinstance(item, datetime):
         return escape_datetime(item, context)
+    # "b'\\x00F  \xfe'" ->   # "\\x00F  \\xfe"
+    elif isinstance(item, types.Binary):
+        item = str(item)[2:-1]
     return escape.escape_param(item, context)
 
 

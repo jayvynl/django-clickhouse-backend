@@ -8,6 +8,9 @@ from clickhouse_driver.dbapi.errors import (  # NOQA
 )
 
 from .connection import Connection
+from .types import (  # NOQA
+    Binary
+)
 
 
 def connect(dsn=None, host=None,

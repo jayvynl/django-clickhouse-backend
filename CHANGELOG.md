@@ -1,3 +1,11 @@
+0.2.1 (2022-10-30)
+---
+
+- Add tests for backends.
+- Remove redundant code.
+- Correct database features.
+- Fix bugs that find by new tests.
+
 0.2.0 (2022-10-26)
 ---
 

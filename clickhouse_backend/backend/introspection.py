@@ -17,7 +17,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
     # Maps type codes to Django Field types.
     data_types_reverse = {
         # 'String': 'BinaryField',
-        # The best type for String is BinaryField, but sometime you may need TextField.
+        # The best type for String is BinaryField, but sometimes you may need TextField.
         'String': 'TextField',
         'Int64': 'BigIntegerField',
         'Int16': 'SmallIntegerField',
@@ -27,7 +27,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         'UInt32': 'PositiveIntegerField',
         'Float32': 'FloatField',
         'Float64': 'FloatField',
-        'IPv4': 'IPAddressField',
+        'IPv4': 'GenericIPAddressField',
         'IPv6': 'GenericIPAddressField',
         'Date': 'DateField',
         'Date32': 'DateField',
@@ -61,23 +61,18 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
 
     def get_table_description(self, cursor, table_name):
         """
-        Return a description of the table with the DB-API cursor.description
-        interface.
+        Return a description of the table.
         """
-        # Query the pg_catalog tables as cursor.description does not reliably
-        # return the nullable property and information_schema.columns does not
-        # contain details of materialized views.
+        # Query the INFORMATION_SCHEMA.COLUMNS table.
         cursor.execute("""
             SELECT column_name, data_type, NULL, character_maximum_length,
             coalesce(numeric_precision, datetime_precision),
-            numeric_scale, is_nullable, column_default
+            numeric_scale, is_nullable, column_default, NULL
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE table_catalog = currentDatabase() AND table_name = %s
         """, [table_name])
         return [
-            FieldInfo(
-                *line, None
-            )
+            FieldInfo(*line)
             for line in cursor.fetchall()
         ]
 
@@ -118,7 +113,10 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         return constraints
 
     @cached_property
-    def settings(self):
+    def settings(self) -> set:
+        """
+        Get all available settings.
+        """
         with self.connection.cursor() as cursor:
             cursor.execute("SELECT name from system.settings")
             rows = cursor.fetchall()

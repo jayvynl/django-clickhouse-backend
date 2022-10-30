@@ -4,6 +4,8 @@ from django.utils.functional import cached_property
 
 
 class DatabaseFeatures(BaseDatabaseFeatures):
+    # TODO: figure out compatible clickhouse version.
+    minimum_database_version = None
     # Use this class attribute control whether using fake transaction.
     # Fake transaction is used in test, prevent other database such as postgresql
     # from flush at the end of each testcase. Only use this feature when you are
@@ -17,33 +19,31 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # https://clickhouse.com/docs/en/sql-reference/data-types/string/
     # allows_group_by_lob = True
 
-    # In clickhouse_backend MergeTree table family, PK have different meaning as in RDBMS
-    # PK is used for efficient range scans, pk can be duplicated, no auto incr pk.
-    # https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree/#primary-keys-and-indexes-in-queries
-    allows_group_by_pk = False
-    allows_group_by_selected_pks = False
-
     # There is no unique constraint in clickhouse_backend.
     # supports_nullable_unique_constraints = True
     # supports_partially_nullable_unique_constraints = True
-    supports_deferrable_unique_constraints = True
+    # supports_deferrable_unique_constraints = False
 
-    # Transaction is not supported, and limited transaction is under development.
+    # Clickhouse only supports limited transaction.
     # https://clickhouse.com/docs/en/sql-reference/ansi/
     # https://github.com/ClickHouse/ClickHouse/issues/32513
+    # https://clickhouse.com/docs/en/guides/developer/transactional
     @cached_property
     def uses_savepoints(self):
         return self.fake_transaction
+
     can_release_savepoints = False
 
     # Is there a true datatype for uuid?
     has_native_uuid_field = True
 
     # Clickhouse use re2 syntax which does not support backreference.
+    # https://clickhouse.com/docs/en/sql-reference/functions/string-search-functions#matchhaystack-pattern
+    # https://github.com/google/re2/wiki/Syntax
     supports_regex_backreferencing = False
 
     # Can date/datetime lookups be performed using a string?
-    supports_date_lookup_using_string = False
+    supports_date_lookup_using_string = True
 
     # Confirm support for introspected foreign keys
     # Every database can do this reliably, except MySQL,
@@ -57,14 +57,12 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         'BinaryField': 'BinaryField',
         'BooleanField': 'BooleanField',
         'CharField': 'CharField',
-        'DurationField': 'DurationField',
         'GenericIPAddressField': 'GenericIPAddressField',
         'IntegerField': 'IntegerField',
         'PositiveBigIntegerField': 'PositiveBigIntegerField',
         'PositiveIntegerField': 'PositiveIntegerField',
         'PositiveSmallIntegerField': 'PositiveSmallIntegerField',
         'SmallIntegerField': 'SmallIntegerField',
-        'TimeField': 'TimeField',
     }
 
     # https://clickhouse.com/docs/en/sql-reference/statements/alter/index/
@@ -72,16 +70,13 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_index_column_ordering = False
 
     # Does the backend support introspection of materialized views?
-    can_introspect_materialized_views = False
+    can_introspect_materialized_views = True
 
     # Support for the DISTINCT ON clause
     can_distinct_on_fields = True
 
     # Does the backend prevent running SQL queries in broken transactions?
     atomic_transactions = False
-
-    # Does it support operations requiring references rename in a transaction?
-    supports_atomic_references_rename = False
 
     # Can we issue more than one ALTER COLUMN clause in an ALTER TABLE?
     supports_combined_alters = True
@@ -93,13 +88,10 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_column_check_constraints = False
     supports_table_check_constraints = True
     # Does the backend support introspection of CHECK constraints?
-    can_introspect_check_constraints = False
+    can_introspect_check_constraints = True
 
     # What kind of error does the backend throw when accessing closed cursor?
     closed_cursor_error_class = InterfaceError
-
-    # Does 'a' LIKE 'A' match?
-    has_case_insensitive_like = False
 
     # https://clickhouse.com/docs/en/sql-reference/statements/insert-into/#constraints
     supports_ignore_conflicts = False
@@ -118,11 +110,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
 
     # SQL template override for tests.aggregation.tests.NowUTC
     test_now_utc_template = 'now64()'
-
-    @cached_property
-    def supports_explaining_query_execution(self):
-        """Does this backend support explaining query execution?"""
-        return True
 
     @cached_property
     def supports_transactions(self):

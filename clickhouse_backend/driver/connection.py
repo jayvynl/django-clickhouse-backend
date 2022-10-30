@@ -10,6 +10,10 @@ class Cursor(cursor.Cursor):
         self._state = self._states.CURSOR_CLOSED
         self._connection.pool.push(self._client)
 
+    @property
+    def closed(self):
+        return self._state == self._states.CURSOR_CLOSED
+
 
 class Connection(connection.Connection):
     """Connection class with support for connection pool."""

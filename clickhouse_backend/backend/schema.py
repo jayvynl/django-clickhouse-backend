@@ -1,3 +1,5 @@
+import warnings
+
 from django.db.backends.base.schema import (
     BaseDatabaseSchemaEditor,
     _related_non_m2m_objects,
@@ -33,34 +35,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
 
     sql_create_constraint = 'ALTER TABLE %(table)s ADD %(constraint)s'
 
-    # def create_model(self, model):
-    #     """
-    #     Create a table and any accompanying indexes or constraints for
-    #     the given `model`.
-    #     """
-    #     sql, params = self.table_sql(model)
-    #     # Prevent using [] as params, in the case a literal '%' is used in the definition
-    #     self.execute(sql, params or None)
-    #     self.deferred_sql.extend(self._model_indexes_sql(model))
-
-    # def delete_model(self, model):
-    #     """Delete a model from the database."""
-    #     # Delete the table
-    #     self.execute(self.sql_delete_table % {
-    #         "table": self.quote_name(model._meta.db_table),
-    #     })
-
-    # def alter_db_table(self, model, old_db_table, new_db_table):
-    #     """Rename the table a model points to."""
-    #     if old_db_table == new_db_table:
-    #         return
-    #     self.execute(self.sql_rename_table % {
-    #         "old_table": self.quote_name(old_db_table),
-    #         "new_table": self.quote_name(new_db_table),
-    #     })
-
     def _column_check_name(self, field):
-        return 'check_%s' % field.column
+        return '_check_%s' % field.column
 
     def _column_check_sql(self, field):
         db_params = field.db_parameters(connection=self.connection)
@@ -93,8 +69,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             constraints.append(
                 constraint.constraint_sql(model, self)
             )
-        from clickhouse_backend.models.engines import MergeTree
-        engine = getattr(model._meta, 'engine', MergeTree(order_by=model._meta.pk.attname))
+
+        engine = self._get_engine(model)
         extra_parts = self._model_extra_sql(model, engine)
         sql = self.sql_create_table % {
             'table': self.quote_name(model._meta.db_table),
@@ -103,12 +79,20 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 for constraint in (*column_sqls, *constraints)
                 if constraint
             ),
-            'engine': self._get_engine(model, engine),
+            'engine': self._get_engine_expression(model, engine),
             'extra': ' '.join(extra_parts)
         }
         return sql, params
 
-    def _get_engine(self, model, engine):
+    def _get_engine(self, model):
+        from clickhouse_backend.models.engines import MergeTree
+        return getattr(
+            model._meta,
+            'engine',
+            MergeTree(order_by=model._meta.pk.attname)
+        )
+
+    def _get_engine_expression(self, model, engine):
         from clickhouse_backend.models.sql import Query
         compiler = Query(model, alias_cols=False).get_compiler(
             connection=self.connection
@@ -147,18 +131,25 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if not model._meta.managed or model._meta.proxy or model._meta.swapped:
             return []
         output = []
-        # https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree/#table_engine-mergetree-data_skipping-indexes
-        # Because index requires extra params, such as TYPE and GRANULARITY,
-        # so field level index=True and Meta level index_together is disabled.
-        # for field in model._meta.local_fields:
-        #     output.extend(self._field_indexes_sql(model, field))
 
-        # for field_names in model._meta.index_together:
-        #     fields = [model._meta.get_field(field) for field in field_names]
-        #     output.append(self._create_index_sql(model, fields=fields, suffix='_idx'))
+        msg = (
+            "Because index requires extra params, such as TYPE and GRANULARITY, "
+            "so field level index=True and Meta level index_together is ignored. "
+            "Refer to https://clickhouse.com/docs/en/engines/table-engines/"
+            "mergetree-family/mergetree/#table_engine-mergetree-data_skipping-indexes"
+        )
+        if any(field.db_index for field in model._meta.local_fields) or model._meta.index_together:
+            warnings.warn(msg)
 
         for index in model._meta.indexes:
             output.append(index.create_sql(model, self))
+
+        from clickhouse_backend.models.engines import BaseMergeTree
+        engine = self._get_engine(model)
+        if output and not isinstance(engine, BaseMergeTree):
+            raise ValueError('Index manipulation is supported only for tables with '
+                             '*MergeTree engine (including replicated variants). Refer to '
+                             'https://clickhouse.com/docs/en/sql-reference/statements/alter/index.')
         return output
 
     def _get_expression(self, model, *expressions):
