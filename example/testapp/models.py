@@ -29,6 +29,7 @@ class Event(chm.ClickhouseModel):
         indexes = [
             indexes.Index(
                 fields=('src_ip', 'dst_ip'),
+                name='src_ip_dst_ip_idx',
                 type=indexes.Set(1000),
                 granularity=4
             )

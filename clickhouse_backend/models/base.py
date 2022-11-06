@@ -8,13 +8,7 @@ from .query import QuerySet
 from .sql import Query
 
 options.DEFAULT_NAMES = (
-    'verbose_name', 'verbose_name_plural', 'db_table', 'ordering',
-    'unique_together', 'permissions', 'get_latest_by', 'order_with_respect_to',
-    'app_label', 'db_tablespace', 'abstract', 'managed', 'proxy', 'swappable',
-    'auto_created', 'index_together', 'apps', 'default_permissions',
-    'select_on_save', 'default_related_name', 'required_db_features',
-    'required_db_vendor', 'base_manager_name', 'default_manager_name',
-    'indexes', 'constraints',
+    *options.DEFAULT_NAMES,
     # Clickhouse features
     'engine',
 )

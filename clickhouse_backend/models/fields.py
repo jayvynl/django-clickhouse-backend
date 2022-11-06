@@ -7,17 +7,25 @@ from django.utils.functional import cached_property
 from clickhouse_backend.backend.operations import DatabaseOperations
 
 __all__ = [
-    'GenericIPAddressField',
-    'PositiveSmallIntegerField', 'PositiveIntegerField', 'PositiveBigIntegerField',
+    "GenericIPAddressField",
+    "PositiveSmallIntegerField", "PositiveIntegerField", "PositiveBigIntegerField",
 ]
 
 
-class GenericIPAddressField(fields.GenericIPAddressField):
+class DeconstructMixin:
+    def deconstruct(self):
+        path, name, args, kwargs = super().deconstruct()
+        if name.startswith("clickhouse_backend.models.fields"):
+            name = name.replace("clickhouse_backend.models.fields", "clickhouse_backend.models")
+        return path, name, args, kwargs
+
+
+class GenericIPAddressField(DeconstructMixin, fields.GenericIPAddressField):
     def db_type(self, connection):
-        if self.protocol.lower() == 'ipv4':
-            return 'IPv4'
+        if self.protocol.lower() == "ipv4":
+            return "IPv4"
         else:
-            return 'IPv6'
+            return "IPv6"
 
     def get_db_prep_value(self, value, connection, prepared=False):
         if not prepared:
@@ -29,15 +37,15 @@ class GenericIPAddressField(fields.GenericIPAddressField):
         except ValueError:
             pass
         else:
-            if isinstance(value, ipaddress.IPv4Address) and self.protocol.lower() in ['both', 'ipv6']:
-                value = ipaddress.IPv6Address('::ffff:%s' % value)
+            if isinstance(value, ipaddress.IPv4Address) and self.protocol.lower() in ["both", "ipv6"]:
+                value = ipaddress.IPv6Address("::ffff:%s" % value)
         return value
 
     def get_prep_value(self, value):
         if value is None:
             return None
         value = str(value)
-        if value and ':' in value:
+        if value and ":" in value:
             try:
                 return fields.clean_ipv6_address(value, self.unpack_ipv4)
             except fields.exceptions.ValidationError:
@@ -45,14 +53,12 @@ class GenericIPAddressField(fields.GenericIPAddressField):
         return value
 
 
-class PositiveIntegerFieldMixin:
+class PositiveIntegerFieldMixin(DeconstructMixin):
     """
     Make positive integer have correct limitation corresponding to clickhouse uint type.
     """
     @cached_property
     def validators(self):
-        # These validators can't be added at field initialization time since
-        # they're based on values retrieved from `connection`.
         validators_ = [*self.default_validators, *self._validators]
         internal_type = self.get_internal_type()
         min_value, max_value = DatabaseOperations.integer_field_ranges[internal_type]

@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
 
 from clickhouse_backend import compat
+from clickhouse_backend.driver.client import insert_pattern
 
 
 class DatabaseOperations(BaseDatabaseOperations):
@@ -350,10 +351,11 @@ class DatabaseOperations(BaseDatabaseOperations):
         return super().savepoint_rollback_sql(sid)
 
     def last_executed_query(self, cursor, sql, params):
-        if sql.startswith("INSERT INTO"):
-            return "%s %s" % (sql, ", ".join(map(str, params)))
         if params:
-            return sql % params
+            if insert_pattern.match(sql):
+                return "%s %s" % (sql, str(tuple(tuple(param) for param in params)))
+            else:
+                return sql % tuple(params)
         return sql
 
     def settings_sql(self, **settings):

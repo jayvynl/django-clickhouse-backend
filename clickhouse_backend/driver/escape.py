@@ -24,6 +24,14 @@ def escape_datetime(item: datetime, context):
     return "toDateTime64('%s', 6)" % time_string
 
 
+def escape_binary(item: bytes, context):
+    # b"\x00F '\xfe" ->   '\x00F \'\xfe'
+    b2s = str(item)
+    if b2s[1] == '"':
+        return "'%s'" % b2s[2:-1].replace("'", "\\'")
+    return b2s[1:]
+
+
 def escape_param(item, context, **kwargs):
     if isinstance(item, ipaddress.IPv4Address):
         return "toIPv4('%s')" % item.compressed
@@ -31,9 +39,8 @@ def escape_param(item, context, **kwargs):
         return "toIPv6('%s')" % item.compressed
     elif isinstance(item, datetime):
         return escape_datetime(item, context)
-    # "b'\\x00F  \xfe'" ->   # "\\x00F  \\xfe"
     elif isinstance(item, types.Binary):
-        item = str(item)[2:-1]
+        return escape_binary(item, context)
     return escape.escape_param(item, context)
 
 

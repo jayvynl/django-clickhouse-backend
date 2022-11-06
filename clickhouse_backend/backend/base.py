@@ -25,6 +25,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     # be interpolated against the values of Field.__dict__ before being output.
     # If a column type is set to None, it won't be included in the output.
     data_types = {
+        'SmallAutoField': 'Int16',
         'AutoField': 'Int32',
         'BigAutoField': 'Int64',
         'IPAddressField': 'IPv4',
@@ -37,13 +38,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'FileField': 'String',
         'FilePathField': 'String',
         'FloatField': 'Float64',
+        'SmallIntegerField': 'Int16',
         'IntegerField': 'Int32',
         'BigIntegerField': 'Int64',
         'PositiveBigIntegerField': 'UInt64',
         'PositiveIntegerField': 'UInt32',
         'PositiveSmallIntegerField': 'UInt16',
         'SlugField': 'String',
-        'SmallIntegerField': 'Int16',
         'TextField': 'String',
         'UUIDField': 'UUID',
         'BooleanField': 'Int8',
@@ -71,7 +72,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     #
     # Note: we use str.format() here for readability as '%' is used as a wildcard for
     # the LIKE operator.
-    pattern_esc = r"replaceAll(replaceAll(replaceAll({}, '\\', '\\\\'), '%', '\\%'), '_', '\\_')"
+    pattern_esc = r"replaceRegexpAll({}, '\\\\|%%|_', '\\\\\\0')"
     pattern_ops = {
         'contains': "LIKE '%%' || {} || '%%'",
         'icontains': "ILIKE '%%' || {} || '%%'",

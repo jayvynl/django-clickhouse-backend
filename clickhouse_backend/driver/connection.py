@@ -20,7 +20,8 @@ class Connection(connection.Connection):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pool = ClickhousePool(
-            connections_min=0, connections_max=500,
+            connections_min=kwargs.pop('connections_min', 0),
+            connections_max=kwargs.pop('connections_max', 500),
             dsn=self.dsn, host=self.host, port=self.port,
             user=self.user, password=self.password,
             database=self.database, **self.connection_kwargs,
