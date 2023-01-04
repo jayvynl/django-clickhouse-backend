@@ -4,7 +4,7 @@ from django.db.backends.base.client import BaseDatabaseClient
 
 
 class DatabaseClient(BaseDatabaseClient):
-    executable_name = 'clickhouse_backend-client'
+    executable_name = 'clickhouse-client'
 
     @classmethod
     def settings_to_cmd_args_env(cls, settings_dict, parameters):

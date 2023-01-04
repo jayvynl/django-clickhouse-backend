@@ -1,8 +1,6 @@
 Django ClickHouse Database Backend
 ===
 
-[中文文档](https://github.com/jayvynl/django-clickhouse-backend/blob/main/README_cn.md)
-
 Django clickhouse backend is a [django database backend](https://docs.djangoproject.com/en/4.1/ref/databases/) for 
 [clickhouse](https://clickhouse.com/docs/en/home/) database. This project allows using django ORM to interact with 
 clickhouse.
@@ -10,7 +8,7 @@ clickhouse.
 Thanks to [clickhouse driver](https://github.com/mymarilyn/clickhouse-driver), django clickhouse backend use it as [DBAPI](https://peps.python.org/pep-0249/).
 Thanks to [clickhouse pool](https://github.com/ericmccarthy7/clickhouse-pool), it makes clickhouse connection pool.
 
-[Documentation](https://github.com/jayvynl/django-clickhouse-backend/blob/main/docs/README.md)
+Read [Documentation](https://github.com/jayvynl/django-clickhouse-backend/blob/main/docs/README.md) for more.
 
 **features:**
 

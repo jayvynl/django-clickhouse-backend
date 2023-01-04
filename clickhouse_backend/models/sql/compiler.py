@@ -8,18 +8,21 @@ from clickhouse_backend.idworker import id_worker
 class ClickhouseMixin:
     def as_sql(self, *args, **kwargs):
         sql, params = super().as_sql(*args, **kwargs)
-        if self.query.explain_info:
+        # Backward compatible for django 3.2
+        explain_info = getattr(self.query, "explain_info", None)
+        if explain_info:
             prefix, suffix = self.connection.ops.explain_query(
-                format=self.query.explain_info.format,
-                type=self.query.explain_info.type,
-                **self.query.explain_info.options,
+                format=explain_info.format,
+                type=explain_info.type,
+                **explain_info.options,
             )
             sql = "%s %s" % (prefix, sql.lstrip())
             if suffix:
                 sql = "%s %s" % (sql, suffix)
-        if hasattr(self.query, "setting_info") and self.query.setting_info:
+        setting_info = getattr(self.query, "setting_info", None)
+        if setting_info:
             setting_sql, setting_params = self.connection.ops.settings_sql(
-                **self.query.setting_info
+                **setting_info
             )
             sql = "%s %s" % (sql, setting_sql)
             params = (*params, *setting_params)

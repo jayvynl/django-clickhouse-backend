@@ -5,12 +5,27 @@ from django.db.backends.base.schema import (
     _related_non_m2m_objects,
 )
 from django.db.backends.ddl_references import (
-    Expressions, IndexName, Statement, Table,
+    Expressions, IndexName, Statement, Table, Columns
 )
 from django.db.models.expressions import ExpressionList
 from django.db.models.indexes import IndexExpression
 
 from clickhouse_backend.driver.escape import escape_param
+
+
+class ChColumns(Columns):
+    def __str__(self):
+        def col_str(column, idx):
+            col = self.quote_name(column)
+            try:
+                suffix = self.col_suffixes[idx]
+                if suffix:
+                    col = '-{}'.format(col)
+            except IndexError:
+                pass
+            return col
+
+        return ', '.join(col_str(column, idx) for idx, column in enumerate(self.columns))
 
 
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
@@ -275,7 +290,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     def quote_value(self, value):
         if isinstance(value, str):
             value = value.replace("%", "%%")
-        return escape_param(value, {}, cast=True)
+        return escape_param(value, {})
 
     def _field_indexes_sql(self, model, field):
         return []
@@ -303,27 +318,40 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # - changing an attribute that doesn't affect the schema
         # - adding only a db_column and the column name is not changed
         non_database_attrs = (
-            "blank",
-            "choices",
-            "db_column",
-            "editable",
-            "error_messages",
-            "help_text",
-            "limit_choices_to",
-            # Database-level options are not supported, see #21961.
-            "on_delete",
-            "related_name",
-            "related_query_name",
-            "validators",
             "verbose_name",
-            # Clickhouse dont have unique constraint
-            "unique",
-            # Clickhouse don't support inline index, use meta index instead
-            "db_index",
             # field primary_key is an internal concept of django,
             # clickhouse MergeTree primary_key is a different concept.
             "primary_key",
+            # Clickhouse dont have unique constraint
+            "unique",
+            "blank",
+            # Clickhouse don't support inline index, use meta index instead
+            "db_index",
+            "editable",
+            "serialize",
+            "unique_for_date",
+            "unique_for_month",
+            "unique_for_year",
+            "help_text",
+            "db_column",
+            "db_tablespace",
+            "auto_created",
+            "validators",
+            "error_messages",
+            "on_delete",
+            "related_name",
+            "related_query_name",
+            "db_collation",
+            "limit_choices_to",
+            "size",
         )
+
+        from clickhouse_backend.models import EnumField
+        if not isinstance(old_field, EnumField):
+            old_kwargs.pop("choices", None)
+        if not isinstance(new_field, EnumField):
+            new_kwargs.pop("choices", None)
+
         for attr in non_database_attrs:
             old_kwargs.pop(attr, None)
             new_kwargs.pop(attr, None)
@@ -492,7 +520,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if self.connection.features.connection_persists_old_columns:
             self.connection.close()
 
-    def _create_index_sql(self, model, *, fields=None, name=None, sql=None, suffix="",
+    def _create_index_sql(self, model, *, fields=None, name=None, sql=None, suffix="", col_suffixes=None,
                           type=None, granularity=None, expressions=None, inline=False):
         """
         Return the SQL statement to create the index for one or several fields
@@ -505,7 +533,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         compiler = Query(model, alias_cols=False).get_compiler(
             connection=self.connection,
         )
-        columns = [model._meta.get_field(field).column for field in fields]
+        columns = [field.column for field in fields]
         sql_create_index = sql or (self.sql_index if inline else self.sql_create_index)
         table = model._meta.db_table
 
@@ -519,7 +547,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             table=Table(table, self.quote_name),
             name=IndexName(table, columns, suffix, create_index_name),
             columns=(
-                self._index_columns(table, columns, (), None)
+                Columns(table, columns, self.quote_name, col_suffixes)
                 if columns
                 else Expressions(table, expressions, compiler, self.quote_value)
             ),

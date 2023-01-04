@@ -4,7 +4,7 @@ import sys
 
 import django
 from django.conf import settings
-from django.test.runner import parallel_type
+from django.test.runner import default_test_processes
 from django.test.utils import get_runner
 
 RUNTESTS_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -66,20 +66,10 @@ if __name__ == '__main__':
         action="store_true",
         help="Turn on the SQL query logger within tests.",
     )
-    # 0 is converted to "auto" or 1 later on, depending on a method used by
-    # multiprocessing to start subprocesses and on the backend support for
-    # cloning databases.
     parser.add_argument(
-        "--parallel",
-        nargs="?",
-        const="auto",
-        default=0,
-        type=parallel_type,
-        metavar="N",
-        help=(
-            'Run tests using up to N parallel processes. Use the value "auto" '
-            "to run one test process for each processor core."
-        ),
+        '--parallel', nargs='?', default=0, type=int,
+        const=default_test_processes(), metavar='N',
+        help='Run tests using up to N parallel processes.',
     )
     options = parser.parse_args()
     options.modules = [os.path.normpath(labels) for labels in options.modules]

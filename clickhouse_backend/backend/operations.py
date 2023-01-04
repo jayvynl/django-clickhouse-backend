@@ -17,6 +17,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     compiler_module = "clickhouse_backend.models.sql.compiler"
     cast_char_field_without_max_length = "String"
     integer_field_ranges = {
+        # Django fields.
         "SmallIntegerField": (-32768, 32767),
         "IntegerField": (-2147483648, 2147483647),
         "BigIntegerField": (-9223372036854775808, 9223372036854775807),
@@ -26,6 +27,19 @@ class DatabaseOperations(BaseDatabaseOperations):
         "SmallAutoField": (-32768, 32767),
         "AutoField": (-2147483648, 2147483647),
         "BigAutoField": (-9223372036854775808, 9223372036854775807),
+        # Clickhouse fields.
+        "Int8Field": (-1 << 7, -1 ^ (-1 << 7)),
+        "Int16Field": (-1 << 15, -1 ^ (-1 << 15)),
+        "Int32Field": (-1 << 31, -1 ^ (-1 << 31)),
+        "Int64Field": (-1 << 63, -1 ^ (-1 << 63)),
+        "Int128Field": (-1 << 127, -1 ^ (-1 << 127)),
+        "Int256Field": (-1 << 255, -1 ^ (-1 << 255)),
+        "UInt8Field": (0, -1 ^ (-1 << 8)),
+        "UInt16Field": (0, -1 ^ (-1 << 16)),
+        "UInt32Field": (0, -1 ^ (-1 << 32)),
+        "UInt64Field": (0, -1 ^ (-1 << 64)),
+        "UInt128Field": (0, -1 ^ (-1 << 128)),
+        "UInt256Field": (0, -1 ^ (-1 << 256)),
     }
     set_operators = {
         "union": "UNION ALL",
@@ -119,7 +133,13 @@ class DatabaseOperations(BaseDatabaseOperations):
     }
 
     def unification_cast_sql(self, output_field):
-        return "CAST(%%s, 'Nullable(%s)')" % output_field.db_type(self.connection)
+        db_type = output_field.db_type(self.connection)
+        # normal django fields does not have 'nullable_allowed' attribute
+        if (not hasattr(output_field, 'nullable_allowed')
+                or output_field.nullable_allowed
+                and not output_field.null):
+            db_type = 'Nullable(%s)' % db_type
+        return '%s::{}'.format(db_type)
 
     def date_extract_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions/
@@ -220,15 +240,22 @@ class DatabaseOperations(BaseDatabaseOperations):
         Return the maximum length of an identifier.
 
         https://stackoverflow.com/a/68362429/15096024
-        Clickhouse does not have own limits on identifiers length.
-        But you"re limited by a filesystems" limits, because CH uses filenames as table/column names.
+        Clickhouse does not have own limits on identifier's length.
+        But you're limited by a filesystem's limits, because CH uses filenames as table/column names.
         Ext4 max filename length -- ext4 255 bytes. And a maximum path of 4096 characters.
 
-        A example metadata_path from system.tables:
+        An example metadata_path from system.tables:
         /var/lib/clickhouse_backend/store/c13/c13f3d33-7a2e-4e30-813f-3d337a2e7e30/test.sql
         Take off the .sql suffix, actual length limit is 251
         """
         return 251
+
+    def max_in_list_size(self):
+        """
+        The maximum size of an array is limited to one million elements.
+        https://clickhouse.com/docs/en/sql-reference/data-types/array#working-with-data-types
+        """
+        return 1000000
 
     def no_limit_value(self):
         return None
@@ -272,17 +299,6 @@ class DatabaseOperations(BaseDatabaseOperations):
         return value
 
     def adapt_decimalfield_value(self, value, max_digits=None, decimal_places=None):
-        return value
-
-    def adapt_ipaddressfield_value(self, value):
-        if value:
-            try:
-                value = ipaddress.ip_address(value)
-            except ValueError:
-                pass
-            else:
-                if isinstance(value, ipaddress.IPv4Address):
-                    value = ipaddress.IPv6Address("::ffff:%s" % value)
         return value
 
     def explain_query_prefix(self, format=None, **options):
@@ -358,11 +374,11 @@ class DatabaseOperations(BaseDatabaseOperations):
                 return sql % tuple(params)
         return sql
 
-    def settings_sql(self, **settings):
+    def settings_sql(self, **kwargs):
         result = []
         params = []
         unknown_settings = []
-        for setting, value in settings.items():
+        for setting, value in kwargs.items():
             if setting in self.connection.introspection.settings:
                 result.append("%s=%%s" % setting)
                 params.append(value)
