@@ -67,7 +67,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         cursor.execute("""
             SELECT column_name, data_type, NULL, character_maximum_length,
             coalesce(numeric_precision, datetime_precision),
-            numeric_scale, is_nullable, column_default, NULL
+            numeric_scale, is_nullable::Bool, column_default, NULL
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE table_catalog = currentDatabase() AND table_name = %s
         """, [table_name])

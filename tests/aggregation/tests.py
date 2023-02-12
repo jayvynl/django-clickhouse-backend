@@ -967,10 +967,16 @@ class AggregateTestCase(TestCase):
         self.assertEqual(p2, {"avg_price": Approximate(Decimal("53.39"), places=2)})
 
     def test_combine_different_types(self):
-        msg = (
-            "Cannot infer type of '+' expression involving these types: FloatField, "
-            "DecimalField. You must set output_field."
-        )
+        if compat.dj32:
+            msg = (
+                'Expression contains mixed types: FloatField, DecimalField. '
+                'You must set output_field.'
+            )
+        else:
+            msg = (
+                "Cannot infer type of '+' expression involving these types: FloatField, "
+                "DecimalField. You must set output_field."
+            )
         qs = Book.objects.annotate(sums=Sum("rating") + Sum("pages") + Sum("price"))
         with self.assertRaisesMessage(FieldError, msg):
             qs.first()
@@ -1162,7 +1168,7 @@ class AggregateTestCase(TestCase):
 
         qs = Book.objects.annotate(
             sums=MySum(
-                F("rating") + F("pages") + F("price"), output_field=IntegerField()
+                F("rating") + F("pages") + Cast("price", FloatField()), output_field=IntegerField()
             )
         )
         self.assertEqual(str(qs.query).count("sum("), 1)
@@ -1178,7 +1184,7 @@ class AggregateTestCase(TestCase):
 
         qs = Book.objects.annotate(
             sums=MySum(
-                F("rating") + F("pages") + F("price"), output_field=IntegerField()
+                F("rating") + F("pages") + Cast("price", FloatField()), output_field=IntegerField()
             )
         )
         self.assertEqual(str(qs.query).count("sum("), 1)
@@ -1195,7 +1201,7 @@ class AggregateTestCase(TestCase):
 
         qs = Book.objects.annotate(
             sums=MySum(
-                F("rating") + F("pages") + F("price"), output_field=IntegerField()
+                F("rating") + F("pages") + Cast("price", FloatField()), output_field=IntegerField()
             )
         )
         self.assertEqual(str(qs.query).count("MAX("), 1)
@@ -1268,13 +1274,13 @@ class AggregateTestCase(TestCase):
     #     # The GROUP BY should not be by alias either.
     #     self.assertEqual(ctx[0]["sql"].lower().count("latest_book_pubdate"), 1)
 
-    def test_aggregation_filter_exists(self):
-        publishers_having_more_than_one_book_qs = (
-            Book.objects.values("publisher")
-            .annotate(cnt=Count("isbn"))
-            .filter(cnt__gt=1)
-        )
-        if compat.dj32:
+    if compat.dj_ge4:
+        def test_aggregation_filter_exists(self):
+            publishers_having_more_than_one_book_qs = (
+                Book.objects.values("publisher")
+                .annotate(cnt=Count("isbn"))
+                .filter(cnt__gt=1)
+            )
             query = publishers_having_more_than_one_book_qs.query.exists('default')
             _, _, group_by = query.get_compiler(connection=connection).pre_sql_setup()
             self.assertEqual(len(group_by), 1)
@@ -1310,22 +1316,23 @@ class AggregateTestCase(TestCase):
                 )
                 self.assertEqual(list(books_qs), expected_result)
 
-    def test_filter_in_subquery_or_aggregation(self):
-        """
-        Filtering against an aggregate requires the usage of the HAVING clause.
+    if compat.dj_ge4:
+        def test_filter_in_subquery_or_aggregation(self):
+            """
+            Filtering against an aggregate requires the usage of the HAVING clause.
 
-        If such a filter is unionized to a non-aggregate one the latter will
-        also need to be moved to the HAVING clause and have its grouping
-        columns used in the GROUP BY.
+            If such a filter is unionized to a non-aggregate one the latter will
+            also need to be moved to the HAVING clause and have its grouping
+            columns used in the GROUP BY.
 
-        When this is done with a subquery the specialized logic in charge of
-        using outer reference columns to group should be used instead of the
-        subquery itself as the latter might return multiple rows.
-        """
-        authors = Author.objects.annotate(
-            Count("book"),
-        ).filter(Q(book__count__gt=0) | Q(pk__in=Book.objects.values("authors")))
-        self.assertCountEqual(authors, Author.objects.all())
+            When this is done with a subquery the specialized logic in charge of
+            using outer reference columns to group should be used instead of the
+            subquery itself as the latter might return multiple rows.
+            """
+            authors = Author.objects.annotate(
+                Count("book"),
+            ).filter(Q(book__count__gt=0) | Q(pk__in=Book.objects.values("authors")))
+            self.assertCountEqual(authors, Author.objects.all())
 
     def test_aggregation_random_ordering(self):
         """Random() is not included in the GROUP BY when used for ordering."""
@@ -1347,313 +1354,318 @@ class AggregateTestCase(TestCase):
             ordered=False,
         )
 
-    def test_empty_result_optimization(self):
-        with self.assertNumQueries(0):
-            self.assertEqual(
-                Publisher.objects.none().aggregate(
-                    sum_awards=Sum("num_awards"),
-                    books_count=Count("book"),
-                ),
-                {
-                    "sum_awards": None,
-                    "books_count": 0,
-                },
-            )
-        # Expression without empty_result_set_value forces queries to be
-        # executed even if they would return an empty result set.
-        raw_books_count = Func("book", function="COUNT")
-        raw_books_count.contains_aggregate = True
-        with self.assertNumQueries(1):
-            self.assertEqual(
-                Publisher.objects.none().aggregate(
-                    sum_awards=Sum("num_awards"),
-                    books_count=raw_books_count,
-                ),
-                {
-                    "sum_awards": 0,
-                    "books_count": 0,
-                },
-            )
-
-    def test_coalesced_empty_result_set(self):
-        with self.assertNumQueries(0):
-            self.assertEqual(
-                Publisher.objects.none().aggregate(
-                    sum_awards=Coalesce(Sum("num_awards"), 0),
-                )["sum_awards"],
-                0,
-            )
-        # Multiple expressions.
-        with self.assertNumQueries(0):
-            self.assertEqual(
-                Publisher.objects.none().aggregate(
-                    sum_awards=Coalesce(Sum("num_awards"), None, 0),
-                )["sum_awards"],
-                0,
-            )
-        # Nested coalesce.
-        with self.assertNumQueries(0):
-            self.assertEqual(
-                Publisher.objects.none().aggregate(
-                    sum_awards=Coalesce(Coalesce(Sum("num_awards"), None), 0),
-                )["sum_awards"],
-                0,
-            )
-        # Expression coalesce.
-        with self.assertNumQueries(1):
-            self.assertIsInstance(
-                Store.objects.none().aggregate(
-                    latest_opening=Coalesce(
-                        Max("original_opening"),
-                        RawSQL("now64()", []),
+    if compat.dj_ge4:
+        def test_empty_result_optimization(self):
+            with self.assertNumQueries(0):
+                self.assertEqual(
+                    Publisher.objects.none().aggregate(
+                        sum_awards=Sum("num_awards"),
+                        books_count=Count("book"),
                     ),
-                )["latest_opening"],
-                datetime.datetime,
+                    {
+                        "sum_awards": None,
+                        "books_count": 0,
+                    },
+                )
+            # Expression without empty_result_set_value forces queries to be
+            # executed even if they would return an empty result set.
+            raw_books_count = Func("book", function="COUNT")
+            raw_books_count.contains_aggregate = True
+            with self.assertNumQueries(1):
+                self.assertEqual(
+                    Publisher.objects.none().aggregate(
+                        sum_awards=Sum("num_awards"),
+                        books_count=raw_books_count,
+                    ),
+                    {
+                        "sum_awards": 0,
+                        "books_count": 0,
+                    },
+                )
+
+        def test_coalesced_empty_result_set(self):
+            with self.assertNumQueries(0):
+                self.assertEqual(
+                    Publisher.objects.none().aggregate(
+                        sum_awards=Coalesce(Sum("num_awards"), 0),
+                    )["sum_awards"],
+                    0,
+                )
+            # Multiple expressions.
+            with self.assertNumQueries(0):
+                self.assertEqual(
+                    Publisher.objects.none().aggregate(
+                        sum_awards=Coalesce(Sum("num_awards"), None, 0),
+                    )["sum_awards"],
+                    0,
+                )
+            # Nested coalesce.
+            with self.assertNumQueries(0):
+                self.assertEqual(
+                    Publisher.objects.none().aggregate(
+                        sum_awards=Coalesce(Coalesce(Sum("num_awards"), None), 0),
+                    )["sum_awards"],
+                    0,
+                )
+            # Expression coalesce.
+            with self.assertNumQueries(1):
+                self.assertIsInstance(
+                    Store.objects.none().aggregate(
+                        latest_opening=Coalesce(
+                            Max("original_opening"),
+                            RawSQL("now64()", []),
+                        ),
+                    )["latest_opening"],
+                    datetime.datetime,
+                )
+
+        def test_aggregation_default_unsupported_by_count(self):
+
+                msg = "Count does not allow default."
+                with self.assertRaisesMessage(TypeError, msg):
+                    Count("age", default=0)
+
+        # Clickhouse aggregation function is resolved to nan in empty rows.
+        def test_aggregation_default_unset(self):
+            for Aggregate in [Max, Min, Sum]:
+                with self.subTest(Aggregate):
+                    result = Author.objects.filter(age__gt=100).aggregate(
+                        value=Aggregate("age"),
+                    )
+                    self.assertEqual(result["value"], 0)
+
+            for Aggregate in [Avg, StdDev, Variance]:
+                with self.subTest(Aggregate):
+                    result = Author.objects.filter(age__gt=100).aggregate(
+                        value=Aggregate("age"),
+                    )
+                    self.assertEqual(str(result["value"]), 'nan')
+        # Clickhouse aggregation function is resolved to nan in empty rows.
+        # def test_aggregation_default_zero(self):
+        #     for Aggregate in [Avg, Max, Min, StdDev, Sum, Variance]:
+        #         with self.subTest(Aggregate):
+        #             result = Author.objects.filter(age__gt=100).aggregate(
+        #                 value=Aggregate("age", default=0),
+        #             )
+        #             self.assertEqual(result["value"], 0)
+
+        # Clickhouse aggregation function is resolved to nan in empty rows.
+        # def test_aggregation_default_integer(self):
+        #     for Aggregate in [Avg, Max, Min, StdDev, Sum, Variance]:
+        #         with self.subTest(Aggregate):
+        #             result = Author.objects.filter(age__gt=100).aggregate(
+        #                 value=Aggregate("age", default=21),
+        #             )
+        #             self.assertEqual(result["value"], 21)
+
+        # Clickhouse aggregation function is resolved to nan in empty rows.
+        # def test_aggregation_default_expression(self):
+        #     for Aggregate in [Avg, Max, Min, StdDev, Sum, Variance]:
+        #         with self.subTest(Aggregate):
+        #             result = Author.objects.filter(age__gt=100).aggregate(
+        #                 value=Aggregate("age", default=Value(5) * Value(7)),
+        #             )
+        #             self.assertEqual(result["value"], 35)
+
+        # Clickhouse will set missing column empty value (0 for number, empty string for text) instead of NULL
+        # So Count("book") resolve to 1 in a missing LEFT OUTER JOIN match, not 0
+        # def test_aggregation_default_group_by(self):
+        #     qs = (
+        #         Publisher.objects.values("name")
+        #         .annotate(
+        #             books=Count("book"),
+        #             pages=Sum("book__pages", default=0),
+        #         )
+        #         .filter(books=0)
+        #     )
+        #     self.assertSequenceEqual(
+        #         qs,
+        #         [{"name": "Jonno's House of Books", "books": 0, "pages": 0}],
+        #     )
+
+        # Clickhouse will set missing column empty value (0 for number, empty string for text) instead of NULL
+        # So default=2.5 have no effect on missing match.
+        # def test_aggregation_default_compound_expression(self):
+        #     # Scale rating to a percentage; default to 50% if no books published.
+        #     formula = Avg("book__rating", default=2.5) * 20.0
+        #     queryset = Publisher.objects.annotate(rating=formula).order_by("name")
+        #     self.assertSequenceEqual(
+        #         queryset.values("name", "rating"),
+        #         [
+        #             {"name": "Apress", "rating": 85.0},
+        #             {"name": "Jonno's House of Books", "rating": 50.0},
+        #             {"name": "Morgan Kaufmann", "rating": 100.0},
+        #             {"name": "Prentice Hall", "rating": 80.0},
+        #             {"name": "Sams", "rating": 60.0},
+        #         ],
+        #     )
+
+        def test_aggregation_default_using_date_from_python(self):
+            expr = Min("book__pubdate", default=datetime.date(1970, 1, 1))
+            if connection.vendor == "mysql":
+                # Workaround for #30224 for MySQL & MariaDB.
+                expr.default = Cast(expr.default, DateField())
+            queryset = Publisher.objects.annotate(earliest_pubdate=expr).order_by("name")
+            self.assertSequenceEqual(
+                queryset.values("name", "earliest_pubdate"),
+                [
+                    {"name": "Apress", "earliest_pubdate": datetime.date(2007, 12, 6)},
+                    {
+                        "name": "Jonno's House of Books",
+                        "earliest_pubdate": datetime.date(1970, 1, 1),
+                    },
+                    {
+                        "name": "Morgan Kaufmann",
+                        "earliest_pubdate": datetime.date(1991, 10, 15),
+                    },
+                    {
+                        "name": "Prentice Hall",
+                        "earliest_pubdate": datetime.date(1995, 1, 15),
+                    },
+                    {"name": "Sams", "earliest_pubdate": datetime.date(2008, 3, 3)},
+                ],
             )
 
-    def test_aggregation_default_unsupported_by_count(self):
-        msg = "Count does not allow default."
-        with self.assertRaisesMessage(TypeError, msg):
-            Count("age", default=0)
+        # Clickhouse will set missing column empty value (0 for number, empty string for text) instead of NULL
+        # Missing Date32 column will be set to 1970-01-01.
+        # def test_aggregation_default_using_date_from_database(self):
+        #     now = timezone.now().astimezone(datetime.timezone.utc)
+        #     expr = Min("book__pubdate", default=TruncDate(NowUTC()))
+        #     queryset = Publisher.objects.annotate(earliest_pubdate=expr).order_by("name")
+        #     self.assertSequenceEqual(
+        #         queryset.values("name", "earliest_pubdate"),
+        #         [
+        #             {"name": "Apress", "earliest_pubdate": datetime.date(2007, 12, 6)},
+        #             {"name": "Jonno's House of Books", "earliest_pubdate": now.date()},
+        #             {
+        #                 "name": "Morgan Kaufmann",
+        #                 "earliest_pubdate": datetime.date(1991, 10, 15),
+        #             },
+        #             {
+        #                 "name": "Prentice Hall",
+        #                 "earliest_pubdate": datetime.date(1995, 1, 15),
+        #             },
+        #             {"name": "Sams", "earliest_pubdate": datetime.date(2008, 3, 3)},
+        #         ],
+        #     )
 
-    # Clickhouse aggregation function is resolved to nan in empty rows.
-    # def test_aggregation_default_unset(self):
-    #     for Aggregate in [Avg, Max, Min, StdDev, Sum, Variance]:
-    #         with self.subTest(Aggregate):
-    #             result = Author.objects.filter(age__gt=100).aggregate(
-    #                 value=Aggregate("age"),
-    #             )
-    #             self.assertIsNone(result["value"])
+        def test_aggregation_default_using_datetime_from_python(self):
+            expr = Min(
+                "store__original_opening",
+                filter=~Q(store__name="Amazon.com"),
+                default=Cast(datetime.datetime(1970, 1, 1), DateTimeField()),
+            )
+            queryset = Book.objects.annotate(oldest_store_opening=expr).order_by("isbn")
+            self.assertSequenceEqual(
+                queryset.values("isbn", "oldest_store_opening"),
+                [
+                    {
+                        "isbn": "013235613",
+                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                    },
+                    {
+                        "isbn": "013790395",
+                        "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
+                    },
+                    {
+                        "isbn": "067232959",
+                        "oldest_store_opening": datetime.datetime(1970, 1, 1),
+                    },
+                    {
+                        "isbn": "155860191",
+                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                    },
+                    {
+                        "isbn": "159059725",
+                        "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
+                    },
+                    {
+                        "isbn": "159059996",
+                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                    },
+                ],
+            )
 
-    # Clickhouse aggregation function is resolved to nan in empty rows.
-    # def test_aggregation_default_zero(self):
-    #     for Aggregate in [Avg, Max, Min, StdDev, Sum, Variance]:
-    #         with self.subTest(Aggregate):
-    #             result = Author.objects.filter(age__gt=100).aggregate(
-    #                 value=Aggregate("age", default=0),
-    #             )
-    #             self.assertEqual(result["value"], 0)
+        def test_aggregation_default_using_datetime_from_database(self):
+            now = timezone.now().astimezone(datetime.timezone.utc)
+            expr = Min(
+                "store__original_opening",
+                filter=~Q(store__name="Amazon.com"),
+                default=TruncHour(NowUTC(), output_field=DateTimeField()),
+            )
+            queryset = Book.objects.annotate(oldest_store_opening=expr).order_by("isbn")
+            self.assertSequenceEqual(
+                queryset.values("isbn", "oldest_store_opening"),
+                [
+                    {
+                        "isbn": "013235613",
+                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                    },
+                    {
+                        "isbn": "013790395",
+                        "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
+                    },
+                    {
+                        "isbn": "067232959",
+                        "oldest_store_opening": now.replace(
+                            minute=0, second=0, microsecond=0, tzinfo=None
+                        ),
+                    },
+                    {
+                        "isbn": "155860191",
+                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                    },
+                    {
+                        "isbn": "159059725",
+                        "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
+                    },
+                    {
+                        "isbn": "159059996",
+                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                    },
+                ],
+            )
 
-    # Clickhouse aggregation function is resolved to nan in empty rows.
-    # def test_aggregation_default_integer(self):
-    #     for Aggregate in [Avg, Max, Min, StdDev, Sum, Variance]:
-    #         with self.subTest(Aggregate):
-    #             result = Author.objects.filter(age__gt=100).aggregate(
-    #                 value=Aggregate("age", default=21),
-    #             )
-    #             self.assertEqual(result["value"], 21)
+        def test_aggregation_default_using_decimal_from_python(self):
+            result = Book.objects.filter(rating__lt=3.0).aggregate(
+                value=Sum("price", default=Decimal("0.00")),
+            )
+            self.assertEqual(result["value"], Decimal("0.00"))
 
-    # Clickhouse aggregation function is resolved to nan in empty rows.
-    # def test_aggregation_default_expression(self):
-    #     for Aggregate in [Avg, Max, Min, StdDev, Sum, Variance]:
-    #         with self.subTest(Aggregate):
-    #             result = Author.objects.filter(age__gt=100).aggregate(
-    #                 value=Aggregate("age", default=Value(5) * Value(7)),
-    #             )
-    #             self.assertEqual(result["value"], 35)
+        # Clickhouse will set missing column empty value (0 for number, empty string for text) instead of NULL
+        # def test_aggregation_default_using_decimal_from_database(self):
+        #     result = Book.objects.filter(rating__lt=3.0).aggregate(
+        #         value=Sum("price", default=Pi()),
+        #     )
+        #     self.assertAlmostEqual(result["value"], Decimal.from_float(math.pi), places=6)
 
-    # Clickhouse will set missing column empty value (0 for number, empty string for text) instead of NULL
-    # So Count("book") resolve to 1 in a missing LEFT OUTER JOIN match, not 0
-    # def test_aggregation_default_group_by(self):
-    #     qs = (
-    #         Publisher.objects.values("name")
-    #         .annotate(
-    #             books=Count("book"),
-    #             pages=Sum("book__pages", default=0),
-    #         )
-    #         .filter(books=0)
-    #     )
-    #     self.assertSequenceEqual(
-    #         qs,
-    #         [{"name": "Jonno's House of Books", "books": 0, "pages": 0}],
-    #     )
+        # DB::Exception: There is no supertype for types Decimal(38, 2), Float64
+        # because some of them have no lossless conversion to Decimal:
+        # While processing coalesce(sum(CAST(if(rating < 3., price, NULL), 'Nullable(Decimal(6, 2))')), avg(pages) / 10.).
+        # def test_aggregation_default_passed_another_aggregate(self):
+        #     result = Book.objects.aggregate(
+        #         value=Sum("price", filter=Q(rating__lt=3.0), default=Avg("pages") / 10.0),
+        #     )
+        #     self.assertAlmostEqual(result["value"], Decimal("61.72"), places=2)
 
-    # Clickhouse will set missing column empty value (0 for number, empty string for text) instead of NULL
-    # So default=2.5 have no effect on missing match.
-    # def test_aggregation_default_compound_expression(self):
-    #     # Scale rating to a percentage; default to 50% if no books published.
-    #     formula = Avg("book__rating", default=2.5) * 20.0
-    #     queryset = Publisher.objects.annotate(rating=formula).order_by("name")
-    #     self.assertSequenceEqual(
-    #         queryset.values("name", "rating"),
-    #         [
-    #             {"name": "Apress", "rating": 85.0},
-    #             {"name": "Jonno's House of Books", "rating": 50.0},
-    #             {"name": "Morgan Kaufmann", "rating": 100.0},
-    #             {"name": "Prentice Hall", "rating": 80.0},
-    #             {"name": "Sams", "rating": 60.0},
-    #         ],
-    #     )
+        def test_aggregation_default_after_annotation(self):
+            result = Publisher.objects.annotate(
+                double_num_awards=F("num_awards") * 2,
+            ).aggregate(value=Sum("double_num_awards", default=0))
+            self.assertEqual(result["value"], 40)
 
-    def test_aggregation_default_using_date_from_python(self):
-        expr = Min("book__pubdate", default=datetime.date(1970, 1, 1))
-        if connection.vendor == "mysql":
-            # Workaround for #30224 for MySQL & MariaDB.
-            expr.default = Cast(expr.default, DateField())
-        queryset = Publisher.objects.annotate(earliest_pubdate=expr).order_by("name")
-        self.assertSequenceEqual(
-            queryset.values("name", "earliest_pubdate"),
-            [
-                {"name": "Apress", "earliest_pubdate": datetime.date(2007, 12, 6)},
-                {
-                    "name": "Jonno's House of Books",
-                    "earliest_pubdate": datetime.date(1970, 1, 1),
-                },
-                {
-                    "name": "Morgan Kaufmann",
-                    "earliest_pubdate": datetime.date(1991, 10, 15),
-                },
-                {
-                    "name": "Prentice Hall",
-                    "earliest_pubdate": datetime.date(1995, 1, 15),
-                },
-                {"name": "Sams", "earliest_pubdate": datetime.date(2008, 3, 3)},
-            ],
-        )
+        def test_aggregation_default_not_in_aggregate(self):
+            result = Publisher.objects.annotate(
+                avg_rating=Avg("book__rating", default=2.5),
+            ).aggregate(Sum("num_awards"))
+            self.assertEqual(result["num_awards__sum"], 20)
 
-    # Clickhouse will set missing column empty value (0 for number, empty string for text) instead of NULL
-    # Missing Date32 column will be set to 1970-01-01.
-    # def test_aggregation_default_using_date_from_database(self):
-    #     now = timezone.now().astimezone(datetime.timezone.utc)
-    #     expr = Min("book__pubdate", default=TruncDate(NowUTC()))
-    #     queryset = Publisher.objects.annotate(earliest_pubdate=expr).order_by("name")
-    #     self.assertSequenceEqual(
-    #         queryset.values("name", "earliest_pubdate"),
-    #         [
-    #             {"name": "Apress", "earliest_pubdate": datetime.date(2007, 12, 6)},
-    #             {"name": "Jonno's House of Books", "earliest_pubdate": now.date()},
-    #             {
-    #                 "name": "Morgan Kaufmann",
-    #                 "earliest_pubdate": datetime.date(1991, 10, 15),
-    #             },
-    #             {
-    #                 "name": "Prentice Hall",
-    #                 "earliest_pubdate": datetime.date(1995, 1, 15),
-    #             },
-    #             {"name": "Sams", "earliest_pubdate": datetime.date(2008, 3, 3)},
-    #         ],
-    #     )
-
-    def test_aggregation_default_using_datetime_from_python(self):
-        expr = Min(
-            "store__original_opening",
-            filter=~Q(store__name="Amazon.com"),
-            default=datetime.datetime(1970, 1, 1),
-        )
-        if connection.vendor == "mysql":
-            # Workaround for #30224 for MySQL & MariaDB.
-            expr.default = Cast(expr.default, DateTimeField())
-        queryset = Book.objects.annotate(oldest_store_opening=expr).order_by("isbn")
-        self.assertSequenceEqual(
-            queryset.values("isbn", "oldest_store_opening"),
-            [
-                {
-                    "isbn": "013235613",
-                    "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
-                },
-                {
-                    "isbn": "013790395",
-                    "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
-                },
-                {
-                    "isbn": "067232959",
-                    "oldest_store_opening": datetime.datetime(1970, 1, 1),
-                },
-                {
-                    "isbn": "155860191",
-                    "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
-                },
-                {
-                    "isbn": "159059725",
-                    "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
-                },
-                {
-                    "isbn": "159059996",
-                    "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
-                },
-            ],
-        )
-
-    def test_aggregation_default_using_datetime_from_database(self):
-        now = timezone.now().astimezone(datetime.timezone.utc)
-        expr = Min(
-            "store__original_opening",
-            filter=~Q(store__name="Amazon.com"),
-            default=TruncHour(NowUTC(), output_field=DateTimeField()),
-        )
-        queryset = Book.objects.annotate(oldest_store_opening=expr).order_by("isbn")
-        self.assertSequenceEqual(
-            queryset.values("isbn", "oldest_store_opening"),
-            [
-                {
-                    "isbn": "013235613",
-                    "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
-                },
-                {
-                    "isbn": "013790395",
-                    "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
-                },
-                {
-                    "isbn": "067232959",
-                    "oldest_store_opening": now.replace(
-                        minute=0, second=0, microsecond=0, tzinfo=None
-                    ),
-                },
-                {
-                    "isbn": "155860191",
-                    "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
-                },
-                {
-                    "isbn": "159059725",
-                    "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
-                },
-                {
-                    "isbn": "159059996",
-                    "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
-                },
-            ],
-        )
-
-    def test_aggregation_default_using_decimal_from_python(self):
-        result = Book.objects.filter(rating__lt=3.0).aggregate(
-            value=Sum("price", default=Decimal("0.00")),
-        )
-        self.assertEqual(result["value"], Decimal("0.00"))
-
-    # Clickhouse will set missing column empty value (0 for number, empty string for text) instead of NULL
-    # def test_aggregation_default_using_decimal_from_database(self):
-    #     result = Book.objects.filter(rating__lt=3.0).aggregate(
-    #         value=Sum("price", default=Pi()),
-    #     )
-    #     self.assertAlmostEqual(result["value"], Decimal.from_float(math.pi), places=6)
-
-    # DB::Exception: There is no supertype for types Decimal(38, 2), Float64
-    # because some of them have no lossless conversion to Decimal:
-    # While processing coalesce(sum(CAST(if(rating < 3., price, NULL), 'Nullable(Decimal(6, 2))')), avg(pages) / 10.).
-    # def test_aggregation_default_passed_another_aggregate(self):
-    #     result = Book.objects.aggregate(
-    #         value=Sum("price", filter=Q(rating__lt=3.0), default=Avg("pages") / 10.0),
-    #     )
-    #     self.assertAlmostEqual(result["value"], Decimal("61.72"), places=2)
-
-    def test_aggregation_default_after_annotation(self):
-        result = Publisher.objects.annotate(
-            double_num_awards=F("num_awards") * 2,
-        ).aggregate(value=Sum("double_num_awards", default=0))
-        self.assertEqual(result["value"], 40)
-
-    def test_aggregation_default_not_in_aggregate(self):
-        result = Publisher.objects.annotate(
-            avg_rating=Avg("book__rating", default=2.5),
-        ).aggregate(Sum("num_awards"))
-        self.assertEqual(result["num_awards__sum"], 20)
-
-    def test_exists_none_with_aggregate(self):
-        qs = Book.objects.annotate(
-            count=Count("id"),
-            exists=Exists(Author.objects.none()),
-        )
-        self.assertEqual(len(qs), 6)
+        def test_exists_none_with_aggregate(self):
+            qs = Book.objects.annotate(
+                count=Count("id"),
+                exists=Exists(Author.objects.none()),
+            )
+            self.assertEqual(len(qs), 6)
 
     def test_alias_sql_injection(self):
         crafted_alias = """injected_name" from "aggregation_author"; --"""
@@ -1664,9 +1676,10 @@ class AggregateTestCase(TestCase):
         with self.assertRaisesMessage(ValueError, msg):
             Author.objects.aggregate(**{crafted_alias: Avg("age")})
 
-    def test_exists_extra_where_with_aggregate(self):
-        qs = Book.objects.annotate(
-            count=Count("id"),
-            exists=Exists(Author.objects.extra(where=["1=0"])),
-        )
-        self.assertEqual(len(qs), 6)
+    if compat.dj_ge4:
+        def test_exists_extra_where_with_aggregate(self):
+            qs = Book.objects.annotate(
+                count=Count("id"),
+                exists=Exists(Author.objects.extra(where=["1=0"])),
+            )
+            self.assertEqual(len(qs), 6)

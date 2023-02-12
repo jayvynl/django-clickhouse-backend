@@ -1,7 +1,6 @@
 import collections.abc
 import json
 
-from django.contrib.postgres.fields.utils import AttributeSetter
 from django.contrib.postgres.utils import prefix_validation_error
 from django.core import checks, exceptions
 from django.db.models import lookups, Field, Func, Value
@@ -11,6 +10,7 @@ from django.utils.translation import gettext_lazy as _
 from .array import ArrayField
 from .base import FieldMixin
 from .integer import UInt64Field
+from .utils import AttributeSetter
 
 __all__ = ["MapField"]
 

@@ -10,7 +10,7 @@ Thanks to [clickhouse pool](https://github.com/ericmccarthy7/clickhouse-pool), i
 
 Read [Documentation](https://github.com/jayvynl/django-clickhouse-backend/blob/main/docs/README.md) for more.
 
-**features:**
+**Features:**
 
 - Support [Clickhouse native interface](https://clickhouse.com/docs/en/interfaces/tcp/) and connection pool.
 - Define clickhouse specific schema features such as [Engine](https://clickhouse.com/docs/en/engines/table-engines/) and [Index](https://clickhouse.com/docs/en/guides/improving-query-performance/skipping-indexes) in django ORM.
@@ -18,6 +18,15 @@ Read [Documentation](https://github.com/jayvynl/django-clickhouse-backend/blob/m
 - Support creating test database and table, working with django TestCase and pytest-django.
 - Support most types of query and data types, full feature is under developing.
 - Support [SETTINGS in SELECT Query](https://clickhouse.com/docs/en/sql-reference/statements/select/#settings-in-select-query).
+
+**Notes:**
+
+- Not tested upon all versions of clickhouse-server, clickhouse-server 22.x.y.z or over is suggested.
+- Aggregate function result in 0 or nan when data set is empty. max/min/sum/count is 0, avg/STDDEV_POP/VAR_POP is nan.
+- Clickhouse will set missing column empty value (0 for number, empty string for text, unix epoch for datatime type) instead of NULL in outer join. 
+  So Count("book") resolve to 1 in a missing LEFT OUTER JOIN match, not 0.
+  In aggregation expression Avg("book__rating", default=2.5), default=2.5 have no effect in missing match.
+
 
 Get started
 ---

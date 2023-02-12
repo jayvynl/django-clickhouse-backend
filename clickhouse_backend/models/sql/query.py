@@ -3,14 +3,14 @@ from collections import namedtuple
 from django.db.models.sql import query
 from django.db.models.sql import subqueries
 
-from clickhouse_backend.compat import dj4
+from clickhouse_backend import compat
 
 ExplainInfo = namedtuple("ExplainInfo", ("format", "type", "options"))
 
 
 class Query(query.Query):
     def __init__(self, model, where=query.WhereNode, alias_cols=True):
-        if dj4:
+        if compat.dj_ge4:
             super().__init__(model, alias_cols)
         else:
             super().__init__(model, where, alias_cols)

@@ -1,6 +1,7 @@
 from clickhouse_driver.dbapi import connection
 from clickhouse_driver.dbapi import cursor
 from clickhouse_driver.dbapi import errors
+from clickhouse_pool.pool import ChPoolError
 
 from .pool import ClickhousePool
 
@@ -9,7 +10,10 @@ class Cursor(cursor.Cursor):
     def close(self):
         """Push client back to connection pool"""
         self._state = self._states.CURSOR_CLOSED
-        self._connection.pool.push(self._client)
+        try:
+            self._connection.pool.push(self._client)
+        except ChPoolError:
+            pass
 
     @property
     def closed(self):
@@ -19,7 +23,10 @@ class Cursor(cursor.Cursor):
         # If someone forgets calling close method,
         # then release connection when gc happens.
         if not self.closed:
-            self._connection.pool.push(self._client)
+            try:
+                self._connection.pool.push(self._client)
+            except ChPoolError:
+                pass
 
 
 class Connection(connection.Connection):

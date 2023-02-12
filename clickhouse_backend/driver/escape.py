@@ -2,7 +2,7 @@ from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Sequence, Dict, Union
 from uuid import UUID
-
+from decimal import Decimal
 from clickhouse_driver.util import escape
 
 from . import types
@@ -12,6 +12,7 @@ Params = Union[Sequence, Dict]
 
 def escape_datetime(item: datetime, context):
     """Clickhouse backend always treats DateTime[64] with timezone as in UTC timezone.
+
     DateTime value does not support microsecond part,
     clickhouse_backend.models.DateTimeField will set microsecond to zero. """
     if item.tzinfo is not None:
@@ -57,6 +58,14 @@ def escape_param(item, context):
 
     elif isinstance(item, types.Binary):
         return escape_binary(item, context)
+
+    # NOTE:
+    # 1. When inserting Decimal value, both Float (3.1) or String ('3.1') literals are valid.
+    #    But after testing, I figure out that String is faster than Float about 18 percents.
+    # 2. When take place in mathematical operation, String representation of Decimal is not valid.
+    #    Also, Float representation may lose precision, only toDecimal(32|64|128|256) is suitable.
+    # elif isinstance(item, Decimal):
+    #     return "'%s'" % str(item)
 
     else:
         return item

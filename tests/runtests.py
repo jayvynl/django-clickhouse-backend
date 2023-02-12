@@ -4,7 +4,7 @@ import sys
 
 import django
 from django.conf import settings
-from django.test.runner import default_test_processes
+from clickhouse_backend.compat import dj32
 from django.test.utils import get_runner
 
 RUNTESTS_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -66,11 +66,27 @@ if __name__ == '__main__':
         action="store_true",
         help="Turn on the SQL query logger within tests.",
     )
-    parser.add_argument(
-        '--parallel', nargs='?', default=0, type=int,
-        const=default_test_processes(), metavar='N',
-        help='Run tests using up to N parallel processes.',
-    )
+    if dj32:
+        from django.test.runner import default_test_processes
+        parser.add_argument(
+            '--parallel', nargs='?', default=0, type=int,
+            const=default_test_processes(), metavar='N',
+            help='Run tests using up to N parallel processes.',
+        )
+    else:
+        from django.test.runner import parallel_type
+        parser.add_argument(
+            "--parallel",
+            nargs="?",
+            const="auto",
+            default=0,
+            type=parallel_type,
+            metavar="N",
+            help=(
+                'Run tests using up to N parallel processes. Use the value "auto" '
+                "to run one test process for each processor core."
+            ),
+        )
     options = parser.parse_args()
     options.modules = [os.path.normpath(labels) for labels in options.modules]
 
@@ -79,6 +95,16 @@ if __name__ == '__main__':
     settings.INSTALLED_APPS.extend(modules)
     django.setup()
 
+    parallel = options.parallel
+    if not dj32 and parallel in {0, "auto"}:
+        # This doesn't work before django.setup() on some databases.
+        from django.db import connections
+        from django.test.runner import get_max_test_processes
+        if all(conn.features.can_clone_databases for conn in connections.all()):
+            parallel = get_max_test_processes()
+        else:
+            parallel = 1
+
     TestRunner = get_runner(settings)
     test_runner = TestRunner(
         verbosity=options.verbosity,
@@ -86,7 +112,7 @@ if __name__ == '__main__':
         failfast=options.failfast,
         keepdb=options.keepdb,
         debug_sql=options.debug_sql,
-        parallel=options.parallel,
+        parallel=parallel,
     )
     failures = test_runner.run_tests(options.modules or modules)
     sys.exit(bool(failures))

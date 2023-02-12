@@ -3,7 +3,6 @@ import collections.abc
 import copy
 import json
 
-from django.contrib.postgres.fields.utils import AttributeSetter
 from django.contrib.postgres.utils import prefix_validation_error
 from django.core import checks, exceptions
 from django.db.models import Field, Func, Value
@@ -13,6 +12,7 @@ from django.utils.itercompat import is_iterable
 from django.utils.translation import gettext_lazy as _
 
 from .base import FieldMixin
+from .utils import AttributeSetter
 
 __all__ = ["TupleField"]
 

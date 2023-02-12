@@ -1,7 +1,7 @@
 from django.db.models.fields import BigAutoField
 from django.db.models.sql import compiler
 
-from clickhouse_backend.compat import dj4
+from clickhouse_backend import compat
 from clickhouse_backend.idworker import id_worker
 
 
@@ -39,7 +39,7 @@ class SQLInsertCompiler(ClickhouseMixin, compiler.SQLInsertCompiler):
         # going to be column names (so we can avoid the extra overhead).
         qn = self.connection.ops.quote_name
         opts = self.query.get_meta()
-        if dj4:
+        if compat.dj_ge4:
             insert_statement = self.connection.ops.insert_statement(
                 on_conflict=self.query.on_conflict,
             )

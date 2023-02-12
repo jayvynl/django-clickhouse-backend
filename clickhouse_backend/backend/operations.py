@@ -167,7 +167,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             sql = "toSecond(%s)" % sql
         else:
             sql = "to%s(%s)" % (lookup_type.capitalize(), sql)
-        if compat.dj41:
+        if compat.dj_ge41:
             return sql, args[0]
         else:
             return sql
@@ -177,7 +177,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         *ex, tzname = args
         sql = self._convert_sql_to_tz(sql, tzname)
         sql = "toStartOf%s(%s)" % (lookup_type.capitalize(), sql)
-        if compat.dj41:
+        if compat.dj_ge41:
             return sql, ex[0]
         else:
             return sql
@@ -191,7 +191,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         *ex, tzname = args
         sql = self._convert_sql_to_tz(sql, tzname)
         sql = "toDate(%s)" % sql
-        if compat.dj41:
+        if compat.dj_ge41:
             return sql, ex[0]
         else:
             return sql
@@ -208,7 +208,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             sql = "date_trunc('%s', %s, '%s')" % (lookup_type, sql, tzname)
         else:
             sql = "date_trunc('%s', %s)" % (lookup_type, sql)
-        if compat.dj41:
+        if compat.dj_ge41:
             return sql, ex[0]
         else:
             return sql
@@ -369,7 +369,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     def last_executed_query(self, cursor, sql, params):
         if params:
             if insert_pattern.match(sql):
-                return "%s %s" % (sql, str(tuple(tuple(param) for param in params)))
+                return "%s %s" % (sql, ", ".join(map(str, params)))
             else:
                 return sql % tuple(params)
         return sql

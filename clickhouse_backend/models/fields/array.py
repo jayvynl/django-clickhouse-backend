@@ -1,7 +1,5 @@
 import json
 
-from django.contrib.postgres.fields.utils import AttributeSetter
-from django.contrib.postgres.forms import SimpleArrayField
 from django.contrib.postgres.utils import prefix_validation_error
 from django.contrib.postgres.validators import ArrayMaxLengthValidator
 from django.core import checks, exceptions
@@ -11,6 +9,7 @@ from django.utils.translation import gettext_lazy as _
 
 from .base import FieldMixin
 from .integer import UInt64Field
+from .utils import AttributeSetter
 
 __all__ = ["ArrayField"]
 
@@ -190,14 +189,6 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
                     code="item_invalid",
                     params={"nth": index + 1},
                 )
-
-    def formfield(self, **kwargs):
-        return super().formfield(**{
-            "form_class": SimpleArrayField,
-            "base_field": self.base_field.formfield(),
-            "max_length": self.size,
-            **kwargs,
-        })
 
 
 class ArrayRHSMixin:

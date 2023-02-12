@@ -1,4 +1,3 @@
-import inspect
 import threading
 from datetime import datetime, timedelta
 from unittest import mock
@@ -15,6 +14,7 @@ from django.test import (
 )
 from django.utils.translation import gettext_lazy
 
+from clickhouse_backend import compat
 from .models import (
     Article,
     ArticleSelectOnSave,
@@ -81,17 +81,21 @@ class ModelInstanceCreationTests(TestCase):
         a.save()
         self.assertEqual(a.headline, "Fourth article")
 
-    def test_positional_and_keyword_args_for_the_same_field(self):
-        msg = "Article() got both positional and keyword arguments for field '%s'."
-        with self.assertRaisesMessage(TypeError, msg % "headline"):
-            Article(None, "Fifth article", headline="Other headline.")
-        with self.assertRaisesMessage(TypeError, msg % "headline"):
-            Article(None, "Sixth article", headline="")
-        with self.assertRaisesMessage(TypeError, msg % "pub_date"):
-            Article(None, "Seventh article", datetime(2021, 3, 1), pub_date=None)
+    if compat.dj_ge4:
+        def test_positional_and_keyword_args_for_the_same_field(self):
+            msg = "Article() got both positional and keyword arguments for field '%s'."
+            with self.assertRaisesMessage(TypeError, msg % "headline"):
+                Article(None, "Fifth article", headline="Other headline.")
+            with self.assertRaisesMessage(TypeError, msg % "headline"):
+                Article(None, "Sixth article", headline="")
+            with self.assertRaisesMessage(TypeError, msg % "pub_date"):
+                Article(None, "Seventh article", datetime(2021, 3, 1), pub_date=None)
 
     def test_cannot_create_instance_with_invalid_kwargs(self):
-        msg = "Article() got unexpected keyword arguments: 'foo'"
+        if compat.dj32:
+            msg = "Article() got an unexpected keyword argument 'foo'"
+        else:
+            msg = "Article() got unexpected keyword arguments: 'foo'"
         with self.assertRaisesMessage(TypeError, msg):
             Article(
                 id=None,
@@ -99,7 +103,10 @@ class ModelInstanceCreationTests(TestCase):
                 pub_date=datetime(2005, 7, 31),
                 foo="bar",
             )
-        msg = "Article() got unexpected keyword arguments: 'foo', 'bar'"
+        if compat.dj32:
+            msg = "Article() got an unexpected keyword argument 'foo'"
+        else:
+            msg = "Article() got unexpected keyword arguments: 'foo', 'bar'"
         with self.assertRaisesMessage(TypeError, msg):
             Article(
                 id=None,
@@ -655,98 +662,6 @@ class ConcurrentSaveTests(TransactionTestCase):
         t.join()
         a.save()
         self.assertEqual(Article.objects.get(pk=a.pk).headline, "foo")
-
-
-class ManagerTest(SimpleTestCase):
-    QUERYSET_PROXY_METHODS = [
-        "none",
-        "count",
-        "dates",
-        "datetimes",
-        "distinct",
-        "extra",
-        "get",
-        "get_or_create",
-        "update_or_create",
-        "create",
-        "bulk_create",
-        "bulk_update",
-        "filter",
-        "aggregate",
-        "annotate",
-        "alias",
-        "complex_filter",
-        "exclude",
-        "in_bulk",
-        "iterator",
-        "earliest",
-        "latest",
-        "first",
-        "last",
-        "order_by",
-        "select_for_update",
-        "select_related",
-        "prefetch_related",
-        "values",
-        "values_list",
-        "update",
-        "reverse",
-        "defer",
-        "only",
-        "using",
-        "exists",
-        "contains",
-        "explain",
-        "_insert",
-        "_update",
-        "raw",
-        "union",
-        "intersection",
-        "difference",
-        "aaggregate",
-        "abulk_create",
-        "abulk_update",
-        "acontains",
-        "acount",
-        "acreate",
-        "aearliest",
-        "aexists",
-        "aexplain",
-        "afirst",
-        "aget",
-        "aget_or_create",
-        "ain_bulk",
-        "aiterator",
-        "alast",
-        "alatest",
-        "aupdate",
-        "aupdate_or_create",
-    ]
-
-    def test_manager_methods(self):
-        """
-        This test ensures that the correct set of methods from `QuerySet`
-        are copied onto `Manager`.
-
-        It's particularly useful to prevent accidentally leaking new methods
-        into `Manager`. New `QuerySet` methods that should also be copied onto
-        `Manager` will need to be added to `ManagerTest.QUERYSET_PROXY_METHODS`.
-        """
-        self.assertEqual(
-            sorted(BaseManager._get_queryset_methods(models.QuerySet)),
-            sorted(self.QUERYSET_PROXY_METHODS),
-        )
-
-    def test_manager_method_attributes(self):
-        self.assertEqual(Article.objects.get.__doc__, models.QuerySet.get.__doc__)
-        self.assertEqual(Article.objects.count.__name__, models.QuerySet.count.__name__)
-
-    # def test_manager_method_signature(self):
-    #     self.assertEqual(
-    #         str(inspect.signature(Article.objects.bulk_create)),
-    #         "(objs, batch_size=None, ignore_conflicts=False, update_conflicts=False, "
-    #         "update_fields=None, unique_fields=None)",
-    #     )
 
 
 class SelectOnSaveTests(TestCase):

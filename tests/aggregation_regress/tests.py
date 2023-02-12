@@ -25,6 +25,7 @@ from django.db.models import (
 from django.test import TestCase, skipUnlessAnyDBFeature, skipUnlessDBFeature
 from django.test.utils import Approximate
 
+from clickhouse_backend import compat
 from .models import (
     Alfa,
     Author,
@@ -33,7 +34,6 @@ from .models import (
     Charlie,
     HardbackBook,
     Publisher,
-    SelfRefFK,
     Store,
 )
 
@@ -1457,27 +1457,28 @@ class AggregationTests(TestCase):
             attrgetter("pk"),
         )
 
-    def test_filter_aggregates_xor_connector(self):
-        q1 = Q(price__gt=50)
-        q2 = Q(authors__count__gt=1)
-        query = Book.objects.annotate(Count("authors")).filter(q1 ^ q2).order_by("pk")
-        self.assertQuerysetEqual(
-            query,
-            [self.b1.pk, self.b4.pk, self.b6.pk],
-            attrgetter("pk"),
-        )
+    if compat.dj_ge4:
+        def test_filter_aggregates_xor_connector(self):
+            q1 = Q(price__gt=50)
+            q2 = Q(authors__count__gt=1)
+            query = Book.objects.annotate(Count("authors")).filter(q1 ^ q2).order_by("pk")
+            self.assertQuerysetEqual(
+                query,
+                [self.b1.pk, self.b4.pk, self.b6.pk],
+                attrgetter("pk"),
+            )
 
-    def test_filter_aggregates_negated_xor_connector(self):
-        q1 = Q(price__gt=50)
-        q2 = Q(authors__count__gt=1)
-        query = (
-            Book.objects.annotate(Count("authors")).filter(~(q1 ^ q2)).order_by("pk")
-        )
-        self.assertQuerysetEqual(
-            query,
-            [self.b2.pk, self.b3.pk, self.b5.pk],
-            attrgetter("pk"),
-        )
+        def test_filter_aggregates_negated_xor_connector(self):
+            q1 = Q(price__gt=50)
+            q2 = Q(authors__count__gt=1)
+            query = (
+                Book.objects.annotate(Count("authors")).filter(~(q1 ^ q2)).order_by("pk")
+            )
+            self.assertQuerysetEqual(
+                query,
+                [self.b2.pk, self.b3.pk, self.b5.pk],
+                attrgetter("pk"),
+            )
 
     def test_ticket_11293_q_immutable(self):
         """

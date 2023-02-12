@@ -45,7 +45,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "SlugField": "String",
         "TextField": "String",
         "UUIDField": "UUID",
-        "BooleanField": "UInt8",
+        "BooleanField": "Bool",
         # Clickhouse fields.
         "Int8Field": "Int8",
         "Int16Field": "Int16",
