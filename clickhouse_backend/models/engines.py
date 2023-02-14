@@ -24,7 +24,7 @@ class Engine(Func):
 class BaseMergeTree(Engine):
     def __init__(self, *expressions, output_field=None, **extra):
         self.order_by = extra.pop("order_by", None)
-        assert self.order_by, "order_by is required by MergeTree family."
+        assert self.order_by is not None, "order_by is required by MergeTree family."
         self.partition_by = extra.pop("partition_by", None)
         self.primary_key = extra.pop("primary_key", None)
         super().__init__(*expressions, output_field=output_field, **extra)

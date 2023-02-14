@@ -189,8 +189,8 @@ class TupleField(FieldMixin, Field):
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
-        if path == "clickhouse_backend.models.fields.tuple.TupleField":
-            path = "clickhouse_backend.models.Tuple"
+        if path.startswith("clickhouse_backend.models.tuple"):
+            path = path.replace("clickhouse_backend.models.tuple", "clickhouse_backend.models")
         kwargs.update({
             "base_fields": copy.deepcopy(self.base_fields),
         })

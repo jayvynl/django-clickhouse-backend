@@ -99,12 +99,11 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
-        if path == "clickhouse_backend.models.fields.array.ArrayField":
-            path = "clickhouse_backend.models.ArrayField"
-        kwargs.update({
-            "base_field": self.base_field.clone(),
-            "size": self.size,
-        })
+        if path.startswith("clickhouse_backend.models.array"):
+            path = path.replace("clickhouse_backend.models.array", "clickhouse_backend.models")
+        kwargs["base_field"] = self.base_field.clone()
+        if self.size:
+            kwargs["size"] = self.size
         return name, path, args, kwargs
 
     def to_python(self, value):

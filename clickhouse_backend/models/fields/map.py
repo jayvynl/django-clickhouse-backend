@@ -164,8 +164,8 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
-        if path == "clickhouse_backend.models.fields.map.MapField":
-            path = "clickhouse_backend.models.MapField"
+        if path.startswith("clickhouse_backend.models.map"):
+            path = path.replace("clickhouse_backend.models.map", "clickhouse_backend.models")
         kwargs.update({
             "key_field": self.key_field.clone(),
             "value_field": self.value_field.clone(),

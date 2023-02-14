@@ -27,6 +27,7 @@ from django.test import (
     skipUnlessDBFeature,
 )
 
+from clickhouse_backend import compat
 from .models import (
     Article,
     Object,
@@ -536,22 +537,23 @@ class BackendTestCase(TransactionTestCase):
             BaseDatabaseWrapper.queries_limit = old_queries_limit
             new_connection.close()
 
-    @mock.patch("django.db.backends.utils.logger")
-    @override_settings(DEBUG=True)
-    def test_queries_logger(self, mocked_logger):
-        sql = "SELECT 1" + connection.features.bare_select_suffix
-        with connection.cursor() as cursor:
-            cursor.execute(sql)
-        params, kwargs = mocked_logger.debug.call_args
-        self.assertIn("; alias=%s", params[0])
-        self.assertEqual(params[2], sql)
-        self.assertIsNone(params[3])
-        self.assertEqual(params[4], connection.alias)
-        self.assertEqual(
-            list(kwargs["extra"]),
-            ["duration", "sql", "params", "alias"],
-        )
-        self.assertEqual(tuple(kwargs["extra"].values()), params[1:])
+    if compat.dj_ge4:
+        @mock.patch("django.db.backends.utils.logger")
+        @override_settings(DEBUG=True)
+        def test_queries_logger(self, mocked_logger):
+            sql = "SELECT 1" + connection.features.bare_select_suffix
+            with connection.cursor() as cursor:
+                cursor.execute(sql)
+            params, kwargs = mocked_logger.debug.call_args
+            self.assertIn("; alias=%s", params[0])
+            self.assertEqual(params[2], sql)
+            self.assertIsNone(params[3])
+            self.assertEqual(params[4], connection.alias)
+            self.assertEqual(
+                list(kwargs["extra"]),
+                ["duration", "sql", "params", "alias"],
+            )
+            self.assertEqual(tuple(kwargs["extra"].values()), params[1:])
 
     def test_queries_bare_where(self):
         sql = f"SELECT 1{connection.features.bare_select_suffix} WHERE 1=1"

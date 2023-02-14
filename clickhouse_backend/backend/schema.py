@@ -195,6 +195,10 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 extra_parts.append(
                     "ORDER BY (%s)" % self._get_expression(model, *order_by)
                 )
+            else:
+                extra_parts.append(
+                    "ORDER BY tuple()"
+                )
             if partition_by:
                 if not isinstance(partition_by, (list, tuple)):
                     partition_by = [partition_by]

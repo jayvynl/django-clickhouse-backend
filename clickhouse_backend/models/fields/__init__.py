@@ -150,7 +150,9 @@ class DateTimeField(DateTimeFieldMixin, fields.DateTimeField):
 
 
 class DateTime64Field(DateTimeFieldMixin, fields.DateTimeField):
-    def __init__(self, *args, precision=6, **kwargs):
+    DEFAULT_PRECISION = 6
+
+    def __init__(self, *args, precision=DEFAULT_PRECISION, **kwargs):
         super().__init__(*args, **kwargs)
         self.precision = precision
 
@@ -177,7 +179,8 @@ class DateTime64Field(DateTimeFieldMixin, fields.DateTimeField):
 
     def deconstruct(self):
         path, name, args, kwargs = super().deconstruct()
-        kwargs["precision"] = self.precision
+        if self.precision != self.DEFAULT_PRECISION:
+            kwargs["precision"] = self.precision
         return path, name, args, kwargs
 
 

@@ -6,7 +6,7 @@ class FieldMixin:
     """All clickhouse field should inherit this mixin.
 
     1. Remove unsupported arguments: unique, db_index, unique_for_date,
-    unique_for_month, unique_for_year, db_tablespace.
+       unique_for_month, unique_for_year, db_tablespace.
     2. Return shortened name in deconstruct method.
     3. Add low_cardinality attribute, corresponding to clickhouse LowCardinality Data Type.
     """
@@ -47,7 +47,7 @@ class FieldMixin:
         return []
 
     def deconstruct(self):
-        path, name, args, kwargs = super().deconstruct()
+        name, path, args, kwargs = super().deconstruct()
         for key in [
             "unique",
             "db_index",
@@ -62,10 +62,11 @@ class FieldMixin:
             except KeyError:
                 pass
 
-        kwargs["low_cardinality"] = self.low_cardinality
-        if name.startswith("clickhouse_backend.models.fields"):
-            name = name.replace("clickhouse_backend.models.fields", "clickhouse_backend.models")
-        return path, name, args, kwargs
+        if self.low_cardinality:
+            kwargs["low_cardinality"] = self.low_cardinality
+        if path.startswith("clickhouse_backend.models.fields"):
+            path = path.replace("clickhouse_backend.models.fields", "clickhouse_backend.models")
+        return name, path, args, kwargs
 
     def _nested_type(self, value):
         if value is not None:

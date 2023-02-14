@@ -49,8 +49,8 @@ class IntegerFieldMixin(FieldMixin):
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
-        if name.startswith("clickhouse_backend.models.fields.integer"):
-            name = name.replace("clickhouse_backend.models.fields.integer", "clickhouse_backend.models")
+        if path.startswith("clickhouse_backend.models.integer"):
+            path = path.replace("clickhouse_backend.models.integer", "clickhouse_backend.models")
         return name, path, args, kwargs
 
 
