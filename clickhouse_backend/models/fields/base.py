@@ -28,7 +28,7 @@ class FieldMixin:
         if self.low_cardinality and not self.low_cardinality_allowed:
             return [
                 checks.Error(
-                    "%s must not define a 'low_cardinality=True' attribute." %
+                    "LowCardinality is not supported by %s." %
                     self.__class__.__name__,
                     obj=self,
                 )
@@ -39,7 +39,7 @@ class FieldMixin:
         if self.null and not self.nullable_allowed:
             return [
                 checks.Error(
-                    "%s must not define a 'null=True' attribute." %
+                    "Nullable is not supported by %s." %
                     self.__class__.__name__,
                     obj=self,
                 )

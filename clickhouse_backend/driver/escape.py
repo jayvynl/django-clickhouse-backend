@@ -1,8 +1,9 @@
 from datetime import date, datetime, timezone
 from enum import Enum
+from ipaddress import IPv4Address, IPv6Address
 from typing import Sequence, Dict, Union
 from uuid import UUID
-from decimal import Decimal
+
 from clickhouse_driver.util import escape
 
 from . import types
@@ -14,13 +15,18 @@ def escape_datetime(item: datetime, context):
     """Clickhouse backend always treats DateTime[64] with timezone as in UTC timezone.
 
     DateTime value does not support microsecond part,
-    clickhouse_backend.models.DateTimeField will set microsecond to zero. """
-    if item.tzinfo is not None:
-        item = item.astimezone(timezone.utc)
+    clickhouse_backend.models.DateTimeField will set microsecond to zero.
+    As integer and float are always treated as UTC timestamps,
+    it is required to convert a naive datetime to an utc timestamp.
+    """
+    if item.tzinfo is None:
+        return item.timestamp()
+
+    item = item.astimezone(timezone.utc)
     if item.microsecond == 0:
-        return "'%s'" % item.strftime('%Y-%m-%d %H:%M:%S')
+        return "'%s'" % item.strftime("%Y-%m-%d %H:%M:%S")
     else:
-        return "'%s'" % item.strftime('%Y-%m-%d %H:%M:%S.%f')
+        return "'%s'" % item.strftime("%Y-%m-%d %H:%M:%S.%f")
 
 
 def escape_binary(item: bytes, context):
@@ -53,25 +59,21 @@ def escape_param(item, context):
     elif isinstance(item, Enum):
         return escape_param(item.value, context)
 
-    elif isinstance(item, UUID):
+    elif isinstance(item, (UUID, IPv4Address, IPv6Address)):
         return "'%s'" % str(item)
 
     elif isinstance(item, types.Binary):
         return escape_binary(item, context)
-
-    # NOTE:
-    # 1. When inserting Decimal value, both Float (3.1) or String ('3.1') literals are valid.
-    #    But after testing, I figure out that String is faster than Float about 18 percents.
-    # 2. When take place in mathematical operation, String representation of Decimal is not valid.
-    #    Also, Float representation may lose precision, only toDecimal(32|64|128|256) is suitable.
-    # elif isinstance(item, Decimal):
-    #     return "'%s'" % str(item)
 
     else:
         return item
 
 
 def escape_params(params: Params, context: Dict) -> Params:
+    """Escape param to qualified string representation.
+
+    This function is not used in INSERT INTO queries.
+    """
     if isinstance(params, Dict):
         escaped = {
             key: escape_param(value, context)

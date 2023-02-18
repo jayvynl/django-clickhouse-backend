@@ -226,12 +226,17 @@ class DatabaseOperations(BaseDatabaseOperations):
         # Cast text lookups to text to allow things like filter(x__contains=4)
         if lookup_type in ("iexact", "contains", "icontains", "startswith",
                            "istartswith", "endswith", "iendswith", "regex", "iregex"):
-            if internal_type == "IPAddressField":
+            if internal_type == "IPAddressField" or internal_type == "IPv4Field":
                 lookup = "IPv4NumToString(%s)"
+            elif internal_type == "IPv6Field":
+                lookup = "IPv6NumToString(%s)"
             elif internal_type == "GenericIPAddressField":
                 lookup = "replaceRegexpOne(IPv6NumToString(%s), '^::ffff:', "")"
             else:
                 lookup = "CAST(%s, 'Nullable(String)')"
+
+        if lookup_type == "iexact":
+            lookup = "UPPER(%s)" % lookup
 
         return lookup
 

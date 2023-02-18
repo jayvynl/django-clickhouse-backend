@@ -128,7 +128,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # Check for fields that aren't actually columns (e.g. M2M)
         if sql is None:
             return None, None
-        if field.null:
+        if field.null and "Nullable" not in sql:  # Compatible with django fields.
             sql = "Nullable(%s)" % sql
         if include_default:
             default_value = self.effective_default(field)
@@ -483,7 +483,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         for old_rel, new_rel in rels_to_update:
             rel_db_params = new_rel.field.db_parameters(connection=self.connection)
             rel_type = rel_db_params["type"]
-            if new_rel.field.null:
+            if new_rel.field.null and "Nullable" not in rel_type:  # Compatible with django fields.
                 rel_type = "Nullable(%s)" % rel_type
             fragment, other_actions = self._alter_column_type_sql(
                 new_rel.related_model, old_rel.field, new_rel.field, rel_type

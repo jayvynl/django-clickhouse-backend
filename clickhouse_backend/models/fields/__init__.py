@@ -22,7 +22,7 @@ __all__ = [
     "Int128Field", "UInt128Field",
     "Int256Field", "UInt256Field",
     "Float32Field", "Float64Field",
-    "DecimalField", "BooleanField",
+    "DecimalField", "BoolField",
     "StringField", "FixedStringField",
     "UUIDField",
     "DateField", "Date32Field", "DateTimeField", "DateTime64Field",
@@ -50,7 +50,7 @@ class DecimalField(FieldMixin, fields.DecimalField):
     low_cardinality_allowed = False
 
 
-class BooleanField(FieldMixin, fields.BooleanField):
+class BoolField(FieldMixin, fields.BooleanField):
     pass
 
 
@@ -108,49 +108,87 @@ class FixedStringField(FieldMixin, fields.TextField):
         return str(value)
 
     def deconstruct(self):
-        path, name, args, kwargs = super().deconstruct()
+        name, path, args, kwargs = super().deconstruct()
         kwargs["max_bytes"] = self.max_bytes
-        return path, name, args, kwargs
+        return name, path, args, kwargs
 
 
 class UUIDField(FieldMixin, fields.UUIDField):
     pass
 
 
-class DateTimeFieldMixin(FieldMixin):
-    def get_db_prep_save(self, value, connection):
-        """Clickhouse Date/Date32/DateTime('timezone')/DateTime64('timezone')
-        support integer or float value when insert or update (not in where clause)."""
-        if isinstance(value, (float, int)):
-            return value
-        return super().get_db_prep_save(value, connection)
+# class DateFieldMixin(FieldMixin):
+#     def get_db_prep_save(self, value, connection):
+#         """Clickhouse Date/Date32 support integer or float value
+#         when insert or update (not in where clause)."""
+#         if isinstance(value, (float, int)):
+#             return value
+#         return super().get_db_prep_save(value, connection)
 
 
-class DateField(DateTimeFieldMixin, fields.DateField):
+class DateField(FieldMixin, fields.DateField):
+    """Support integer or float may cause strange behavior,
+    as integer and float are always treated as UTC timestamps,
+    clickhouse store them as date in utc, which may not be what you want.
+
+    Due to a bug of clickhouse-driver 0.2.5,
+    when set null and low_cardinality the same time to DateField or Date32Field,
+    an exception will be raised when create a row.
+    The same bug is also in UUIDField.
+    Below is the minimum reproducing code:
+
+    from clickhouse_driver import Client
+    from datetime import date
+
+    client = Client('localhost', settings={'allow_suspicious_low_cardinality_types': 1})
+    client.execute('create table test (lnd LowCardinality(Nullable(Date))) engine MergeTree order by ()')
+    client.execute('insert into test values', [{'lnd': date.today()}])
+
+    ...
+    AttributeError: 'int' object has no attribute 'year'
+    """
     def get_internal_type(self):
         return "ClickhouseDateField"
 
 
-class Date32Field(DateTimeFieldMixin, fields.DateField):
+class Date32Field(FieldMixin, fields.DateField):
     def get_internal_type(self):
         return "Date32Field"
 
 
-class DateTimeField(DateTimeFieldMixin, fields.DateTimeField):
+class DateTimeMixin(FieldMixin):
+    def get_prep_value(self, value):
+        """Clickhouse DateTime('timezone')/DateTime64('timezone')
+        support integer or float value in query.
+
+        Integer and float numbers are always treated as UTC timestamps.
+        """
+        if isinstance(value, (int, float)):
+            return value
+        return super().get_prep_value(value)
+
+
+class DateTimeField(DateTimeMixin, fields.DateTimeField):
     def get_internal_type(self):
         return "ClickhouseDateTimeField"
 
     def get_prep_value(self, value):
         """For the sake of distinguishing DateTime from DateTime64,
-        DateTime value always have microsecond = 0."""
+        DateTime value always have microsecond = 0.
+        Time string with milliseconds part will cause
+        DB::Exception: Cannot convert string 2022-01-01 00:00:00.0 to type DateTime.
+        """
         value = super().get_prep_value(value)
-        if isinstance(value, datetime) and value.microsecond != 0:
+        if isinstance(value, datetime):
             value = value.replace(microsecond=0)
+        elif isinstance(value, float):
+            return int(value)
         return value
 
 
-class DateTime64Field(DateTimeFieldMixin, fields.DateTimeField):
+class DateTime64Field(DateTimeMixin, fields.DateTimeField):
     DEFAULT_PRECISION = 6
+    low_cardinality_allowed = False
 
     def __init__(self, *args, precision=DEFAULT_PRECISION, **kwargs):
         super().__init__(*args, **kwargs)
@@ -178,10 +216,10 @@ class DateTime64Field(DateTimeFieldMixin, fields.DateTimeField):
         return "DateTime64Field"
 
     def deconstruct(self):
-        path, name, args, kwargs = super().deconstruct()
+        name, path, args, kwargs = super().deconstruct()
         if self.precision != self.DEFAULT_PRECISION:
             kwargs["precision"] = self.precision
-        return path, name, args, kwargs
+        return name, path, args, kwargs
 
 
 class EnumField(FieldMixin, fields.Field):
@@ -198,7 +236,7 @@ class EnumField(FieldMixin, fields.Field):
         if not self.choices:
             return [
                 checks.Error(
-                    "EnumField must define a 'choices' attribute.",
+                    f"{self.__class__.__name__} must define a 'choices' attribute.",
                     obj=self,
                 )
             ]

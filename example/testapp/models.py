@@ -39,10 +39,3 @@ class Event(models.ClickhouseModel):
                 check=Q(sport__gte=0, dport__lte=65535),
             ),
         )
-
-
-class Test(models.ClickhouseModel):
-    a = models.ArrayField(models.Int8Field(null=True, low_cardinality=True))
-
-    class Meta:
-        engine = models.MergeTree(order_by=())

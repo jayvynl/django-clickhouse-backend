@@ -98,7 +98,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "ClickhouseDateField",
         "Date32Field",
         "ClickhouseDateTimeField",
-        "DateTime64Field",
         "IPv4Field",
         "IPv6Field",
         "GenericIPAddressField",
