@@ -2,7 +2,7 @@ from django.db import models
 from django.db.migrations import state
 from django.db.models import functions
 from django.db.models import options
-from django.db.models.manager import BaseManager
+from django.db.models.manager import BaseManager, Manager
 
 from .query import QuerySet
 from .sql import Query
@@ -38,8 +38,35 @@ class ClickhouseManager(BaseManager.from_queryset(QuerySet)):
         )
 
 
+class NewClickhouseManager(Manager):
+    def explain(self, *, format=None, type=None, **settings):
+        """
+        Runs an EXPLAIN on the SQL query this QuerySet would perform, and
+        returns the results.
+        https://clickhouse.com/docs/en/sql-reference/statements/explain/
+        """
+        return self.query.explain(using=self.db, format=format, type=type, **settings)
+
+    def settings(self, **kwargs):
+        clone = self._chain()
+        if isinstance(clone.query, Query):
+            clone.query.setting_info.update(kwargs)
+        return clone
+
+    def get_queryset(self):
+        """
+        User defined Query and QuerySet class that support clickhouse particular query.
+        """
+        return self._queryset_class(
+            model=self.model,
+            query=Query(self.model),
+            using=self._db,
+            hints=self._hints
+        )
+
+
 class ClickhouseModel(models.Model):
-    objects = ClickhouseManager()
+    objects = NewClickhouseManager()
 
     class Meta:
         abstract = True
