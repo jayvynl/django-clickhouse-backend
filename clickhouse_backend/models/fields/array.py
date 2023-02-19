@@ -10,12 +10,12 @@ from django.utils.translation import gettext_lazy as _
 from .base import FieldMixin
 from .integer import UInt64Field
 from .utils import AttributeSetter
+from django.utils.itercompat import is_iterable
 
 __all__ = ["ArrayField"]
 
 
 class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
-    low_cardinality_allowed = False
     nullable_allowed = False
     empty_strings_allowed = False
     default_error_messages = {
@@ -93,8 +93,13 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
         return "%s::{}".format(self.db_type(connection))
 
     def get_db_prep_value(self, value, connection, prepared=False):
-        if isinstance(value, (list, tuple)):
+        if is_iterable(value) and not isinstance(value, (str, bytes)):
             return [self.base_field.get_db_prep_value(i, connection, prepared=prepared) for i in value]
+        return value
+
+    def get_db_prep_save(self, value, connection):
+        if is_iterable(value) and not isinstance(value, (str, bytes)):
+            return [self.base_field.get_db_prep_save(i, connection) for i in value]
         return value
 
     def deconstruct(self):
@@ -109,9 +114,11 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
     def to_python(self, value):
         if isinstance(value, str):
             # Assume we're deserializing
-            vals = json.loads(value)
-            value = [self.base_field.to_python(val) for val in vals]
-        return value
+            value = json.loads(value)
+        if value is None:
+            return value
+
+        return [self.base_field.to_python(val) for val in value]
 
     def _from_db_value(self, value, expression, connection):
         if value is None:
@@ -138,13 +145,16 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
         transform = super().get_transform(name)
         if transform:
             return transform
-        if name.startswith("size"):
-            try:
-                dimension = int(name[4:])
-            except ValueError:
-                pass
-            else:
-                return SizeTransformFactory(dimension)
+        # Django always generate "table"."column".size0, which will cause clickhouse exception.
+        # DB::Exception: There's no column 'table.column.size0' in table 'test':
+        # While processing test.na.size0. (UNKNOWN_IDENTIFIER)
+        # if name.startswith("size"):
+        #     try:
+        #         dimension = int(name[4:])
+        #     except ValueError:
+        #         pass
+        #     else:
+        #         return SizeTransformFactory(dimension)
 
         if "_" not in name:
             try:
@@ -215,8 +225,9 @@ class ArrayLookup(ArrayRHSMixin, lookups.FieldGetDbPrepValueMixin, lookups.Looku
     def as_clickhouse(self, compiler, connection):
         lhs, lhs_params = self.process_lhs(compiler, connection)
         rhs, rhs_params = self.process_rhs(compiler, connection)
+        sql = "%s(%s, %s)" % ((self.function, rhs, lhs) if self.swap_args else (self.function, lhs, rhs))
         params = tuple(lhs_params) + tuple(rhs_params)
-        return "%s(%s, %s)" % (self.function, rhs, lhs) if self.swap_args else (self.function, lhs, rhs), params
+        return sql, params
 
 
 @ArrayField.register_lookup
@@ -247,6 +258,11 @@ class ArrayOverlap(ArrayLookup):
 class ArrayAny(ArrayLookup):
     lookup_name = "any"
     function = "has"
+
+    def process_rhs(self, compiler, connection):
+        rhs, rhs_params = super(ArrayRHSMixin, self).process_rhs(compiler, connection)
+        cast_type = self.lhs.output_field.base_field.db_type(connection)
+        return "%s::%s" % (rhs, cast_type), rhs_params
 
 
 @ArrayField.register_lookup

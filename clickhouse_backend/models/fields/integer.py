@@ -54,84 +54,90 @@ class IntegerFieldMixin(FieldMixin):
         return name, path, args, kwargs
 
 
-class Int8Field(IntegerFieldMixin, fields.IntegerField):
+class BaseIntegerField(fields.IntegerField):
+    def __init__(self, *args, low_cardinality=False, **kwargs):
+        self.low_cardinality = low_cardinality
+        super().__init__(*args, **kwargs)
+
+
+class Int8Field(IntegerFieldMixin, BaseIntegerField):
     description = _("8bit integer")
 
     def get_internal_type(self):
         return "Int8Field"
 
 
-class UInt8Field(IntegerFieldMixin, fields.IntegerField):
+class UInt8Field(IntegerFieldMixin, BaseIntegerField):
     description = _("8bit unsigned integer")
 
     def get_internal_type(self):
         return "UInt8Field"
 
 
-class Int16Field(IntegerFieldMixin, fields.IntegerField):
+class Int16Field(IntegerFieldMixin, BaseIntegerField):
     description = _("16bit integer")
 
     def get_internal_type(self):
         return "Int16Field"
 
 
-class UInt16Field(IntegerFieldMixin, fields.IntegerField):
+class UInt16Field(IntegerFieldMixin, BaseIntegerField):
     description = _("16bit unsigned integer")
 
     def get_internal_type(self):
         return "UInt16Field"
 
 
-class Int32Field(IntegerFieldMixin, fields.IntegerField):
+class Int32Field(IntegerFieldMixin, BaseIntegerField):
     description = _("32bit integer")
 
     def get_internal_type(self):
         return "Int32Field"
 
 
-class UInt32Field(IntegerFieldMixin, fields.IntegerField):
+class UInt32Field(IntegerFieldMixin, BaseIntegerField):
     description = _("32bit unsigned integer")
 
     def get_internal_type(self):
         return "UInt32Field"
 
 
-class Int64Field(IntegerFieldMixin, fields.IntegerField):
+class Int64Field(IntegerFieldMixin, BaseIntegerField):
     description = _("64bit integer")
 
     def get_internal_type(self):
         return "Int64Field"
 
 
-class UInt64Field(IntegerFieldMixin, fields.IntegerField):
+class UInt64Field(IntegerFieldMixin, BaseIntegerField):
     description = _("64bit unsigned integer")
 
     def get_internal_type(self):
         return "UInt64Field"
 
 
-class Int128Field(IntegerFieldMixin, fields.IntegerField):
+class Int128Field(IntegerFieldMixin, BaseIntegerField):
     description = _("128bit integer")
 
     def get_internal_type(self):
         return "Int128Field"
 
 
-class UInt128Field(IntegerFieldMixin, fields.IntegerField):
+class UInt128Field(IntegerFieldMixin, BaseIntegerField):
     description = _("128bit unsigned integer")
 
     def get_internal_type(self):
         return "UInt128Field"
 
 
-class Int256Field(IntegerFieldMixin, fields.IntegerField):
+class Int256Field(IntegerFieldMixin, BaseIntegerField):
     description = _("256bit integer")
 
     def get_internal_type(self):
         return "Int256Field"
 
 
-class UInt256Field(IntegerFieldMixin, fields.IntegerField):
+class UInt256Field(IntegerFieldMixin, BaseIntegerField):
     description = _("256bit unsigned integer")
 
     def get_internal_type(self):

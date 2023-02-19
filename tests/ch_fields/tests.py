@@ -23,9 +23,6 @@ from .models import (
     DateTimeModel,
     DateTime64Model,
     EnumModel,
-    ArrayModel,
-    MapModel,
-    TupleModel,
     IPModel,
     IPv4Model,
     IPv6Model,
@@ -194,12 +191,6 @@ class FloatFieldTests(TestCase):
 
 
 class DecimalFieldTests(TestCase):
-    def test_disallow_low_cardinality(self):
-        field = models.DecimalField(low_cardinality=True, max_digits=10, decimal_places=5, name='field')
-        errors = field.check()
-        self.assertEqual(len(errors), 1)
-        self.assertEqual(errors[0].msg, "LowCardinality is not supported by DecimalField.")
-
     def test_value(self):
         v = Decimal("12345.6789")
         o = DecimalModel.objects.create(decimal=v)
@@ -474,8 +465,6 @@ class DateTime64FieldTests(TestCase):
         )
 
     def test_check(self):
-        field = models.DateTime64Field(low_cardinality=True, name='field')
-        self.assertEqual(field.check()[0].msg, "LowCardinality is not supported by DateTime64Field.")
         for precision in [None, '6', -1, 10]:
             field = models.DateTime64Field(precision=precision, name='field')
             self.assertEqual(field.check()[0].msg, "'precision' must be an integer, valid range: [ 0 : 9 ].")
@@ -487,3 +476,231 @@ class DateTime64FieldTests(TestCase):
         field = models.DateTime64Field(precision=9)
         name, path, args, kwargs = field.deconstruct()
         self.assertEqual(kwargs["precision"], 9)
+
+
+class EnumFieldTests(TestCase):
+    field_classes = [
+        models.EnumField,
+        models.Enum8Field,
+        models.Enum16Field,
+    ]
+
+    def test_low_cardinality_not_allowed(self):
+        for field_class in self.field_classes:
+            field = field_class(low_cardinality=True, choices=[(1, "a")], name="field")
+            self.assertEqual(
+                field.check()[0].msg,
+                f"LowCardinality is not supported by {field_class.__name__}."
+            )
+
+    def test_blank_choices(self):
+        for field_class in self.field_classes:
+            field = field_class(choices=tuple(), name="field")
+            self.assertEqual(
+                field.check()[0].msg,
+                f"{field_class.__name__} must define a 'choices' attribute."
+            )
+
+    def test_invalid_choices(self):
+        for field_class in self.field_classes:
+            msg = (
+                "'choices' must be an iterable containing "
+                "(int, str or bytes) tuples.",
+            )
+            field = field_class(choices=[(1, "a"), ("b", 2)], name="field")
+            self.assertEqual(field.check()[0].msg, msg)
+            field = field_class(choices=[(1, b"a\xff"), (2, 3.0)], name="field")
+            self.assertEqual(field.check()[0].msg, msg)
+
+            field = field_class(choices=[(1, "a"), (field_class.MIN_INT - 1, "b")], name="field")
+            self.assertEqual(
+                field.check()[0].msg,
+                f"'choices' must be in range: [ {field_class.MIN_INT} : {field_class.MAX_INT} ]."
+            )
+            field = field_class(choices=[(1, "a"), (field_class.MAX_INT + 1, "b")], name="field")
+            self.assertEqual(
+                field.check()[0].msg,
+                f"'choices' must be in range: [ {field_class.MIN_INT} : {field_class.MAX_INT} ]."
+            )
+
+    def test_valid_choices(self):
+        for field_class in self.field_classes:
+            field = field_class(choices=[(1, "a"), (2, "b")], name="field")
+            self.assertFalse(field.check())
+            field = field_class(choices=[(2, "b"), (1, b"a")], name="field")
+            self.assertFalse(field.check())
+            # Choices will be normalized (ordered by value and decode valid utf-8 bytes.)
+            self.assertEqual(field.choices, [(1, "a"), (2, "b")])
+
+            field = field_class(choices=[(1, b"a\xff"), (2, "b")], name="field")
+            self.assertEqual(field.choices, [(1, b"a\xff"), (2, "b")])
+
+            field = field_class(choices=[(1, "a"), (field_class.MIN_INT, "b")], name="field")
+            self.assertFalse(field.check())
+            field = field_class(choices=[(1, "a"), (field_class.MAX_INT, "b")], name="field")
+            self.assertFalse(field.check())
+
+    def test_db_type(self):
+        for field_class in self.field_classes:
+            field = field_class(choices=[(1, "a"), (2, "b")], name="field")
+            field.check()
+            self.assertEqual(
+                field.db_type(connection),
+                f"{connection.data_types[field.get_internal_type()]}('a'=1, 'b'=2)"
+            )
+
+            field = field_class(choices=[(2, "b"), (1, b"a")], name="field")
+            field.check()
+            self.assertEqual(
+                field.db_type(connection),
+                f"{connection.data_types[field.get_internal_type()]}('a'=1, 'b'=2)"
+            )
+
+            field = field_class(choices=[(1, b"a'\xff"), (2, "b")], name="field")
+            field.check()
+            self.assertEqual(
+                field.db_type(connection),
+                f"{connection.data_types[field.get_internal_type()]}('a\\'\\xff'=1, 'b'=2)"
+            )
+
+    def test_value_to_string(self):
+        o = EnumModel(enum=1, enum8="b", enum16=b"c")
+        self.assertEqual(
+            o._meta.get_field("enum").value_to_string(o),
+            1
+        )
+        self.assertEqual(
+            o._meta.get_field("enum8").value_to_string(o),
+            2
+        )
+        self.assertEqual(
+            o._meta.get_field("enum16").value_to_string(o),
+            3
+        )
+
+    def test_value(self):
+        o = EnumModel.objects.create(enum=1, enum8="Smile 😀",
+                                     enum16=b"\xe4\xb9\x9d\xe8\xbd\xac\xe5\xa4\xa7\xe8\x82\xa0")
+        o.refresh_from_db()
+        self.assertEqual((o.enum, o.enum8, o.enum16), (1, 2, 3))
+
+        o.enum8 = 4
+        with self.assertRaises(ValidationError):
+            EnumModel._meta.get_field("enum8").validate(o.enum8, o)
+
+    def test_filter(self):
+        EnumModel.objects.create(enum=1, enum8="Smile 😀",
+                                 enum16=b"\xe4\xb9\x9d\xe8\xbd\xac\xe5\xa4\xa7\xe8\x82\xa0")
+        self.assertTrue(
+            EnumModel.objects.filter(enum__lt=2).exists()
+        )
+        self.assertTrue(
+            EnumModel.objects.filter(enum8__istartswith="smile").exists()
+        )
+        self.assertTrue(
+            EnumModel.objects.filter(enum16=3).exists()
+        )
+        self.assertTrue(
+            EnumModel.objects.filter(enum16="九转大肠").exists()
+        )
+        self.assertTrue(
+            EnumModel.objects.filter(enum16__contains=b"\xbd\xac\xe5\xa4").exists()
+        )
+
+
+class IPv4FieldTests(TestCase):
+    def test_deconstruct(self):
+        field = models.IPv4Field()
+        name, path, args, kwargs = field.deconstruct()
+        self.assertEqual(
+            path,
+            "clickhouse_backend.models.IPv4Field"
+        )
+        self.assertNotIn("unpack_ipv4", kwargs)
+        self.assertNotIn("protocol", kwargs)
+        self.assertNotIn("max_length", kwargs)
+
+    def test_value(self):
+        v = "1.2.3.4"
+        o = IPv4Model.objects.create(ipv4=v)
+        o.refresh_from_db()
+        self.assertEqual(o.ipv4, v)
+
+        o.ipv4 = "::ffff:3.4.5.6"
+        with self.assertRaises(ValidationError):
+            o.save()
+
+    def test_filter(self):
+        v = "1.2.3.4"
+        IPv4Model.objects.create(ipv4=v)
+        self.assertTrue(
+            IPv4Model.objects.filter(ipv4=v).exists()
+        )
+        self.assertTrue(
+            IPv4Model.objects.filter(ipv4__contains="2.3").exists()
+        )
+
+
+class IPv6FieldTests(TestCase):
+    def test_deconstruct(self):
+        field = models.IPv4Field()
+        name, path, args, kwargs = field.deconstruct()
+        self.assertEqual(
+            path,
+            "clickhouse_backend.models.IPv6Field"
+        )
+        self.assertNotIn("unpack_ipv4", kwargs)
+        self.assertNotIn("protocol", kwargs)
+        self.assertNotIn("max_length", kwargs)
+
+    def test_value(self):
+        v = "::ffff:3.4.5.6"
+        o = IPv6Model.objects.create(ipv6=v)
+        o.refresh_from_db()
+        self.assertEqual(o.ipv6, v)
+
+        o.ipv6 = "3.4.5.6"
+        with self.assertRaises(ValidationError):
+            o.save()
+
+    def test_filter(self):
+        v = "::ffff:3.4.5.6"
+        IPv6Model.objects.create(ipv6=v)
+        self.assertTrue(
+            IPv6Model.objects.filter(ipv6=v).exists()
+        )
+        self.assertTrue(
+            IPv6Model.objects.filter(ipv6__contains="3.4").exists()
+        )
+
+
+class GenericIPAddressFieldTests(TestCase):
+    def test_deconstruct(self):
+        field = models.GenericIPAddressField(protocol="both", unpack_ipv4=True)
+        name, path, args, kwargs = field.deconstruct()
+        self.assertEqual(
+            path,
+            "clickhouse_backend.models.GenericIPAddressField"
+        )
+        self.assertEqual(kwargs["unpack_ipv4"], True)
+        self.assertNotIn(kwargs["protocol"], "both")
+        self.assertNotIn("max_length", kwargs)
+
+    def test_value(self):
+        v = "::ffff:3.4.5.6"
+        o = IPModel.objects.create(ip=v)
+        o.refresh_from_db()
+        self.assertEqual(o.ip, "3.4.5.6")
+
+    def test_filter(self):
+        v = "::ffff:3.4.5.6"
+        IPModel.objects.create(ip=v)
+        self.assertTrue(
+            IPModel.objects.filter(ip=v).exists()
+        )
+        self.assertTrue(
+            IPModel.objects.filter(ip="3.4.5.6").exists()
+        )
+        self.assertTrue(
+            IPModel.objects.filter(ip__contains="3.4").exists()
+        )

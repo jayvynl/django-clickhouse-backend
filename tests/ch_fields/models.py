@@ -65,23 +65,50 @@ class DateTime64Model(models.ClickhouseModel):
 
 
 class EnumModel(models.ClickhouseModel):
-    CHOICES = (("a", 1), ("b", 2), ("c", 3))
+    CHOICES = ((1, b"a"), (2, "Smile 😀"), (3, "九转大肠"))
 
     enum = models.EnumField(null=True, choices=CHOICES)
-    enum8 = models.EnumField(null=True, choices=CHOICES)
-    enum16 = models.EnumField(null=True, choices=CHOICES)
+    enum8 = models.Enum8Field(null=True, choices=CHOICES)
+    enum16 = models.Enum16Field(null=True, choices=CHOICES)
 
 
 class ArrayModel(models.ClickhouseModel):
-    array = models.ArrayField(base_field=models.GenericIPAddressField())
+    array = models.ArrayField(base_field=models.GenericIPAddressField(unpack_ipv4=True))
+
+
+class NestedArrayModel(models.ClickhouseModel):
+    array = models.ArrayField(
+        base_field=models.ArrayField(
+            base_field=models.ArrayField(
+                models.UInt32Field()
+            )
+        )
+    )
 
 
 class TupleModel(models.ClickhouseModel):
-    tuple = models.TupleField(base_fields=[models.Int8Field(), models.StringField(), models.GenericIPAddressField])
+    tuple = models.TupleField(
+        base_fields=[
+            models.Int8Field(),
+            models.StringField(),
+            models.GenericIPAddressField(unpack_ipv4=True)
+        ]
+    )
+
+
+class NamedTupleModel(models.ClickhouseModel):
+    tuple = models.TupleField(base_fields=[
+        ("int", models.Int8Field()),
+        ("str", models.StringField()),
+        ("ip", models.GenericIPAddressField(unpack_ipv4=True))
+    ])
 
 
 class MapModel(models.ClickhouseModel):
-    map = models.MapField(key_field=models.StringField(), value_field=models.GenericIPAddressField())
+    map = models.MapField(
+        models.StringField(low_cardinality=True),
+        models.GenericIPAddressField(unpack_ipv4=True)
+    )
 
 
 class IPv4Model(models.ClickhouseModel):

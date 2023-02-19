@@ -2,9 +2,11 @@ import collections
 import collections.abc
 import copy
 import json
+import warnings
 
 from django.contrib.postgres.utils import prefix_validation_error
-from django.core import checks, exceptions
+from django.core import checks
+from django.core import exceptions
 from django.db.models import Field, Func, Value
 from django.db.models import lookups
 from django.utils.functional import cached_property
@@ -18,7 +20,6 @@ __all__ = ["TupleField"]
 
 
 class TupleField(FieldMixin, Field):
-    low_cardinality_allowed = False
     nullable_allowed = False
     empty_strings_allowed = False
     default_error_messages = {
@@ -27,10 +28,91 @@ class TupleField(FieldMixin, Field):
     }
 
     def __init__(self, base_fields, **kwargs):
-        if isinstance(base_fields, collections.abc.Iterator):
-            base_fields = list(base_fields)
-        self.base_fields = base_fields
+        self.base_fields = self._check_base_fields(base_fields)
         super().__init__(**kwargs)
+
+    def _check_base_fields(self, base_fields):
+        """Check base_fields type when init.
+
+        Because some other init actions depend on correct base_fields type"""
+
+        invalid_error = RuntimeError(
+            "'base_fields' must be an iterable containing only(not both) "
+            "field instances or (field name, field instance) tuples, "
+            "and field name must be valid python identifier."
+        )
+        if not is_iterable(base_fields) or isinstance(base_fields, str):
+            raise invalid_error
+
+        fields = []
+        named_field_flags = []
+        for index, field in enumerate(base_fields, start=1):
+            if isinstance(field, Field):
+                fields.append(field)
+                named_field_flags.append(False)
+            else:
+                try:
+                    name, field = field
+                except (TypeError, ValueError):
+                    raise invalid_error
+                if not isinstance(name, str) or not name.isidentifier() or not isinstance(field, Field):
+                    raise invalid_error
+                fields.append((name, field))
+                named_field_flags.append(True)
+
+            if field.remote_field:
+                raise RuntimeError("Field %ss cannot be a related field." % index)
+            if getattr(field, "low_cardinality", False):
+                warnings.warn(
+                    "clickhouse_driver have bug when there is LowCardinality subtype inside Tuple."
+                    f"Implicitly set low_cardinality = False on {repr(field)}"
+                )
+                field.low_cardinality = False
+
+        if not fields:
+            raise RuntimeError("'base_fields' must not be empty.")
+
+        if all(named_field_flags):
+            self.is_named_tuple = True
+            self._base_fields = tuple(f for _, f in fields)
+        elif not any(named_field_flags):
+            self.is_named_tuple = False
+            self._base_fields = fields
+        else:
+            raise invalid_error
+
+        # For performance, only add a from_db_value() method if any base field
+        # implements it.
+        if any(hasattr(field, "from_db_value") for field in self._base_fields):
+            self.from_db_value = self._from_db_value
+        return fields
+
+    def check(self, **kwargs):
+        errors = super().check(**kwargs)
+        if errors:
+            return errors
+        for index, field in enumerate(self._base_fields, 1):
+            base_errors = field.check()
+            if base_errors:
+                messages = "\n    ".join("%s (%s)" % (error.msg, error.id) for error in base_errors)
+                return [
+                    checks.Error(
+                        "Field %ss has errors:\n    %s" % (index, messages),
+                        obj=self
+                    )
+                ]
+
+        if self.is_named_tuple:
+            name = self.name
+            if name:
+                name = name.capitalize()
+            else:
+                name = "Tuple"
+            self.container_class = collections.namedtuple(name, (fn for fn, _ in self.base_fields))
+        else:
+            self.container_class = tuple
+
+        return []
 
     def get_internal_type(self):
         return "TupleField"
@@ -55,93 +137,20 @@ class TupleField(FieldMixin, Field):
     def _choices_is_value(cls, value):
         return isinstance(value, (list, tuple)) or super()._choices_is_value(value)
 
-    def check(self, **kwargs):
-        errors = super().check(**kwargs)
-        if errors:
-            return errors
-
-        invalid_error = [
-            checks.Error(
-                "'base_fields' must be an iterable containing only(not both) "
-                "field instance or (field name, field instance) tuples, "
-                "field name must be valid python identifiers.",
-                obj=self,
-            )
-        ]
-        if not is_iterable(self.base_fields) or isinstance(self.base_fields, str):
-            return invalid_error
-
-        fields = []
-        named_field_flags = []
-        for index, field in enumerate(self.base_fields, start=1):
-            if isinstance(field, Field):
-                fields.append(field)
-                named_field_flags.append(False)
-            else:
-                try:
-                    name, field = field
-                except (TypeError, ValueError):
-                    return invalid_error
-                if not isinstance(name, str) or not name.isidentifier() or not isinstance(field, Field):
-                    return invalid_error
-                fields.append((name, field))
-                named_field_flags.append(True)
-
-            if field.remote_field:
-                return [
-                    checks.Error(
-                        "Field %ss cannot be a related field." % index,
-                        obj=self,
-                    )
-                ]
-            if hasattr(field, "low_cardinality") and field.low_cardinality:
-                # clickhouse_driver have bug when there is LowCardinality subtype inside Tuple.
-                field.low_cardinality = False
-            base_errors = field.check()
-            if base_errors:
-                messages = "\n    ".join("%s (%s)" % (error.msg, error.id) for error in base_errors)
-                return [
-                    checks.Error(
-                        "Field %ss has errors:\n    %s" % (index, messages),
-                        obj=self,
-                    )
-                ]
-        if not fields:
-            return [
-                checks.Error(
-                    "'base_fields' must not be empty.",
-                    obj=self,
-                )
-            ]
-
-        if all(named_field_flags):
-            name = self.name
-            if name:
-                name = name.capitalize()
-            else:
-                name = "Tuple"
-            self.container_class = collections.namedtuple(name, (fn for fn, _ in fields))
-            self.is_named_tuple = True
-        elif not any(named_field_flags):
-            self.container_class = tuple
-            self.is_named_tuple = False
-        else:
-            return invalid_error
-        self.base_fields = tuple(fields)
-        if self.is_named_tuple:
-            self._base_fields = tuple(f for _, f in self.base_fields)
-        else:
-            self._base_fields = self.base_fields
-        # For performance, only add a from_db_value() method if any base field
-        # implements it.
-        if any(hasattr(field, "from_db_value") for field in self._base_fields):
-            self.from_db_value = self._from_db_value
-        return []
-
     def set_attributes_from_name(self, name):
         super().set_attributes_from_name(name)
-        for field in self._base_fields:
-            field.set_attributes_from_name(name)
+        for field in self.base_fields:
+            if isinstance(field, Field):
+                field.set_attributes_from_name(name)
+            else:
+                field[1].set_attributes_from_name(name)
+
+    def _convert_type(self, value):
+        if value is None or isinstance(value, self.container_class):
+            return value
+        if self.is_named_tuple:
+            return self.container_class(*value)
+        return self.container_class(value)
 
     @property
     def description(self):
@@ -179,10 +188,19 @@ class TupleField(FieldMixin, Field):
         return values
 
     def get_db_prep_value(self, value, connection, prepared=False):
-        if isinstance(value, (list, tuple)):
+        if is_iterable(value) and not isinstance(value, (str, bytes)):
             values = self.call_base_fields(
                 "get_db_prep_value",
                 value, connection, prepared=prepared
+            )
+            return tuple(values)
+        return value
+
+    def get_db_prep_save(self, value, connection):
+        if is_iterable(value) and not isinstance(value, (str, bytes)):
+            values = self.call_base_fields(
+                "get_db_prep_save",
+                value, connection
             )
             return tuple(values)
         return value
@@ -199,10 +217,14 @@ class TupleField(FieldMixin, Field):
     def to_python(self, value):
         if isinstance(value, str):
             # Assume we're deserializing
-            vals = json.loads(value)
-            values = self.call_base_fields("to_python", vals)
-            return self.container_class(*values)
-        return value
+            value = json.loads(value)
+        if value is None:
+            return value
+        value = self.call_base_fields("to_python", value)
+        return self._convert_type(value)
+
+    def from_db_value(self, value, expression, connection):
+        return self._convert_type(value)
 
     def _from_db_value(self, value, expression, connection):
         if value is None:
@@ -214,7 +236,7 @@ class TupleField(FieldMixin, Field):
                 values.append(field.from_db_value(i, expression, connection))
             else:
                 values.append(i)
-        return tuple(values)
+        return self._convert_type(values)
 
     def value_to_string(self, obj):
         values = []
@@ -232,7 +254,10 @@ class TupleField(FieldMixin, Field):
     @cached_property
     def base_filed_map(self):
         if self.is_named_tuple:
-            return dict(self.base_fields)
+            result = {}
+            for i, (name, field) in enumerate(self.base_fields):
+                result[i] = result[name] = field
+            return result
         else:
             return dict(enumerate(self.base_fields))
 
@@ -243,10 +268,12 @@ class TupleField(FieldMixin, Field):
         try:
             name = int(name)
         except ValueError:
-            field = self.base_filed_map[name]
+            field = self.base_filed_map.get(name)
         else:
-            field = self.base_filed_map[name]
+            field = self.base_filed_map.get(name)
             name += 1  # Clickhouse uses 1-indexing
+        if not field:
+            return None
         return IndexTransformFactory(name, field)
 
     def _validate_length(self, values):
@@ -287,20 +314,32 @@ class TupleField(FieldMixin, Field):
 
 class TupleRHSMixin:
     def __init__(self, lhs, rhs):
+        self.empty_qs = False
         if isinstance(rhs, (tuple, list)):
             expressions = []
-            for value in rhs:
-                if not hasattr(value, "resolve_expression"):
-                    field = lhs.output_field
-                    value = Value(field.base_field.get_prep_value(value))
-                expressions.append(value)
-            rhs = Func(*expressions, function="tuple")
+            # If compare Tuple(Int8, String) to Tuple(Int8), just return empty.
+            if len(rhs) != len(lhs.output_field._base_fields):
+                self.empty_qs = True
+            else:
+                try:
+                    for value, field in zip(rhs, lhs.output_field._base_fields):
+                        if not hasattr(value, "resolve_expression"):
+                            value = Value(field.get_prep_value(value))
+                        expressions.append(value)
+                    rhs = Func(*expressions, function="tuple")
+                except exceptions.ValidationError:
+                    self.empty_qs = True
         super().__init__(lhs, rhs)
 
     def process_rhs(self, compiler, connection):
         rhs, rhs_params = super().process_rhs(compiler, connection)
         cast_type = self.lhs.output_field.cast_db_type(connection)
         return "%s::%s" % (rhs, cast_type), rhs_params
+
+    def as_clickhouse(self, compiler, connection):
+        if self.empty_qs:
+            return "false", []
+        return self.as_sql(compiler, connection)
 
 
 @TupleField.register_lookup
@@ -314,9 +353,10 @@ class IndexTransform(lookups.Transform):
         self.index = index
         self.base_field = base_field
 
-    def as_sql(self, compiler, connection):
+    def as_clickhouse(self, compiler, connection):
         lhs, params = compiler.compile(self.lhs)
-        return "%s.{}".format(self.index) % lhs, params
+        params.append(self.index)
+        return f"tupleElement({lhs}, %s)", params
 
     @property
     def output_field(self):

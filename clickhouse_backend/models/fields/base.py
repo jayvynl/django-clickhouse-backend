@@ -9,31 +9,17 @@ class FieldMixin:
        unique_for_month, unique_for_year, db_tablespace.
     2. Return shortened name in deconstruct method.
     3. Add low_cardinality attribute, corresponding to clickhouse LowCardinality Data Type.
-    """
-    low_cardinality_allowed = True
-    nullable_allowed = True
 
-    def __init__(self, *args, low_cardinality=False, **kwargs):
-        self.low_cardinality = low_cardinality
-        super().__init__(*args, **kwargs)
+    low_cardinality argument is added separately in every specific field that support LowCardinality.
+    If added in this mixin, then PyCharm will not supply argument hints.
+    """
+    nullable_allowed = True
 
     def check(self, **kwargs):
         return [
             *super().check(**kwargs),
-            *self._check_low_cardinality(),
             *self._check_nullable(),
         ]
-
-    def _check_low_cardinality(self):
-        if self.low_cardinality and not self.low_cardinality_allowed:
-            return [
-                checks.Error(
-                    "LowCardinality is not supported by %s." %
-                    self.__class__.__name__,
-                    obj=self,
-                )
-            ]
-        return []
 
     def _check_nullable(self):
         if self.null and not self.nullable_allowed:
@@ -62,7 +48,7 @@ class FieldMixin:
             except KeyError:
                 pass
 
-        if self.low_cardinality:
+        if getattr(self, "low_cardinality", False):
             kwargs["low_cardinality"] = self.low_cardinality
         if path.startswith("clickhouse_backend.models.fields"):
             path = path.replace("clickhouse_backend.models.fields", "clickhouse_backend.models")
@@ -74,7 +60,7 @@ class FieldMixin:
             # Nested type LowCardinality(Int8) cannot be inside Nullable type. (ILLEGAL_TYPE_OF_ARGUMENT)
             if self.null:
                 value = "Nullable(%s)" % value
-            if self.low_cardinality:
+            if getattr(self, "low_cardinality", False):
                 value = "LowCardinality(%s)" % value
         return value
 

@@ -16,7 +16,6 @@ __all__ = ["MapField"]
 
 
 class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
-    low_cardinality_allowed = False
     nullable_allowed = False
     empty_strings_allowed = False
     default_error_messages = {
@@ -107,7 +106,8 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
                         obj=self,
                     )
                 )
-            if self.key_field.low_cardinality and key_type not in {"StringField", "FixedStringField"}:
+            if (getattr(self.key_field, "low_cardinality", False)
+                    and key_type not in {"StringField", "FixedStringField"}):
                 errors.append(
                     checks.Error(
                         "Only Map key of String and FixedString can be low cardinality.",
@@ -162,6 +162,15 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
             }
         return value
 
+    def get_db_prep_save(self, value, connection):
+        if isinstance(value, collections.abc.Mapping):
+            return {
+                self.key_field.get_db_prep_save(k, connection):
+                self.value_field.get_db_prep_save(v, connection)
+                for k, v in value.items()
+            }
+        return value
+
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
         if path.startswith("clickhouse_backend.models.map"):
@@ -175,13 +184,15 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
     def to_python(self, value):
         if isinstance(value, str):
             # Assume we're deserializing
-            vals = json.loads(value)
-            value = {
-                self.key_field.to_python(k):
+            value = json.loads(value)
+        if value is None:
+            return value
+        value = dict(value)
+        return {
+            self.key_field.to_python(k):
                 self.value_field.to_python(v)
-                for k, v in vals.items()
-            }
-        return value
+            for k, v in value.items()
+        }
 
     @staticmethod
     def from_db_value_noop(value, expression, connection):
@@ -224,10 +235,7 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
         if transform:
             return transform
 
-        key = self.key_field.get_db_prep_value(
-            self.key_field.to_python(name)
-        )
-        return KeyTransformFactory(key, self.value_field)
+        return KeyTransformFactory(name, self.key_field, self.value_field)
 
     def validate(self, value, model_instance):
         super().validate(value, model_instance)
@@ -340,14 +348,16 @@ class ValuesTransform(lookups.Transform):
 
 
 class KeyTransform(lookups.Transform):
-    def __init__(self, key, value_field, *args, **kwargs):
+    def __init__(self, key, key_field, value_field, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.key = key
+        self.key_field = key_field
         self.value_field = value_field
 
     def as_sql(self, compiler, connection):
         lhs, params = compiler.compile(self.lhs)
-        return "%s[%%s]" % lhs, params + [self.key]
+        key = self.key_field.get_db_prep_value(self.key, connection)
+        return "%s[%%s]" % lhs, params + [key]
 
     @property
     def output_field(self):
@@ -355,9 +365,10 @@ class KeyTransform(lookups.Transform):
 
 
 class KeyTransformFactory:
-    def __init__(self, key, value_field):
+    def __init__(self, key, key_field, value_field):
         self.key = key
+        self.key_field = key_field
         self.value_field = value_field
 
     def __call__(self, *args, **kwargs):
-        return KeyTransform(self.key, self.value_field, *args, **kwargs)
+        return KeyTransform(self.key, self.key_field, self.value_field, *args, **kwargs)

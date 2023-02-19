@@ -118,7 +118,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     }
 
     # The patterns below are used to generate SQL pattern lookup clauses when
-    # the right-hand side of the lookup isn"t a raw string (it might be an expression
+    # the right-hand side of the lookup isn't a raw string (it might be an expression
     # or the result of a bilateral transformation).
     # In those cases, special characters for LIKE operators (e.g. \, *, _) should be
     # escaped on database side.

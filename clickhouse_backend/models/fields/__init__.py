@@ -5,6 +5,7 @@ from django.core import checks
 from django.core import exceptions
 from django.db.models import fields
 from django.utils.functional import cached_property
+from django.utils.itercompat import is_iterable
 from django.utils.translation import gettext_lazy as _
 
 from clickhouse_backend.validators import MaxBytesValidator
@@ -35,6 +36,10 @@ __all__ = [
 class Float32Field(FieldMixin, fields.FloatField):
     description = _("Single precision floating point number")
 
+    def __init__(self, *args, low_cardinality=False, **kwargs):
+        self.low_cardinality = low_cardinality
+        super().__init__(*args, **kwargs)
+
     def get_internal_type(self):
         return "Float32Field"
 
@@ -42,20 +47,30 @@ class Float32Field(FieldMixin, fields.FloatField):
 class Float64Field(FieldMixin, fields.FloatField):
     description = _("Double precision floating point number")
 
+    def __init__(self, *args, low_cardinality=False, **kwargs):
+        self.low_cardinality = low_cardinality
+        super().__init__(*args, **kwargs)
+
     def get_internal_type(self):
         return "Float64Field"
 
 
 class DecimalField(FieldMixin, fields.DecimalField):
-    low_cardinality_allowed = False
+    pass
 
 
 class BoolField(FieldMixin, fields.BooleanField):
-    pass
+    def __init__(self, *args, low_cardinality=False, **kwargs):
+        self.low_cardinality = low_cardinality
+        super().__init__(*args, **kwargs)
 
 
 class StringField(FieldMixin, fields.TextField):
     description = _("Binary string")
+
+    def __init__(self, *args, low_cardinality=False, **kwargs):
+        self.low_cardinality = low_cardinality
+        super().__init__(*args, **kwargs)
 
     def get_internal_type(self):
         return "StringField"
@@ -67,11 +82,12 @@ class StringField(FieldMixin, fields.TextField):
 
 
 class FixedStringField(FieldMixin, fields.TextField):
-    description = _("Binary string (up to %(max_bytes)s)")
+    description = _("Binary string (up to %(max_bytes)s bytes)")
 
-    def __init__(self, *args, max_bytes=None, **kwargs):
+    def __init__(self, *args, max_bytes=None, low_cardinality=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.max_bytes = max_bytes
+        self.low_cardinality = low_cardinality
         self.validators.append(MaxBytesValidator(self.max_bytes))
 
     def check(self, **kwargs):
@@ -114,7 +130,9 @@ class FixedStringField(FieldMixin, fields.TextField):
 
 
 class UUIDField(FieldMixin, fields.UUIDField):
-    pass
+    def __init__(self, *args, low_cardinality=False, **kwargs):
+        self.low_cardinality = low_cardinality
+        super().__init__(*args, **kwargs)
 
 
 # class DateFieldMixin(FieldMixin):
@@ -147,11 +165,19 @@ class DateField(FieldMixin, fields.DateField):
     ...
     AttributeError: 'int' object has no attribute 'year'
     """
+    def __init__(self, *args, low_cardinality=False, **kwargs):
+        self.low_cardinality = low_cardinality
+        super().__init__(*args, **kwargs)
+
     def get_internal_type(self):
         return "ClickhouseDateField"
 
 
 class Date32Field(FieldMixin, fields.DateField):
+    def __init__(self, *args, low_cardinality=False, **kwargs):
+        self.low_cardinality = low_cardinality
+        super().__init__(*args, **kwargs)
+
     def get_internal_type(self):
         return "Date32Field"
 
@@ -169,6 +195,10 @@ class DateTimeMixin(FieldMixin):
 
 
 class DateTimeField(DateTimeMixin, fields.DateTimeField):
+    def __init__(self, *args, low_cardinality=False, **kwargs):
+        self.low_cardinality = low_cardinality
+        super().__init__(*args, **kwargs)
+
     def get_internal_type(self):
         return "ClickhouseDateTimeField"
 
@@ -188,7 +218,6 @@ class DateTimeField(DateTimeMixin, fields.DateTimeField):
 
 class DateTime64Field(DateTimeMixin, fields.DateTimeField):
     DEFAULT_PRECISION = 6
-    low_cardinality_allowed = False
 
     def __init__(self, *args, precision=DEFAULT_PRECISION, **kwargs):
         super().__init__(*args, **kwargs)
@@ -224,14 +253,23 @@ class DateTime64Field(DateTimeMixin, fields.DateTimeField):
 
 class EnumField(FieldMixin, fields.Field):
     description = _("Integer enum value")
-    low_cardinality_allowed = False
     MIN_INT = -32768
     MAX_INT = 32767
 
     def _check_choices(self):
-        errors = super()._check_choices()
-        if errors:
-            return errors
+        """Note: although clickhouse support arbitrary bytes in Enum name,
+        but clickhouse-driver 0.2.5 will raise UnicodeDecodeError when execute query."""
+
+        invalid_errors = [
+            checks.Error(
+                "'choices' must be an iterable containing "
+                "(int, str) tuples.",
+                obj=self,
+                id="fields.E005",
+            )
+        ]
+        if not is_iterable(self.choices) or isinstance(self.choices, str):
+            return invalid_errors
 
         if not self.choices:
             return [
@@ -242,16 +280,13 @@ class EnumField(FieldMixin, fields.Field):
             ]
 
         normal_choices = []
-        for value, name in self.choices:
+        for choice in self.choices:
+            try:
+                value, name = choice
+            except (TypeError, ValueError):
+                return invalid_errors
             if not isinstance(value, int) or not isinstance(name, (str, bytes)):
-                return [
-                    checks.Error(
-                        "'choices' must be an iterable containing "
-                        "(int, str or bytes) tuples.",
-                        obj=self,
-                        id="fields.E005",
-                    )
-                ]
+                return invalid_errors
             if value < self.MIN_INT or value > self.MAX_INT:
                 return [
                     checks.Error(
@@ -299,6 +334,14 @@ class EnumField(FieldMixin, fields.Field):
                 pass
         return self._name_value_map[value]
 
+    def get_prep_value(self, value):
+        if isinstance(value, bytes):
+            try:
+                value = value.decode("utf-8")
+            except UnicodeDecodeError:
+                pass
+        return value
+
 
 class Enum8Field(EnumField):
     description = _("8bit integer enum value")
@@ -319,22 +362,33 @@ class Enum16Field(EnumField):
 class IPv4Field(FieldMixin, fields.GenericIPAddressField):
     description = _("IPv4 address")
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, low_cardinality=False, **kwargs):
         kwargs["protocol"] = "ipv4"
-        if "unpack_ipv4" in kwargs:
-            del kwargs["unpack_ipv4"]
+        kwargs["unpack_ipv4"] = False
+        self.low_cardinality = low_cardinality
         super().__init__(*args, **kwargs)
         self.max_length = 15
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
-        del kwargs["unpack_ipv4"]
-        del kwargs["protocol"]
-        del kwargs["max_length"]
+        for key in [
+            "unpack_ipv4",
+            "protocol",
+            "max_length"
+        ]:
+            try:
+                del kwargs[key]
+            except KeyError:
+                pass
         return name, path, args, kwargs
 
     def get_internal_type(self):
         return "IPv4Field"
+
+    def from_db_value(self, value, expression, connection):
+        if value is None:
+            return value
+        return str(value)
 
     def get_prep_value(self, value):
         value = super(fields.GenericIPAddressField, self).get_prep_value(value)
@@ -352,21 +406,33 @@ class IPv4Field(FieldMixin, fields.GenericIPAddressField):
 class IPv6Field(FieldMixin, fields.GenericIPAddressField):
     description = _("IPv6 address")
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, low_cardinality=False, **kwargs):
         kwargs["protocol"] = "ipv6"
-        if "unpack_ipv4" in kwargs:
-            del kwargs["unpack_ipv4"]
+        kwargs["unpack_ipv4"] = False
+        self.low_cardinality = low_cardinality
         super().__init__(*args, **kwargs)
+        kwargs["max_length"] = 39
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
-        del kwargs["unpack_ipv4"]
-        del kwargs["protocol"]
-        del kwargs["max_length"]
+        for key in [
+            "unpack_ipv4",
+            "protocol",
+            "max_length"
+        ]:
+            try:
+                del kwargs[key]
+            except KeyError:
+                pass
         return name, path, args, kwargs
 
     def get_internal_type(self):
         return "IPv6Field"
+
+    def from_db_value(self, value, expression, connection):
+        if value is None:
+            return value
+        return str(value)
 
     def get_prep_value(self, value):
         value = super(fields.GenericIPAddressField, self).get_prep_value(value)
@@ -385,6 +451,10 @@ class IPv6Field(FieldMixin, fields.GenericIPAddressField):
 
 
 class GenericIPAddressField(FieldMixin, fields.GenericIPAddressField):
+    def __init__(self, *args, low_cardinality=False, **kwargs):
+        self.low_cardinality = low_cardinality
+        super().__init__(*args, **kwargs)
+
     def db_type(self, connection):
         if self.protocol.lower() == "ipv4":
             return "IPv4"

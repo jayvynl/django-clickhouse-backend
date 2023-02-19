@@ -1,9 +1,8 @@
-import ipaddress
-
 from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
 
 from clickhouse_backend import compat
+from clickhouse_backend.driver import escape
 from clickhouse_backend.driver.client import insert_pattern
 
 
@@ -231,7 +230,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             elif internal_type == "IPv6Field":
                 lookup = "IPv6NumToString(%s)"
             elif internal_type == "GenericIPAddressField":
-                lookup = "replaceRegexpOne(IPv6NumToString(%s), '^::ffff:', "")"
+                lookup = "replaceRegexpOne(IPv6NumToString(%s), '^::ffff:', '')"
             else:
                 lookup = "CAST(%s, 'Nullable(String)')"
 
