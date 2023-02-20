@@ -12,19 +12,13 @@ class DatabaseIntrospectionTests(TestCase):
             connection.introspection.get_field_type(
                 "FixedString(20)", ""
             ),
-            "CharField"
+            "FixedStringField"
         )
         self.assertEqual(
             connection.introspection.get_field_type(
                 "DateTime64(6, 'UTC')", ""
             ),
-            "DateTimeField"
-        )
-        self.assertEqual(
-            connection.introspection.get_field_type(
-                "FixedString(20)", ""
-            ),
-            "CharField"
+            "DateTime64Field"
         )
         self.assertEqual(
             connection.introspection.get_field_type(

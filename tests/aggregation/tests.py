@@ -1587,7 +1587,7 @@ class AggregateTestCase(TestCase):
             )
 
         def test_aggregation_default_using_datetime_from_database(self):
-            now = timezone.now().astimezone(datetime.timezone.utc)
+            now = timezone.now()
             expr = Min(
                 "store__original_opening",
                 filter=~Q(store__name="Amazon.com"),

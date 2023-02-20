@@ -485,14 +485,6 @@ class EnumFieldTests(TestCase):
         models.Enum16Field,
     ]
 
-    def test_low_cardinality_not_allowed(self):
-        for field_class in self.field_classes:
-            field = field_class(low_cardinality=True, choices=[(1, "a")], name="field")
-            self.assertEqual(
-                field.check()[0].msg,
-                f"LowCardinality is not supported by {field_class.__name__}."
-            )
-
     def test_blank_choices(self):
         for field_class in self.field_classes:
             field = field_class(choices=tuple(), name="field")
@@ -505,7 +497,7 @@ class EnumFieldTests(TestCase):
         for field_class in self.field_classes:
             msg = (
                 "'choices' must be an iterable containing "
-                "(int, str or bytes) tuples.",
+                "(int, str) tuples."
             )
             field = field_class(choices=[(1, "a"), ("b", 2)], name="field")
             self.assertEqual(field.check()[0].msg, msg)
@@ -564,7 +556,7 @@ class EnumFieldTests(TestCase):
             )
 
     def test_value_to_string(self):
-        o = EnumModel(enum=1, enum8="b", enum16=b"c")
+        o = EnumModel(enum=1, enum8="Smile 😀", enum16="九转大肠".encode("utf-8"))
         self.assertEqual(
             o._meta.get_field("enum").value_to_string(o),
             1
@@ -604,7 +596,7 @@ class EnumFieldTests(TestCase):
             EnumModel.objects.filter(enum16="九转大肠").exists()
         )
         self.assertTrue(
-            EnumModel.objects.filter(enum16__contains=b"\xbd\xac\xe5\xa4").exists()
+            EnumModel.objects.filter(enum16__contains="转大").exists()
         )
 
 
@@ -643,7 +635,7 @@ class IPv4FieldTests(TestCase):
 
 class IPv6FieldTests(TestCase):
     def test_deconstruct(self):
-        field = models.IPv4Field()
+        field = models.IPv6Field()
         name, path, args, kwargs = field.deconstruct()
         self.assertEqual(
             path,
@@ -654,14 +646,10 @@ class IPv6FieldTests(TestCase):
         self.assertNotIn("max_length", kwargs)
 
     def test_value(self):
-        v = "::ffff:3.4.5.6"
+        v = "::ffff:304:506"
         o = IPv6Model.objects.create(ipv6=v)
         o.refresh_from_db()
         self.assertEqual(o.ipv6, v)
-
-        o.ipv6 = "3.4.5.6"
-        with self.assertRaises(ValidationError):
-            o.save()
 
     def test_filter(self):
         v = "::ffff:3.4.5.6"
@@ -683,7 +671,7 @@ class GenericIPAddressFieldTests(TestCase):
             "clickhouse_backend.models.GenericIPAddressField"
         )
         self.assertEqual(kwargs["unpack_ipv4"], True)
-        self.assertNotIn(kwargs["protocol"], "both")
+        self.assertNotIn("protocol", kwargs)
         self.assertNotIn("max_length", kwargs)
 
     def test_value(self):

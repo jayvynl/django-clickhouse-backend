@@ -2,7 +2,6 @@ from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
 
 from clickhouse_backend import compat
-from clickhouse_backend.driver import escape
 from clickhouse_backend.driver.client import insert_pattern
 
 
@@ -142,63 +141,64 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def date_extract_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions/
-        if lookup_type == "year":
-            sql = "toYear(%s)" % sql
-        elif lookup_type == "iso_year":
-            sql = "toISOYear(%s)" % sql
-        elif lookup_type == "month":
-            sql = "toMonth(%s)" % sql
-        elif lookup_type == "day":
-            sql = "toDayOfMonth(%s)" % sql
-        elif lookup_type == "week":
-            sql = "toISOWeek(%s)" % sql
-        elif lookup_type == "week_day":
-            sql = "modulo(toDayOfWeek(%s), 7) + 1" % sql
-        elif lookup_type == "iso_week_day":
-            sql = "toDayOfWeek(%s)" % sql
-        elif lookup_type == "quarter":
-            sql = "toQuarter(%s)" % sql
-        elif lookup_type == "hour":
-            sql = "toHour(%s)" % sql
-        elif lookup_type == "minute":
-            sql = "toMinute(%s)" % sql
-        elif lookup_type == "second":
-            sql = "toSecond(%s)" % sql
+        *ex, tzname = args
+        tzname = tzname or settings.TIME_ZONE
+        if tzname:
+            extra = f", '{tzname}'"
         else:
-            sql = "to%s(%s)" % (lookup_type.capitalize(), sql)
+            extra = ""
+        if lookup_type == "iso_year":
+            sql = f"toISOYear(%s{extra})" % sql
+        elif lookup_type == "day":
+            sql = f"toDayOfMonth(%s{extra})" % sql
+        elif lookup_type == "week":
+            sql = f"toISOWeek(%s{extra})" % sql
+        elif lookup_type == "week_day":
+            sql = f"modulo(toDayOfWeek(%s{extra}), 7) + 1" % sql
+        elif lookup_type == "iso_week_day":
+            sql = f"toDayOfWeek(%s{extra})" % sql
+        else:
+            sql = f"to%s(%s{extra})" % (lookup_type.capitalize(), sql)
         if compat.dj_ge41:
-            return sql, args[0]
+            return sql, ex[0]
         else:
             return sql
 
     def date_trunc_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions#tostartofyear
         *ex, tzname = args
-        sql = self._convert_sql_to_tz(sql, tzname)
-        sql = "toStartOf%s(%s)" % (lookup_type.capitalize(), sql)
+        tzname = tzname or settings.TIME_ZONE
+        if tzname:
+            sql = "toStartOf%s(%s, '%s')" % (lookup_type.capitalize(), sql, tzname)
+        else:
+            sql = "toStartOf%s(%s)" % (lookup_type.capitalize(), sql)
         if compat.dj_ge41:
             return sql, ex[0]
         else:
             return sql
 
-    def _convert_sql_to_tz(self, sql, tzname):
-        if tzname and settings.USE_TZ:
-            sql = "toTimeZone(%s, '%s')" % (sql, tzname)
-        return sql
+    # def _convert_sql_to_tz(self, sql, tzname):
+    #     """Just remember, no matter USE_TZ or not,
+    #     clickhouse always store UNIX timestamp (which is in UTC timezone)."""
+    #     tzname = tzname or settings.TIME_ZONE
+    #     if tzname:
+    #         sql = "toTimeZone(%s, '%s')" % (sql, tzname)
+    #     return sql
 
     def datetime_cast_date_sql(self, sql, *args):
         *ex, tzname = args
-        sql = self._convert_sql_to_tz(sql, tzname)
-        sql = "toDate(%s)" % sql
+        tzname = tzname or settings.TIME_ZONE
+        if tzname:
+            sql = "toDate(%s, '%s')" % (sql, tzname)
+        else:
+            sql = "toDate(%s)" % sql
         if compat.dj_ge41:
             return sql, ex[0]
         else:
             return sql
 
     def datetime_extract_sql(self, lookup_type, sql, *args):
-        *ex, tzname = args
-        sql = self._convert_sql_to_tz(sql, tzname)
-        return self.date_extract_sql(lookup_type, sql, *ex)
+        return self.date_extract_sql(lookup_type, sql, *args)
 
     def datetime_trunc_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions/#date_trunc
@@ -231,6 +231,8 @@ class DatabaseOperations(BaseDatabaseOperations):
                 lookup = "IPv6NumToString(%s)"
             elif internal_type == "GenericIPAddressField":
                 lookup = "replaceRegexpOne(IPv6NumToString(%s), '^::ffff:', '')"
+            elif internal_type in ("EnumField", "Enum8Field", "Enum16Field"):
+                lookup = "toString(%s)"
             else:
                 lookup = "CAST(%s, 'Nullable(String)')"
 

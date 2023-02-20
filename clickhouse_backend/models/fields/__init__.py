@@ -342,6 +342,11 @@ class EnumField(FieldMixin, fields.Field):
                 pass
         return value
 
+    def from_db_value(self, value, expression, connection):
+        if value is None:
+            return value
+        return self._name_value_map[value]
+
 
 class Enum8Field(EnumField):
     description = _("8bit integer enum value")
