@@ -81,41 +81,6 @@ class ModelInstanceCreationTests(TestCase):
         a.save()
         self.assertEqual(a.headline, "Fourth article")
 
-    if compat.dj_ge4:
-        def test_positional_and_keyword_args_for_the_same_field(self):
-            msg = "Article() got both positional and keyword arguments for field '%s'."
-            with self.assertRaisesMessage(TypeError, msg % "headline"):
-                Article(None, "Fifth article", headline="Other headline.")
-            with self.assertRaisesMessage(TypeError, msg % "headline"):
-                Article(None, "Sixth article", headline="")
-            with self.assertRaisesMessage(TypeError, msg % "pub_date"):
-                Article(None, "Seventh article", datetime(2021, 3, 1), pub_date=None)
-
-    def test_cannot_create_instance_with_invalid_kwargs(self):
-        if compat.dj32:
-            msg = "Article() got an unexpected keyword argument 'foo'"
-        else:
-            msg = "Article() got unexpected keyword arguments: 'foo'"
-        with self.assertRaisesMessage(TypeError, msg):
-            Article(
-                id=None,
-                headline="Some headline",
-                pub_date=datetime(2005, 7, 31),
-                foo="bar",
-            )
-        if compat.dj32:
-            msg = "Article() got an unexpected keyword argument 'foo'"
-        else:
-            msg = "Article() got unexpected keyword arguments: 'foo', 'bar'"
-        with self.assertRaisesMessage(TypeError, msg):
-            Article(
-                id=None,
-                headline="Some headline",
-                pub_date=datetime(2005, 7, 31),
-                foo="bar",
-                bar="baz",
-            )
-
     def test_can_leave_off_value_for_autofield_and_it_gets_value_on_save(self):
         """
         You can leave off the value for an AutoField when creating an

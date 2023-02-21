@@ -2271,7 +2271,7 @@ class AutodetectorTests(BaseAutodetectorTests):
         self.assertNumberMigrations(changes, "testapp", 1)
         self.assertOperationTypes(changes, "testapp", 0, ["AlterField"])
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_alter_regex_string_to_compiled_regex(self):
             regex_string = "^[a-z]+$"
             from_state = ModelState(
@@ -2423,7 +2423,7 @@ class AutodetectorTests(BaseAutodetectorTests):
             changes, "otherapp", 0, 0, model_name="book", name="book_title_author_idx"
         )
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_rename_indexes(self):
             book_renamed_indexes = ModelState(
                 "otherapp",
@@ -2720,7 +2720,7 @@ class AutodetectorTests(BaseAutodetectorTests):
             name="newfield",
         )
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_alter_field_and_unique_together(self):
             """Fields are altered after deleting some unique_together."""
             initial_author = ModelState(
@@ -3269,51 +3269,52 @@ class AutodetectorTests(BaseAutodetectorTests):
             changes, "testapp", 0, 3, model_name="author", name="publishers"
         )
 
-    def test_create_with_through_model_separate_apps(self):
-        author_with_m2m_through = ModelState(
-            "authors",
-            "Author",
-            [
-                ("id", models.BigAutoField(primary_key=True)),
-                (
-                    "publishers",
-                    models.ManyToManyField(
-                        "testapp.Publisher", through="contract.Contract"
+    if compat.dj_ge41:
+        def test_create_with_through_model_separate_apps(self):
+            author_with_m2m_through = ModelState(
+                "authors",
+                "Author",
+                [
+                    ("id", models.BigAutoField(primary_key=True)),
+                    (
+                        "publishers",
+                        models.ManyToManyField(
+                            "testapp.Publisher", through="contract.Contract"
+                        ),
                     ),
-                ),
-            ],
-        )
-        contract = ModelState(
-            "contract",
-            "Contract",
-            [
-                ("id", models.BigAutoField(primary_key=True)),
-                ("author", models.ForeignKey("authors.Author", models.CASCADE)),
-                ("publisher", models.ForeignKey("testapp.Publisher", models.CASCADE)),
-            ],
-        )
-        changes = self.get_changes(
-            [], [author_with_m2m_through, self.publisher, contract]
-        )
-        self.assertNumberMigrations(changes, "testapp", 1)
-        self.assertNumberMigrations(changes, "contract", 1)
-        self.assertNumberMigrations(changes, "authors", 2)
-        self.assertMigrationDependencies(
-            changes,
-            "authors",
-            1,
-            {("authors", "auto_1"), ("contract", "auto_1"), ("testapp", "auto_1")},
-        )
-        self.assertOperationTypes(changes, "testapp", 0, ["CreateModel"])
-        self.assertOperationAttributes(changes, "testapp", 0, 0, name="Publisher")
-        self.assertOperationTypes(changes, "contract", 0, ["CreateModel"])
-        self.assertOperationAttributes(changes, "contract", 0, 0, name="Contract")
-        self.assertOperationTypes(changes, "authors", 0, ["CreateModel"])
-        self.assertOperationTypes(changes, "authors", 1, ["AddField"])
-        self.assertOperationAttributes(changes, "authors", 0, 0, name="Author")
-        self.assertOperationAttributes(
-            changes, "authors", 1, 0, model_name="author", name="publishers"
-        )
+                ],
+            )
+            contract = ModelState(
+                "contract",
+                "Contract",
+                [
+                    ("id", models.BigAutoField(primary_key=True)),
+                    ("author", models.ForeignKey("authors.Author", models.CASCADE)),
+                    ("publisher", models.ForeignKey("testapp.Publisher", models.CASCADE)),
+                ],
+            )
+            changes = self.get_changes(
+                [], [author_with_m2m_through, self.publisher, contract]
+            )
+            self.assertNumberMigrations(changes, "testapp", 1)
+            self.assertNumberMigrations(changes, "contract", 1)
+            self.assertNumberMigrations(changes, "authors", 2)
+            self.assertMigrationDependencies(
+                changes,
+                "authors",
+                1,
+                {("authors", "auto_1"), ("contract", "auto_1"), ("testapp", "auto_1")},
+            )
+            self.assertOperationTypes(changes, "testapp", 0, ["CreateModel"])
+            self.assertOperationAttributes(changes, "testapp", 0, 0, name="Publisher")
+            self.assertOperationTypes(changes, "contract", 0, ["CreateModel"])
+            self.assertOperationAttributes(changes, "contract", 0, 0, name="Contract")
+            self.assertOperationTypes(changes, "authors", 0, ["CreateModel"])
+            self.assertOperationTypes(changes, "authors", 1, ["AddField"])
+            self.assertOperationAttributes(changes, "authors", 0, 0, name="Author")
+            self.assertOperationAttributes(
+                changes, "authors", 1, 0, model_name="author", name="publishers"
+            )
 
     def test_many_to_many_removed_before_through_model(self):
         """
@@ -3424,14 +3425,7 @@ class AutodetectorTests(BaseAutodetectorTests):
         )
         # Right number/type of migrations?
         self.assertNumberMigrations(changes, "testapp", 1)
-        if compat.dj32:
-            self.assertNumberMigrations(changes, "testapp", 1)
-            self.assertOperationTypes(changes, "testapp", 0, ["RemoveField", "AddField", "DeleteModel"])
-            self.assertOperationAttributes(changes, 'testapp', 0, 0, name="publishers", model_name='author')
-            self.assertOperationAttributes(changes, 'testapp', 0, 1, name="publishers", model_name='author')
-            self.assertOperationAttributes(changes, 'testapp', 0, 2, name='Publisher')
-            self.assertOperationFieldAttributes(changes, 'testapp', 0, 1, max_length=100)
-        else:
+        if compat.dj_ge41:
             self.assertOperationTypes(
                 changes, "testapp", 0, ["RemoveField", "DeleteModel", "AddField"]
             )
@@ -3443,6 +3437,13 @@ class AutodetectorTests(BaseAutodetectorTests):
                 changes, "testapp", 0, 2, name="publishers", model_name="author"
             )
             self.assertOperationFieldAttributes(changes, "testapp", 0, 2, max_length=100)
+        else:
+            self.assertNumberMigrations(changes, "testapp", 1)
+            self.assertOperationTypes(changes, "testapp", 0, ["RemoveField", "AddField", "DeleteModel"])
+            self.assertOperationAttributes(changes, 'testapp', 0, 0, name="publishers", model_name='author')
+            self.assertOperationAttributes(changes, 'testapp', 0, 1, name="publishers", model_name='author')
+            self.assertOperationAttributes(changes, 'testapp', 0, 2, name='Publisher')
+            self.assertOperationFieldAttributes(changes, 'testapp', 0, 1, max_length=100)
 
     def test_non_circular_foreignkey_dependency_removal(self):
         """
@@ -3954,7 +3955,7 @@ class AutodetectorTests(BaseAutodetectorTests):
             changes, "testapp", 0, [("otherapp", "__first__")]
         )
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_alter_unique_together_fk_to_m2m(self):
             changes = self.get_changes(
                 [self.author_name, self.book_unique_together],
@@ -4155,7 +4156,7 @@ class AutodetectorTests(BaseAutodetectorTests):
         )
         self.assertOperationAttributes(changes, "app", 0, 1, name="book")
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_parse_number(self):
             tests = [
                 ("no_number", None),
@@ -4318,7 +4319,7 @@ class AutodetectorIndexTogetherTests(BaseAutodetectorTests):
         for t in tests:
             test(*t)
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_rename_index_together_to_index(self):
             changes = self.get_changes(
                 [AutodetectorTests.author_empty, self.book_index_together],
@@ -4546,7 +4547,7 @@ class AutodetectorIndexTogetherTests(BaseAutodetectorTests):
             name="newfield",
         )
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_alter_field_and_index_together(self):
             """Fields are altered after deleting some index_together."""
             initial_author = ModelState(

@@ -258,7 +258,7 @@ class NonAggregateAnnotationTestCase(TestCase):
         self.assertEqual(len(books), Book.objects.count())
         self.assertTrue(all(not book.selected for book in books))
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_full_expression_annotation(self):
             books = Book.objects.annotate(
                 selected=ExpressionWrapper(~Q(pk__in=[]), output_field=BooleanField()),
@@ -279,6 +279,7 @@ class NonAggregateAnnotationTestCase(TestCase):
             ).aggregate(Sum("selected"))
             self.assertEqual(qs["selected__sum"], Book.objects.count())
 
+    if compat.dj_ge4:
         def test_empty_queryset_annotation(self):
             qs = Author.objects.annotate(empty=Subquery(Author.objects.values("id").none()))
             self.assertIsNone(qs.first().empty)

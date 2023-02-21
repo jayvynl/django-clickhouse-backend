@@ -831,7 +831,7 @@ class ExecutorTests(MigrationTestBase):
             False,
         )
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         @mock.patch.object(MigrationRecorder, "has_table", return_value=False)
         def test_migrate_skips_schema_creation(self, mocked_has_table):
             """

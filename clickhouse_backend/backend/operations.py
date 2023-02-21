@@ -141,26 +141,20 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def date_extract_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions/
-        *ex, tzname = args
-        tzname = tzname or settings.TIME_ZONE
-        if tzname:
-            extra = f", '{tzname}'"
-        else:
-            extra = ""
         if lookup_type == "iso_year":
-            sql = f"toISOYear(%s{extra})" % sql
+            sql = f"toISOYear(%s)" % sql
         elif lookup_type == "day":
-            sql = f"toDayOfMonth(%s{extra})" % sql
+            sql = f"toDayOfMonth(%s)" % sql
         elif lookup_type == "week":
-            sql = f"toISOWeek(%s{extra})" % sql
+            sql = f"toISOWeek(%s)" % sql
         elif lookup_type == "week_day":
-            sql = f"modulo(toDayOfWeek(%s{extra}), 7) + 1" % sql
+            sql = f"modulo(toDayOfWeek(%s), 7) + 1" % sql
         elif lookup_type == "iso_week_day":
-            sql = f"toDayOfWeek(%s{extra})" % sql
+            sql = f"toDayOfWeek(%s)" % sql
         else:
-            sql = f"to%s(%s{extra})" % (lookup_type.capitalize(), sql)
+            sql = f"to%s(%s)" % (lookup_type.capitalize(), sql)
         if compat.dj_ge41:
-            return sql, ex[0]
+            return sql, args[0]
         else:
             return sql
 
@@ -169,21 +163,24 @@ class DatabaseOperations(BaseDatabaseOperations):
         *ex, tzname = args
         tzname = tzname or settings.TIME_ZONE
         if tzname:
-            sql = "toStartOf%s(%s, '%s')" % (lookup_type.capitalize(), sql, tzname)
+            sql = f"toDate({sql}, '{tzname}')"
         else:
-            sql = "toStartOf%s(%s)" % (lookup_type.capitalize(), sql)
+            sql = f"toDate({sql})"
+        if lookup_type != "day":
+            sql = f"toStartOf{lookup_type.capitalize()}({sql})"
+
         if compat.dj_ge41:
             return sql, ex[0]
         else:
             return sql
 
-    # def _convert_sql_to_tz(self, sql, tzname):
-    #     """Just remember, no matter USE_TZ or not,
-    #     clickhouse always store UNIX timestamp (which is in UTC timezone)."""
-    #     tzname = tzname or settings.TIME_ZONE
-    #     if tzname:
-    #         sql = "toTimeZone(%s, '%s')" % (sql, tzname)
-    #     return sql
+    def _convert_sql_to_tz(self, sql, tzname):
+        """Just remember, no matter USE_TZ or not,
+        clickhouse always store UNIX timestamp (which is in UTC timezone)."""
+        tzname = tzname or settings.TIME_ZONE
+        if tzname:
+            sql = "toTimeZone(%s, '%s')" % (sql, tzname)
+        return sql
 
     def datetime_cast_date_sql(self, sql, *args):
         *ex, tzname = args
@@ -198,7 +195,9 @@ class DatabaseOperations(BaseDatabaseOperations):
             return sql
 
     def datetime_extract_sql(self, lookup_type, sql, *args):
-        return self.date_extract_sql(lookup_type, sql, *args)
+        *ex, tzname = args
+        sql = self._convert_sql_to_tz(sql, tzname)
+        return self.date_extract_sql(lookup_type, sql, *ex)
 
     def datetime_trunc_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions/#date_trunc

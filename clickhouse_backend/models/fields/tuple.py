@@ -34,7 +34,7 @@ class TupleField(FieldMixin, Field):
     def _check_base_fields(self, base_fields):
         """Check base_fields type when init.
 
-        Because some other init actions depend on correct base_fields type"""
+        Because some other init actions depend on correct base_fields type."""
 
         invalid_error = RuntimeError(
             "'base_fields' must be an iterable containing only(not both) "
@@ -64,7 +64,7 @@ class TupleField(FieldMixin, Field):
                 raise RuntimeError("Field %ss cannot be a related field." % index)
             if getattr(field, "low_cardinality", False):
                 warnings.warn(
-                    "clickhouse_driver have bug when there is LowCardinality subtype inside Tuple."
+                    "clickhouse_driver have bug when there is LowCardinality subtype inside Tuple. "
                     f"Implicitly set low_cardinality = False on {repr(field)}"
                 )
                 field.low_cardinality = False

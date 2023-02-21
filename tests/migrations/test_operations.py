@@ -2217,7 +2217,7 @@ class OperationTests(OperationTestBase):
         self.unapply_operations("test_rmin", project_state, operations=operations)
         self.assertIndexNameExists("test_rmin_pony", "pony_test_idx")
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_rename_index(self):
             app_label = "test_rnin"
             project_state = self.set_up_test_model(app_label, index=True)
@@ -2302,7 +2302,7 @@ class OperationTests(OperationTestBase):
         new_model = new_state.apps.get_model("test_rminsf", "Pony")
         self.assertIsNot(old_model, new_model)
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_rename_index_state_forwards(self):
             app_label = "test_rnidsf"
             project_state = self.set_up_test_model(app_label, index=True)

@@ -45,7 +45,7 @@ class TupleFieldTests(TestCase):
         field = models.TupleField(base_fields=[
             models.UInt8Field(),
             models.DateField(null=True),
-            models.StringField(low_cardinality=True)
+            models.StringField()
         ])
         self.assertTrue(
             field.db_type(connection),
@@ -55,7 +55,7 @@ class TupleFieldTests(TestCase):
         field = models.TupleField(base_fields=[
             ('i', models.UInt8Field()),
             ('d', models.DateField(null=True)),
-            ('s', models.StringField(low_cardinality=True))
+            ('s', models.StringField())
         ])
         self.assertTrue(
             field.db_type(connection),
@@ -66,7 +66,7 @@ class TupleFieldTests(TestCase):
         field = models.TupleField(base_fields=[
             models.UInt8Field(),
             models.DateField(null=True),
-            models.StringField(low_cardinality=True)
+            models.StringField()
         ])
         name, path, args, kwargs = field.deconstruct()
         self.assertEqual(path, "clickhouse_backend.models.TupleField")

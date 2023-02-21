@@ -28,6 +28,15 @@ class Query(query.Query):
         return "\n".join(compiler.explain_query())
 
 
-for query_class in [subqueries.UpdateQuery, subqueries.DeleteQuery]:
-    for attr in ['clone', 'explain']:
-        setattr(query_class, attr, getattr(Query, attr))
+def clone_factory(cls):
+    old = cls.clone
+
+    def clone(self):
+        obj = old(self)
+        obj.settings = self.setting_info.copy()
+        return obj
+    return clone
+
+
+subqueries.UpdateQuery.clone = clone_factory(subqueries.UpdateQuery)
+subqueries.DeleteQuery.clone = clone_factory(subqueries.DeleteQuery)

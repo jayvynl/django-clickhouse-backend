@@ -967,15 +967,15 @@ class AggregateTestCase(TestCase):
         self.assertEqual(p2, {"avg_price": Approximate(Decimal("53.39"), places=2)})
 
     def test_combine_different_types(self):
-        if compat.dj32:
-            msg = (
-                'Expression contains mixed types: FloatField, DecimalField. '
-                'You must set output_field.'
-            )
-        else:
+        if compat.dj_ge41:
             msg = (
                 "Cannot infer type of '+' expression involving these types: FloatField, "
                 "DecimalField. You must set output_field."
+            )
+        else:
+            msg = (
+                'Expression contains mixed types: FloatField, DecimalField. '
+                'You must set output_field.'
             )
         qs = Book.objects.annotate(sums=Sum("rating") + Sum("pages") + Sum("price"))
         with self.assertRaisesMessage(FieldError, msg):
@@ -1274,7 +1274,7 @@ class AggregateTestCase(TestCase):
     #     # The GROUP BY should not be by alias either.
     #     self.assertEqual(ctx[0]["sql"].lower().count("latest_book_pubdate"), 1)
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_aggregation_filter_exists(self):
             publishers_having_more_than_one_book_qs = (
                 Book.objects.values("publisher")
@@ -1316,7 +1316,7 @@ class AggregateTestCase(TestCase):
                 )
                 self.assertEqual(list(books_qs), expected_result)
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_filter_in_subquery_or_aggregation(self):
             """
             Filtering against an aggregate requires the usage of the HAVING clause.

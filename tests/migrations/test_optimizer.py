@@ -131,6 +131,7 @@ class OptimizerTests(SimpleTestCase):
                 ],
             )
 
+    if compat.dj_ge41:
         def test_create_alter_model_managers(self):
             self.assertOptimizesTo(
                 [
@@ -1118,7 +1119,7 @@ class OptimizerTests(SimpleTestCase):
             ],
         )
 
-    if compat.dj_ge4:
+    if compat.dj_ge41:
         def test_rename_index(self):
             self.assertOptimizesTo(
                 [
