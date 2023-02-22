@@ -1,9 +1,8 @@
-import ipaddress
-
 from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
 
 from clickhouse_backend import compat
+from clickhouse_backend.utils import get_timezone
 from clickhouse_backend.driver.client import insert_pattern
 
 
@@ -17,6 +16,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     compiler_module = "clickhouse_backend.models.sql.compiler"
     cast_char_field_without_max_length = "String"
     integer_field_ranges = {
+        # Django fields.
         "SmallIntegerField": (-32768, 32767),
         "IntegerField": (-2147483648, 2147483647),
         "BigIntegerField": (-9223372036854775808, 9223372036854775807),
@@ -26,6 +26,19 @@ class DatabaseOperations(BaseDatabaseOperations):
         "SmallAutoField": (-32768, 32767),
         "AutoField": (-2147483648, 2147483647),
         "BigAutoField": (-9223372036854775808, 9223372036854775807),
+        # Clickhouse fields.
+        "Int8Field": (-1 << 7, -1 ^ (-1 << 7)),
+        "Int16Field": (-1 << 15, -1 ^ (-1 << 15)),
+        "Int32Field": (-1 << 31, -1 ^ (-1 << 31)),
+        "Int64Field": (-1 << 63, -1 ^ (-1 << 63)),
+        "Int128Field": (-1 << 127, -1 ^ (-1 << 127)),
+        "Int256Field": (-1 << 255, -1 ^ (-1 << 255)),
+        "UInt8Field": (0, -1 ^ (-1 << 8)),
+        "UInt16Field": (0, -1 ^ (-1 << 16)),
+        "UInt32Field": (0, -1 ^ (-1 << 32)),
+        "UInt64Field": (0, -1 ^ (-1 << 64)),
+        "UInt128Field": (0, -1 ^ (-1 << 128)),
+        "UInt256Field": (0, -1 ^ (-1 << 256)),
     }
     set_operators = {
         "union": "UNION ALL",
@@ -119,35 +132,29 @@ class DatabaseOperations(BaseDatabaseOperations):
     }
 
     def unification_cast_sql(self, output_field):
-        return "CAST(%%s, 'Nullable(%s)')" % output_field.db_type(self.connection)
+        db_type = output_field.db_type(self.connection)
+        # normal django fields does not have 'nullable_allowed' attribute
+        if (not hasattr(output_field, 'nullable_allowed')
+                or output_field.nullable_allowed
+                and not output_field.null):
+            db_type = 'Nullable(%s)' % db_type
+        return '%s::{}'.format(db_type)
 
     def date_extract_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions/
-        if lookup_type == "year":
-            sql = "toYear(%s)" % sql
-        elif lookup_type == "iso_year":
-            sql = "toISOYear(%s)" % sql
-        elif lookup_type == "month":
-            sql = "toMonth(%s)" % sql
+        if lookup_type == "iso_year":
+            sql = f"toISOYear(%s)" % sql
         elif lookup_type == "day":
-            sql = "toDayOfMonth(%s)" % sql
+            sql = f"toDayOfMonth(%s)" % sql
         elif lookup_type == "week":
-            sql = "toISOWeek(%s)" % sql
+            sql = f"toISOWeek(%s)" % sql
         elif lookup_type == "week_day":
-            sql = "modulo(toDayOfWeek(%s), 7) + 1" % sql
+            sql = f"modulo(toDayOfWeek(%s), 7) + 1" % sql
         elif lookup_type == "iso_week_day":
-            sql = "toDayOfWeek(%s)" % sql
-        elif lookup_type == "quarter":
-            sql = "toQuarter(%s)" % sql
-        elif lookup_type == "hour":
-            sql = "toHour(%s)" % sql
-        elif lookup_type == "minute":
-            sql = "toMinute(%s)" % sql
-        elif lookup_type == "second":
-            sql = "toSecond(%s)" % sql
+            sql = f"toDayOfWeek(%s)" % sql
         else:
-            sql = "to%s(%s)" % (lookup_type.capitalize(), sql)
-        if compat.dj41:
+            sql = f"to%s(%s)" % (lookup_type.capitalize(), sql)
+        if compat.dj_ge41:
             return sql, args[0]
         else:
             return sql
@@ -155,30 +162,29 @@ class DatabaseOperations(BaseDatabaseOperations):
     def date_trunc_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions#tostartofyear
         *ex, tzname = args
-        sql = self._convert_sql_to_tz(sql, tzname)
-        sql = "toStartOf%s(%s)" % (lookup_type.capitalize(), sql)
-        if compat.dj41:
+        tzname = tzname or get_timezone()
+        sql = "toDate(%s, '%s')" % (sql, tzname)
+        if lookup_type != "day":
+            sql = f"toStartOf{lookup_type.capitalize()}({sql})"
+
+        if compat.dj_ge41:
             return sql, ex[0]
         else:
             return sql
 
-    def _convert_sql_to_tz(self, sql, tzname):
-        if tzname and settings.USE_TZ:
-            sql = "toTimeZone(%s, '%s')" % (sql, tzname)
-        return sql
-
     def datetime_cast_date_sql(self, sql, *args):
         *ex, tzname = args
-        sql = self._convert_sql_to_tz(sql, tzname)
-        sql = "toDate(%s)" % sql
-        if compat.dj41:
+        tzname = tzname or get_timezone()
+        sql = "toDate(%s, '%s')" % (sql, tzname)
+        if compat.dj_ge41:
             return sql, ex[0]
         else:
             return sql
 
     def datetime_extract_sql(self, lookup_type, sql, *args):
         *ex, tzname = args
-        sql = self._convert_sql_to_tz(sql, tzname)
+        tzname = tzname or get_timezone()
+        sql = "toTimeZone(%s, '%s')" % (sql, tzname)
         return self.date_extract_sql(lookup_type, sql, *ex)
 
     def datetime_trunc_sql(self, lookup_type, sql, *args):
@@ -188,7 +194,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             sql = "date_trunc('%s', %s, '%s')" % (lookup_type, sql, tzname)
         else:
             sql = "date_trunc('%s', %s)" % (lookup_type, sql)
-        if compat.dj41:
+        if compat.dj_ge41:
             return sql, ex[0]
         else:
             return sql
@@ -206,12 +212,19 @@ class DatabaseOperations(BaseDatabaseOperations):
         # Cast text lookups to text to allow things like filter(x__contains=4)
         if lookup_type in ("iexact", "contains", "icontains", "startswith",
                            "istartswith", "endswith", "iendswith", "regex", "iregex"):
-            if internal_type == "IPAddressField":
+            if internal_type == "IPAddressField" or internal_type == "IPv4Field":
                 lookup = "IPv4NumToString(%s)"
+            elif internal_type == "IPv6Field":
+                lookup = "IPv6NumToString(%s)"
             elif internal_type == "GenericIPAddressField":
-                lookup = "replaceRegexpOne(IPv6NumToString(%s), '^::ffff:', "")"
+                lookup = "replaceRegexpOne(IPv6NumToString(%s), '^::ffff:', '')"
+            elif internal_type in ("EnumField", "Enum8Field", "Enum16Field"):
+                lookup = "toString(%s)"
             else:
                 lookup = "CAST(%s, 'Nullable(String)')"
+
+        if lookup_type == "iexact":
+            lookup = "UPPER(%s)" % lookup
 
         return lookup
 
@@ -220,15 +233,22 @@ class DatabaseOperations(BaseDatabaseOperations):
         Return the maximum length of an identifier.
 
         https://stackoverflow.com/a/68362429/15096024
-        Clickhouse does not have own limits on identifiers length.
-        But you"re limited by a filesystems" limits, because CH uses filenames as table/column names.
+        Clickhouse does not have own limits on identifier's length.
+        But you're limited by a filesystem's limits, because CH uses filenames as table/column names.
         Ext4 max filename length -- ext4 255 bytes. And a maximum path of 4096 characters.
 
-        A example metadata_path from system.tables:
+        An example metadata_path from system.tables:
         /var/lib/clickhouse_backend/store/c13/c13f3d33-7a2e-4e30-813f-3d337a2e7e30/test.sql
         Take off the .sql suffix, actual length limit is 251
         """
         return 251
+
+    def max_in_list_size(self):
+        """
+        The maximum size of an array is limited to one million elements.
+        https://clickhouse.com/docs/en/sql-reference/data-types/array#working-with-data-types
+        """
+        return 1000000
 
     def no_limit_value(self):
         return None
@@ -272,17 +292,6 @@ class DatabaseOperations(BaseDatabaseOperations):
         return value
 
     def adapt_decimalfield_value(self, value, max_digits=None, decimal_places=None):
-        return value
-
-    def adapt_ipaddressfield_value(self, value):
-        if value:
-            try:
-                value = ipaddress.ip_address(value)
-            except ValueError:
-                pass
-            else:
-                if isinstance(value, ipaddress.IPv4Address):
-                    value = ipaddress.IPv6Address("::ffff:%s" % value)
         return value
 
     def explain_query_prefix(self, format=None, **options):
@@ -353,16 +362,16 @@ class DatabaseOperations(BaseDatabaseOperations):
     def last_executed_query(self, cursor, sql, params):
         if params:
             if insert_pattern.match(sql):
-                return "%s %s" % (sql, str(tuple(tuple(param) for param in params)))
+                return "%s %s" % (sql, ", ".join(map(str, params)))
             else:
                 return sql % tuple(params)
         return sql
 
-    def settings_sql(self, **settings):
+    def settings_sql(self, **kwargs):
         result = []
         params = []
         unknown_settings = []
-        for setting, value in settings.items():
+        for setting, value in kwargs.items():
             if setting in self.connection.introspection.settings:
                 result.append("%s=%%s" % setting)
                 params.append(value)

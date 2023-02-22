@@ -9,6 +9,16 @@ insert_pattern = re.compile(r'\s*insert\s*into', flags=re.IGNORECASE)
 
 
 class Client(client.Client):
+    def __init__(self, *args, **kwargs):
+        # https://clickhouse.com/docs/en/sql-reference/data-types/datetime/#usage-remarks
+        # The clickhouse-client applies the server time zone by default
+        # if a time zone isn’t explicitly set when initializing the data type.
+        # To use the client time zone, run clickhouse-client with the --use_client_time_zone parameter.
+        settings = kwargs.pop("settings", None) or {}
+        settings.setdefault("use_client_time_zone", True)
+        kwargs.update(settings=settings)
+        super().__init__(*args, **kwargs)
+
     def substitute_params(self, query, params, context):
         escaped = escape_params(params, context)
         return query % escaped

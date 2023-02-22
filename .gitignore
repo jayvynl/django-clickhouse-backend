@@ -1,7 +1,9 @@
 .idea
+.tox
 venv
 **/__pycache__
 django_clickhouse_backend.egg-info
 build
 dist
 tests/unsupported/
+example/testapp/migrations/[0-9]*

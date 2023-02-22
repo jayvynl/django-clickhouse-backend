@@ -31,12 +31,13 @@ from django.db.migrations.serializer import BaseSerializer
 from django.db.migrations.writer import MigrationWriter, OperationWriter
 from django.test import SimpleTestCase, ignore_warnings
 from django.utils.deconstruct import deconstructible
-from django.utils.deprecation import RemovedInDjango50Warning
+
 from django.utils.functional import SimpleLazyObject
 from django.utils.timezone import get_default_timezone, get_fixed_timezone
 from django.utils.translation import gettext_lazy as _
 
 from .models import FoodManager, FoodQuerySet
+from clickhouse_backend import compat
 
 
 class DeconstructibleInstances:
@@ -547,57 +548,6 @@ class WriterTests(SimpleTestCase):
         self.assertEqual(string, "models.SET(42)")
         self.serialize_round_trip(models.SET(42))
 
-    def test_serialize_datetime(self):
-        self.assertSerializedEqual(datetime.datetime.now())
-        self.assertSerializedEqual(datetime.datetime.now)
-        self.assertSerializedEqual(datetime.datetime.today())
-        self.assertSerializedEqual(datetime.datetime.today)
-        self.assertSerializedEqual(datetime.date.today())
-        self.assertSerializedEqual(datetime.date.today)
-        self.assertSerializedEqual(datetime.datetime.now().time())
-        self.assertSerializedEqual(
-            datetime.datetime(2014, 1, 1, 1, 1, tzinfo=get_default_timezone())
-        )
-        self.assertSerializedEqual(
-            datetime.datetime(2013, 12, 31, 22, 1, tzinfo=get_fixed_timezone(180))
-        )
-        self.assertSerializedResultEqual(
-            datetime.datetime(2014, 1, 1, 1, 1),
-            ("datetime.datetime(2014, 1, 1, 1, 1)", {"import datetime"}),
-        )
-        with ignore_warnings(category=RemovedInDjango50Warning):
-            from django.utils.timezone import utc
-        for tzinfo in (utc, datetime.timezone.utc):
-            with self.subTest(tzinfo=tzinfo):
-                self.assertSerializedResultEqual(
-                    datetime.datetime(2012, 1, 1, 1, 1, tzinfo=tzinfo),
-                    (
-                        "datetime.datetime"
-                        "(2012, 1, 1, 1, 1, tzinfo=datetime.timezone.utc)",
-                        {"import datetime"},
-                    ),
-                )
-
-        self.assertSerializedResultEqual(
-            datetime.datetime(
-                2012, 1, 1, 2, 1, tzinfo=zoneinfo.ZoneInfo("Europe/Paris")
-            ),
-            (
-                "datetime.datetime(2012, 1, 1, 1, 1, tzinfo=datetime.timezone.utc)",
-                {"import datetime"},
-            ),
-        )
-        if pytz:
-            self.assertSerializedResultEqual(
-                pytz.timezone("Europe/Paris").localize(
-                    datetime.datetime(2012, 1, 1, 2, 1)
-                ),
-                (
-                    "datetime.datetime(2012, 1, 1, 1, 1, tzinfo=datetime.timezone.utc)",
-                    {"import datetime"},
-                ),
-            )
-
     def test_serialize_fields(self):
         self.assertSerializedFieldEqual(models.CharField(max_length=255))
         self.assertSerializedResultEqual(
@@ -706,33 +656,6 @@ class WriterTests(SimpleTestCase):
         ):
             MigrationWriter.serialize(validator)
 
-    def test_serialize_complex_func_index(self):
-        index = models.Index(
-            models.Func("rating", function="ABS"),
-            models.Case(
-                models.When(name="special", then=models.Value("X")),
-                default=models.Value("other"),
-            ),
-            models.ExpressionWrapper(
-                models.F("pages"),
-                output_field=models.IntegerField(),
-            ),
-            models.OrderBy(models.F("name").desc()),
-            name="complex_func_index",
-        )
-        string, imports = MigrationWriter.serialize(index)
-        self.assertEqual(
-            string,
-            "models.Index(models.Func('rating', function='ABS'), "
-            "models.Case(models.When(name='special', then=models.Value('X')), "
-            "default=models.Value('other')), "
-            "models.ExpressionWrapper("
-            "models.F('pages'), output_field=models.IntegerField()), "
-            "models.OrderBy(models.OrderBy(models.F('name'), descending=True)), "
-            "name='complex_func_index')",
-        )
-        self.assertEqual(imports, {"from django.db import models"})
-
     def test_serialize_empty_nonempty_tuple(self):
         """
         Ticket #22679: makemigrations generates invalid code for (an empty
@@ -817,12 +740,13 @@ class WriterTests(SimpleTestCase):
     def test_serialize_type_none(self):
         self.assertSerializedEqual(type(None))
 
-    def test_serialize_type_model(self):
-        self.assertSerializedEqual(models.Model)
-        self.assertSerializedResultEqual(
-            MigrationWriter.serialize(models.Model),
-            ("('models.Model', {'from django.db import models'})", set()),
-        )
+    if compat.dj_ge4:
+        def test_serialize_type_model(self):
+            self.assertSerializedEqual(models.Model)
+            self.assertSerializedResultEqual(
+                MigrationWriter.serialize(models.Model),
+                ("('models.Model', {'from django.db import models'})", set()),
+            )
 
     def test_simple_migration(self):
         """

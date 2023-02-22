@@ -1,5 +1,6 @@
 import django
 
-dj32 = django.VERSION >= (3, 2)
-dj4 = django.VERSION >= (4, )
-dj41 = django.VERSION >= (4, 1)
+dj32 = (3, 2) <= django.VERSION < (4, )
+dj4 = (4, ) <= django.VERSION < (5, )
+dj_ge4 = django.VERSION >= (4, )
+dj_ge41 = django.VERSION >= (4, 1)

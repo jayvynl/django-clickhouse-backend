@@ -15,6 +15,7 @@ from django.test import (
 )
 from django.test.utils import isolate_lru_cache
 
+from clickhouse_backend import compat
 from .test_base import MigrationTestBase
 
 
@@ -118,28 +119,29 @@ class ExecutorTests(MigrationTestBase):
         self.assertTableNotExists("migrations_author")
         self.assertTableNotExists("migrations_book")
 
-    @override_settings(
-        MIGRATION_MODULES={"migrations": "migrations.test_migrations_squashed"},
-    )
-    def test_migrate_backward_to_squashed_migration(self):
-        executor = MigrationExecutor(connection)
-        try:
-            self.assertTableNotExists("migrations_author")
-            self.assertTableNotExists("migrations_book")
-            executor.migrate([("migrations", "0001_squashed_0002")])
-            self.assertTableExists("migrations_author")
-            self.assertTableExists("migrations_book")
-            executor.loader.build_graph()
-            # Migrate backward to a squashed migration.
-            executor.migrate([("migrations", "0001_initial")])
-            self.assertTableExists("migrations_author")
-            self.assertTableNotExists("migrations_book")
-        finally:
-            # Unmigrate everything.
+    if compat.dj_ge4:
+        @override_settings(
+            MIGRATION_MODULES={"migrations": "migrations.test_migrations_squashed"},
+        )
+        def test_migrate_backward_to_squashed_migration(self):
             executor = MigrationExecutor(connection)
-            executor.migrate([("migrations", None)])
-            self.assertTableNotExists("migrations_author")
-            self.assertTableNotExists("migrations_book")
+            try:
+                self.assertTableNotExists("migrations_author")
+                self.assertTableNotExists("migrations_book")
+                executor.migrate([("migrations", "0001_squashed_0002")])
+                self.assertTableExists("migrations_author")
+                self.assertTableExists("migrations_book")
+                executor.loader.build_graph()
+                # Migrate backward to a squashed migration.
+                executor.migrate([("migrations", "0001_initial")])
+                self.assertTableExists("migrations_author")
+                self.assertTableNotExists("migrations_book")
+            finally:
+                # Unmigrate everything.
+                executor = MigrationExecutor(connection)
+                executor.migrate([("migrations", None)])
+                self.assertTableNotExists("migrations_author")
+                self.assertTableNotExists("migrations_book")
 
     @override_settings(
         MIGRATION_MODULES={"migrations": "migrations.test_migrations_non_atomic"}
@@ -742,24 +744,25 @@ class ExecutorTests(MigrationTestBase):
             recorder.applied_migrations(),
         )
 
-    @override_settings(
-        MIGRATION_MODULES={"migrations": "migrations.test_migrations_squashed"}
-    )
-    def test_migrate_marks_replacement_unapplied(self):
-        executor = MigrationExecutor(connection)
-        executor.migrate([("migrations", "0001_squashed_0002")])
-        try:
-            self.assertIn(
-                ("migrations", "0001_squashed_0002"),
-                executor.recorder.applied_migrations(),
-            )
-        finally:
-            executor.loader.build_graph()
-            executor.migrate([("migrations", None)])
-            self.assertNotIn(
-                ("migrations", "0001_squashed_0002"),
-                executor.recorder.applied_migrations(),
-            )
+    if compat.dj_ge4:
+        @override_settings(
+            MIGRATION_MODULES={"migrations": "migrations.test_migrations_squashed"}
+        )
+        def test_migrate_marks_replacement_unapplied(self):
+            executor = MigrationExecutor(connection)
+            executor.migrate([("migrations", "0001_squashed_0002")])
+            try:
+                self.assertIn(
+                    ("migrations", "0001_squashed_0002"),
+                    executor.recorder.applied_migrations(),
+                )
+            finally:
+                executor.loader.build_graph()
+                executor.migrate([("migrations", None)])
+                self.assertNotIn(
+                    ("migrations", "0001_squashed_0002"),
+                    executor.recorder.applied_migrations(),
+                )
 
     # When the feature is False, the operation and the record won't be
     # performed in a transaction and the test will systematically pass.
@@ -828,16 +831,17 @@ class ExecutorTests(MigrationTestBase):
             False,
         )
 
-    @mock.patch.object(MigrationRecorder, "has_table", return_value=False)
-    def test_migrate_skips_schema_creation(self, mocked_has_table):
-        """
-        The django_migrations table is not created if there are no migrations
-        to record.
-        """
-        executor = MigrationExecutor(connection)
-        # 0 queries, since the query for has_table is being mocked.
-        with self.assertNumQueries(0):
-            executor.migrate([], plan=[])
+    if compat.dj_ge41:
+        @mock.patch.object(MigrationRecorder, "has_table", return_value=False)
+        def test_migrate_skips_schema_creation(self, mocked_has_table):
+            """
+            The django_migrations table is not created if there are no migrations
+            to record.
+            """
+            executor = MigrationExecutor(connection)
+            # 0 queries, since the query for has_table is being mocked.
+            with self.assertNumQueries(0):
+                executor.migrate([], plan=[])
 
 
 class FakeLoader:

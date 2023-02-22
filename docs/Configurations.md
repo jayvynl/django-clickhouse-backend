@@ -35,9 +35,10 @@ Only `ENGINE` is required in `DATABASES` configuration, other options have defau
 
 Valid `OPTIONS` keys:
 
-- `connections_min` minium connections in the connection pool, default 0.
-- `connections_max` maximum connections in the connection pool, default 500.
-- `dsn` provide connection url, for example `clickhouse://localhost/test?param1=value1&...`.
+- `connections_min` is maximum number of connections can be kept in connection pool, default 10. Set this value to 0 will disable connection pool.
+- `connections_max` is maximum number of connections can be used, default 100. In fact, `connections_max` is maximum numbers of queries one can execute concurrently.
+Because [source code of DBAPI Connection](https://github.com/mymarilyn/clickhouse-driver/blob/0.2.5/clickhouse_driver/dbapi/connection.py#L46) shows that every cursor creates a new connection.
+- `dsn` provide connection url, for example `clickhouse://localhost/test?param1=value1&...`. If dsn is provided, all other connection parameters are ignored.
 - All other [clickhouse_driver.connection.Connection](https://clickhouse-driver.readthedocs.io/en/latest/api.html#connection) parameters.
 - `settings` can contain [clickhouse_driver.Client](https://clickhouse-driver.readthedocs.io/en/latest/api.html?highlight=client#clickhouse_driver.Client) settings.
 - `settings` can contain [clickhouse settings](https://clickhouse.com/docs/en/operations/settings/settings).

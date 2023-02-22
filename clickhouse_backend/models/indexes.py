@@ -1,4 +1,4 @@
-from django.db.models.expressions import ExpressionList, F, Func, deconstructible
+from django.db.models.expressions import ExpressionList, F, Func
 from django.db.models.indexes import IndexExpression, split_identifier, names_digest
 from django.db.models.sql import Query
 
@@ -73,10 +73,18 @@ class Index:
             expressions = ExpressionList(*index_expressions).resolve_expression(
                 Query(model, alias_cols=False),
             )
+            fields = None
+            col_suffixes = None
         else:
+            fields = [
+                model._meta.get_field(field_name)
+                for field_name, _ in self.fields_orders
+            ]
+            col_suffixes = [order[1] for order in self.fields_orders]
             expressions = None
         return schema_editor._create_index_sql(
-            model, fields=self.fields, name=self.name,
+            model, fields=fields, name=self.name,
+            col_suffixes=col_suffixes,
             type=self.type, granularity=self.granularity,
             expressions=expressions, **kwargs,
         )

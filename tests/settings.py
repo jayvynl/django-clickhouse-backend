@@ -7,6 +7,7 @@ DATABASES = {
         'OPTIONS': {
             'settings': {
                 'mutations_sync': 1,
+                'allow_suspicious_low_cardinality_types': 1,
             }
         }
     },
@@ -16,6 +17,7 @@ DATABASES = {
         'OPTIONS': {
             'settings': {
                 'mutations_sync': 1,
+                'allow_suspicious_low_cardinality_types': 1,
             }
         }
     }
