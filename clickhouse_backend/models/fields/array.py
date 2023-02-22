@@ -146,8 +146,8 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
         if transform:
             return transform
         # Django always generate "table"."column".size0, which will cause clickhouse exception.
-        # DB::Exception: There's no column 'table.column.size0' in table 'test':
-        # While processing test.na.size0. (UNKNOWN_IDENTIFIER)
+        # DB::Exception: There's no column 'table.column.size0' in table 'table':
+        # While processing table.column.size0. (UNKNOWN_IDENTIFIER)
         # if name.startswith("size"):
         #     try:
         #         dimension = int(name[4:])

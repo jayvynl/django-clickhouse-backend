@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
 
 from clickhouse_backend import compat
+from clickhouse_backend.utils import get_timezone
 from clickhouse_backend.driver.client import insert_pattern
 
 
@@ -161,11 +162,8 @@ class DatabaseOperations(BaseDatabaseOperations):
     def date_trunc_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions#tostartofyear
         *ex, tzname = args
-        tzname = tzname or settings.TIME_ZONE
-        if tzname:
-            sql = f"toDate({sql}, '{tzname}')"
-        else:
-            sql = f"toDate({sql})"
+        tzname = tzname or get_timezone()
+        sql = "toDate(%s, '%s')" % (sql, tzname)
         if lookup_type != "day":
             sql = f"toStartOf{lookup_type.capitalize()}({sql})"
 
@@ -174,21 +172,10 @@ class DatabaseOperations(BaseDatabaseOperations):
         else:
             return sql
 
-    def _convert_sql_to_tz(self, sql, tzname):
-        """Just remember, no matter USE_TZ or not,
-        clickhouse always store UNIX timestamp (which is in UTC timezone)."""
-        tzname = tzname or settings.TIME_ZONE
-        if tzname:
-            sql = "toTimeZone(%s, '%s')" % (sql, tzname)
-        return sql
-
     def datetime_cast_date_sql(self, sql, *args):
         *ex, tzname = args
-        tzname = tzname or settings.TIME_ZONE
-        if tzname:
-            sql = "toDate(%s, '%s')" % (sql, tzname)
-        else:
-            sql = "toDate(%s)" % sql
+        tzname = tzname or get_timezone()
+        sql = "toDate(%s, '%s')" % (sql, tzname)
         if compat.dj_ge41:
             return sql, ex[0]
         else:
@@ -196,7 +183,8 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def datetime_extract_sql(self, lookup_type, sql, *args):
         *ex, tzname = args
-        sql = self._convert_sql_to_tz(sql, tzname)
+        tzname = tzname or get_timezone()
+        sql = "toTimeZone(%s, '%s')" % (sql, tzname)
         return self.date_extract_sql(lookup_type, sql, *ex)
 
     def datetime_trunc_sql(self, lookup_type, sql, *args):

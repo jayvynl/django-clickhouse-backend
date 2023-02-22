@@ -12,20 +12,29 @@ Read [Documentation](https://github.com/jayvynl/django-clickhouse-backend/blob/m
 
 **Features:**
 
-- Support [Clickhouse native interface](https://clickhouse.com/docs/en/interfaces/tcp/) and connection pool.
-- Define clickhouse specific schema features such as [Engine](https://clickhouse.com/docs/en/engines/table-engines/) and [Index](https://clickhouse.com/docs/en/guides/improving-query-performance/skipping-indexes) in django ORM.
-- Support table migrations.
+- Reuse most of the existed django ORM facilities, minimize your learning costs.
+- Connect to clickhouse efficiently via [clickhouse native interface](https://clickhouse.com/docs/en/interfaces/tcp/) and connection pool.
+- No other intermediate storage, no need to synchronize data, just interact directly with clickhouse.
+- Support clickhouse specific schema features such as [Engine](https://clickhouse.com/docs/en/engines/table-engines/) and [Index](https://clickhouse.com/docs/en/guides/improving-query-performance/skipping-indexes).
+- Support most types of table migrations.
 - Support creating test database and table, working with django TestCase and pytest-django.
-- Support most types of query and data types, full feature is under developing.
+- Support most clickhouse data types.
 - Support [SETTINGS in SELECT Query](https://clickhouse.com/docs/en/sql-reference/statements/select/#settings-in-select-query).
 
 **Notes:**
 
 - Not tested upon all versions of clickhouse-server, clickhouse-server 22.x.y.z or over is suggested.
-- Aggregate function result in 0 or nan when data set is empty. max/min/sum/count is 0, avg/STDDEV_POP/VAR_POP is nan.
-- Clickhouse will set missing column empty value (0 for number, empty string for text, unix epoch for datatime type) instead of NULL in outer join. 
+- Aggregation functions result in 0 or nan (Not NULL) when data set is empty. max/min/sum/count is 0, avg/STDDEV_POP/VAR_POP is nan.
+- In outer join, clickhouse will set missing columns to empty values (0 for number, empty string for text, unix epoch for date/datatime) instead of NULL. 
   So Count("book") resolve to 1 in a missing LEFT OUTER JOIN match, not 0.
-  In aggregation expression Avg("book__rating", default=2.5), default=2.5 have no effect in missing match.
+  In aggregation expression Avg("book__rating", default=2.5), default=2.5 have no effect in a missing match.
+
+**Requirements:**
+
+- [Python](https://www.python.org/) >= 3.6
+- [Django](https://docs.djangoproject.com/) >= 3.2
+- [clickhouse driver](https://github.com/mymarilyn/clickhouse-driver)
+- [clickhouse pool](https://github.com/ericmccarthy7/clickhouse-pool)
 
 
 Get started
@@ -74,21 +83,23 @@ Only `ENGINE` is required, other options have default values.
   DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
   ```
 
-`DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'`  is required to working with django migration.
-More details will be covered in [Primary key](#Primary key).
+`DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'` is required to working with django migration.
+More details will be covered in [DEFAULT_AUTO_FIELD](https://github.com/jayvynl/django-clickhouse-backend/blob/main/docs/Configurations.md#default_auto_field).
 
-### Model Define
+### Model Definition
 
-just like normal django model define
+Clickhouse backend support django builtin fields and clickhouse specific fields.
 
-Changes:
+Read [fields documentation](https://github.com/jayvynl/django-clickhouse-backend/blob/main/docs/Fields.md) for more.
 
--  import models from clickhouse_backend, not from django.db
+Notices about model definition:
+
+- import models from clickhouse_backend, not from django.db
 - add low_cardinality for StringFiled, when the data field cardinality is relatively low, this configuration can significantly improve query performance
 
 - cannot use db_index=True in Field, but we can add in the Meta indexes
 - need to specify the ordering in Meta just for default query ordering
-- need to specify the engine for clickhouse, specify the order_by for clickhouse order and ther partition_by argument
+- need to specify the engine for clickhouse, specify the order_by for clickhouse order and the partition_by argument
 
 ```python
 from django.db.models import CheckConstraint, Func, Q, IntegerChoices
@@ -103,7 +114,7 @@ class Event(models.ClickhouseModel):
         DROP = 2
         ALERT = 3
     ip = models.GenericIPAddressField(default='::')
-    ipv4 = models.GenericIPAddressField(default="127.0.0.1")
+    ipv4 = models.GenericIPAddressField(default='127.0.0.1')
     ip_nullable = models.GenericIPAddressField(null=True)
     port = models.UInt16Field(default=0)
     protocol = models.StringField(default='', low_cardinality=True)
@@ -253,7 +264,9 @@ Except for the model definition, all other operations are like operating relatio
 
 Writing testcase is all the same as normal django project. You can use django TestCase or pytest-django.
 **Notice:** clickhouse use mutations for [deleting or updating](https://clickhouse.com/docs/en/guides/developer/mutations).
-By default, data mutations is processed asynchronously, so you should change this default behavior in testing for deleting or updating.
+By default, data mutations is processed asynchronously.
+That is, when you update or delete a row, clickhouse will perform the action after a period of time.
+So you should change this default behavior in testing for deleting or updating.
 There are 2 ways to do that:
 
 - Config database engine as follows, this sets [`mutations_sync=1`](https://clickhouse.com/docs/en/operations/settings/settings#mutations_sync) at session scope.
@@ -271,7 +284,7 @@ There are 2 ways to do that:
   ```
 - Use [SETTINGS in SELECT Query](https://clickhouse.com/docs/en/sql-reference/statements/select/#settings-in-select-query).
   ```python
-  Event.objects.filter(transport='UDP').settings(mutations_sync=1).delete()
+  Event.objects.filter(protocol='UDP').settings(mutations_sync=1).delete()
   ```
 
 Sample test case.
@@ -283,38 +296,6 @@ class TestEvent(TestCase):
     def test_spam(self):
         assert Event.objects.count() == 0
 ```
-
-Topics
----
-
-### Primary key
-
-Django ORM depends heavily on single column primary key, this primary key is a unique identifier of an ORM object.
-All `get` `save` `delete` actions depend on primary key.
-
-But in ClickHouse [primary key](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree#primary-keys-and-indexes-in-queries) has different meaning from django primary key. ClickHouse does not require a unique primary key. You can insert multiple rows with the same primary key.
-
-There is [no unique constraint](https://github.com/ClickHouse/ClickHouse/issues/3386#issuecomment-429874647) or auto increasing column in clickhouse.
-
-By default, django will add a field named `id` as auto increasing primary key.
-
-- AutoField
-
-  Mapped to clickhouse Int32 data type. You should generate this unique id yourself.
-
-- BigAutoField
-
-  Mapped to clickhouse Int64 data type. If primary key is not specified when insert data, then `clickhouse_driver.idworker.id_worker` is used to generate this unique id.
-
-  Default id_worker is an instance of `clickhouse.idworker.snowflake.SnowflakeIDWorker` which implement [twitter snowflake id](https://en.wikipedia.org/wiki/Snowflake_ID).
-  If data insertions happen on multiple datacenter, server, process or thread, you should ensure uniqueness of (CLICKHOUSE_WORKER_ID, CLICKHOUSE_DATACENTER_ID) environment variable.
-  Because work_id and datacenter_id are 5 bits, they should be an integer between 0 and 31. CLICKHOUSE_WORKER_ID default to 0, CLICKHOUSE_DATACENTER_ID will be generated randomly if not provided.
-
-  `clickhouse.idworker.snowflake.SnowflakeIDWorker` is not thread safe. You could inherit `clickhouse.idworker.base.BaseIDWorker` and implement one, then set `CLICKHOUSE_ID_WORKER` in `settings.py` to doted import path of your IDWorker instance.
-
-Django use a table named `django_migrations` to track migration files. ID field should be BigAutoField, so that IDWorker can generate unique id for you.
-After Django 3.2，a new [config `DEFAULT_AUTO_FIELD`](https://docs.djangoproject.com/en/4.1/releases/3.2/#customizing-type-of-auto-created-primary-keys) is introduced to control field type of default primary key.
-So `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'` is required if you want to use migrations with django clickhouse backend.
 
 
 Test
@@ -328,9 +309,35 @@ $ cd django-clickhouse-backend
 # docker and docker-compose are required.
 $ docker-compose up -d
 $ python tests/runtests.py
+# run test for every python version and django version
+$ pip install tox
+$ tox
 ```
 
-**Note:** This project is not fully tested yet and should be used with caution in production.
+Changelog
+---
+
+### 1.0.0 (2023-02-21)
+
+- Add tests for migrations.
+- Fix bytes escaping.
+- Fix date and datetime lookup.
+- Add documentations.
+- Add lots of new field types:
+  - Float32/64
+  - [U]Int8/16/32/64/128/256
+  - Date/Date32/DateTime('timezone')/DateTime64('timezone')
+  - String/FixedString(N)
+  - Enum8/16
+  - Array(T)
+  - Bool
+  - UUID
+  - Decimal
+  - IPv4/IPv6
+  - LowCardinality(T)
+  - Tuple(T1, T2, ...)
+  - Map(key, value)
+
 
 License
 ---

@@ -4,7 +4,7 @@ from django.utils.functional import cached_property
 
 
 class DatabaseFeatures(BaseDatabaseFeatures):
-    # TODO: figure out compatible clickhouse version.
+    # TODO: figure out compatible clickhouse versions.
     minimum_database_version = None
     # Use this class attribute control whether using fake transaction.
     # Fake transaction is used in test, prevent other database such as postgresql

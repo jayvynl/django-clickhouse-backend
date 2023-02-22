@@ -34,7 +34,7 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
 
 class SQLInsertCompiler(ClickhouseMixin, compiler.SQLInsertCompiler):
     def as_sql(self):
-        # We don"t need quote_name_unless_alias() here, since these are all
+        # We don't need quote_name_unless_alias() here, since these are all
         # going to be column names (so we can avoid the extra overhead).
         qn = self.connection.ops.quote_name
         opts = self.query.get_meta()

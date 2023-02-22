@@ -14,7 +14,7 @@ class Client(client.Client):
         # The clickhouse-client applies the server time zone by default
         # if a time zone isn’t explicitly set when initializing the data type.
         # To use the client time zone, run clickhouse-client with the --use_client_time_zone parameter.
-        settings = kwargs.pop('settings', None) or {}
+        settings = kwargs.pop("settings", None) or {}
         settings.setdefault("use_client_time_zone", True)
         kwargs.update(settings=settings)
         super().__init__(*args, **kwargs)

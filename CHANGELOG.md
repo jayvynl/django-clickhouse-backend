@@ -1,26 +1,3 @@
-0.3.0 (2022-12-24)
----
-
-- Add tests for migrations.
-- Fix bytes escaping.
-- Add documentations.
-- Add lots of new field types:
-  - Float32/64
-  - [U]Int8/16/32/64/128/256
-  - Date/Date32/DateTime('timezone')/DateTime64('timezone')
-  - String/FixedString(N)
-  - Enum8/16
-  - Array(T)
-  - Bool
-  - UUID
-  - Decimal
-  - IPv4/IPv6
-  - LowCardinality(T)
-  - SimpleAggregateFunction(F, T)
-  - Tuple(T1, T2, ...)
-  - Nested
-  - Map(key, value)
-
 0.2.1 (2022-10-30)
 ---
 
