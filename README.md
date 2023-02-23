@@ -317,6 +317,13 @@ $ tox
 Changelog
 ---
 
+### 1.0.1 (2023-02-23)
+
+- Add `return_int` parameter to `Enum[8|16]Field` to control whether to get an int or str value when querying from the database.
+- Fix TupleField container_class.
+- Add fields documentation.
+
+
 ### 1.0.0 (2023-02-21)
 
 - Add tests for migrations.

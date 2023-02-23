@@ -77,19 +77,16 @@ class TupleFieldTests(TestCase):
             base_fields=[
                 models.TupleField(
                     base_fields=[
-                        models.Int8Field(name="field"),
-                        models.IPv4Field(name="field")
+                        models.Int8Field(),
+                        models.IPv4Field()
                     ],
-                    name="field"
                 ),
                 models.ArrayField(
-                    base_field=models.StringField(name="field"),
-                    name="field"
+                    base_field=models.StringField(),
                 )
             ],
-            name="field"
         )
-        field.check()
+        field.set_attributes_from_name("field")
         with self.assertRaises(ValidationError):
             field.clean([130], None)
         with self.assertRaises(ValidationError):
@@ -105,23 +102,20 @@ class TupleFieldTests(TestCase):
                     "tup",
                     models.TupleField(
                         base_fields=[
-                            ("int", models.Int8Field(name="field")),
-                            ("ip", models.IPv4Field(name="field"))
+                            ("int", models.Int8Field()),
+                            ("ip", models.IPv4Field())
                         ],
-                        name="field"
                     )
                 ),
                 (
                     "arr",
                     models.ArrayField(
-                        base_field=models.StringField(name="field"),
-                        name="field"
+                        base_field=models.StringField(),
                     )
                 )
             ],
-            name="field"
         )
-        field.check()
+        field.set_attributes_from_name("field")
         with self.assertRaises(ValidationError):
             field.clean([130], None)
         with self.assertRaises(ValidationError):

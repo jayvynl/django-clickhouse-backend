@@ -28,8 +28,8 @@ __all__ = [
     "UUIDField",
     "DateField", "Date32Field", "DateTimeField", "DateTime64Field",
     "Enum8Field", "Enum16Field", "EnumField",
-    "ArrayField", "TupleField", "MapField",
     "IPv4Field", "IPv6Field", "GenericIPAddressField",
+    "ArrayField", "TupleField", "MapField",
 ]
 
 
@@ -256,6 +256,11 @@ class EnumField(FieldMixin, fields.Field):
     MIN_INT = -32768
     MAX_INT = 32767
 
+    def __init__(self, *args, return_int=True, **kwargs):
+        """Use return_int to control whether to get an int or str value when querying from the database."""
+        self.return_int = return_int
+        super().__init__(*args, **kwargs)
+
     def _check_choices(self):
         """Note: although clickhouse support arbitrary bytes in Enum name,
         but clickhouse-driver 0.2.5 will raise UnicodeDecodeError when execute query."""
@@ -343,7 +348,8 @@ class EnumField(FieldMixin, fields.Field):
         return value
 
     def from_db_value(self, value, expression, connection):
-        if value is None:
+        """Clickhouse return enum name for Enum column."""
+        if value is None or not self.return_int:
             return value
         return self._name_value_map[value]
 

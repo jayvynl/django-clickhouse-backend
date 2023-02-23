@@ -102,16 +102,6 @@ class TupleField(FieldMixin, Field):
                     )
                 ]
 
-        if self.is_named_tuple:
-            name = self.name
-            if name:
-                name = name.capitalize()
-            else:
-                name = "Tuple"
-            self.container_class = collections.namedtuple(name, (fn for fn, _ in self.base_fields))
-        else:
-            self.container_class = tuple
-
         return []
 
     def get_internal_type(self):
@@ -144,6 +134,15 @@ class TupleField(FieldMixin, Field):
                 field.set_attributes_from_name(name)
             else:
                 field[1].set_attributes_from_name(name)
+        if self.is_named_tuple:
+            name = self.name
+            if name:
+                name = name.capitalize()
+            else:
+                name = "Tuple"
+            self.container_class = collections.namedtuple(name, (fn for fn, _ in self.base_fields))
+        else:
+            self.container_class = tuple
 
     def _convert_type(self, value):
         if value is None or isinstance(value, self.container_class):
