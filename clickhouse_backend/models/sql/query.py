@@ -18,7 +18,7 @@ class Query(query.Query):
 
     def clone(self):
         obj = super().clone()
-        obj.settings = self.setting_info.copy()
+        obj.setting_info = self.setting_info.copy()
         return obj
 
     def explain(self, using, format=None, type=None, **settings):
@@ -28,15 +28,18 @@ class Query(query.Query):
         return "\n".join(compiler.explain_query())
 
 
-def clone_factory(cls):
-    old = cls.clone
+def clone_decorator(cls):
+    old_clone = cls.clone
 
     def clone(self):
-        obj = old(self)
-        obj.settings = self.setting_info.copy()
+        obj = old_clone(self)
+        if hasattr(obj, "setting_info"):
+            obj.setting_info = self.setting_info.copy()
         return obj
-    return clone
+
+    cls.clone = clone
+    return cls
 
 
-subqueries.UpdateQuery.clone = clone_factory(subqueries.UpdateQuery)
-subqueries.DeleteQuery.clone = clone_factory(subqueries.DeleteQuery)
+clone_decorator(subqueries.UpdateQuery)
+clone_decorator(subqueries.DeleteQuery)

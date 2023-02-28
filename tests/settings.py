@@ -3,7 +3,6 @@ INSTALLED_APPS = []
 DATABASES = {
     'default': {
         'ENGINE': 'clickhouse_backend.backend',
-        'NAME': 'default',
         'OPTIONS': {
             'settings': {
                 'mutations_sync': 1,

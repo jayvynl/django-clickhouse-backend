@@ -10,7 +10,7 @@ class Event(models.ClickhouseModel):
         DROP = 2
         ALERT = 3
     ip = models.GenericIPAddressField(default='::')
-    ipv4 = models.GenericIPAddressField(default="127.0.0.1")
+    ipv4 = models.IPv4Field(default="127.0.0.1")
     ip_nullable = models.GenericIPAddressField(null=True)
     port = models.UInt16Field(default=0)
     protocol = models.StringField(default='', low_cardinality=True)

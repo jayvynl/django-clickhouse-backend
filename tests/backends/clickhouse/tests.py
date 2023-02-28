@@ -25,7 +25,6 @@ class Tests(TestCase):
         with connection._nodb_cursor() as cursor:
             self.assertIs(cursor.closed, False)
             self.assertIsNotNone(cursor.db.connection)
-            self.assertIsNone(cursor.db.settings_dict["NAME"])
         self.assertIs(cursor.closed, True)
         self.assertIsNone(cursor.db.connection)
 
@@ -52,7 +51,6 @@ class Tests(TestCase):
         settings["NAME"] = ""
         params = DatabaseWrapper(settings).get_connection_params()
         self.assertEqual(params["settings"], {"mutations_sync": 1})
-        self.assertNotIn("database", params)
 
     def test_connect_no_is_usable_checks(self):
         new_connection = connection.copy()

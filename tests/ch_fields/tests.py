@@ -580,6 +580,17 @@ class EnumFieldTests(TestCase):
         with self.assertRaises(ValidationError):
             EnumModel._meta.get_field("enum8").validate(o.enum8, o)
 
+    def test_integer_choices_value(self):
+        o = EnumModel.objects.create()
+        o.refresh_from_db()
+        self.assertEqual(o.fruit, EnumModel.Fruits.BANANA)
+        o.fruit = EnumModel.Fruits.PEACH
+        o.save(update_fields=["fruit"])
+        o.refresh_from_db()
+        self.assertEqual(o.fruit, EnumModel.Fruits.PEACH)
+        self.assertTrue(EnumModel.objects.filter(fruit=EnumModel.Fruits.PEACH).exists())
+        self.assertTrue(EnumModel.objects.filter(fruit__gte=EnumModel.Fruits.PEACH).exists())
+
     def test_filter(self):
         EnumModel.objects.create(enum=1, enum8="Smile 😀",
                                  enum16=b"\xe4\xb9\x9d\xe8\xbd\xac\xe5\xa4\xa7\xe8\x82\xa0")

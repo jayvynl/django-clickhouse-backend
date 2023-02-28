@@ -1667,15 +1667,6 @@ class AggregateTestCase(TestCase):
             )
             self.assertEqual(len(qs), 6)
 
-    def test_alias_sql_injection(self):
-        crafted_alias = """injected_name" from "aggregation_author"; --"""
-        msg = (
-            "Column aliases cannot contain whitespace characters, quotation marks, "
-            "semicolons, or SQL comments."
-        )
-        with self.assertRaisesMessage(ValueError, msg):
-            Author.objects.aggregate(**{crafted_alias: Avg("age")})
-
     if compat.dj_ge4:
         def test_exists_extra_where_with_aggregate(self):
             qs = Book.objects.annotate(

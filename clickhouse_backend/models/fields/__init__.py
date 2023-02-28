@@ -3,6 +3,7 @@ from datetime import datetime
 
 from django.core import checks
 from django.core import exceptions
+from django.db.models import IntegerChoices
 from django.db.models import fields
 from django.utils.functional import cached_property
 from django.utils.itercompat import is_iterable
@@ -345,6 +346,8 @@ class EnumField(FieldMixin, fields.Field):
                 value = value.decode("utf-8")
             except UnicodeDecodeError:
                 pass
+        elif isinstance(value, IntegerChoices):
+            value = value.value
         return value
 
     def from_db_value(self, value, expression, connection):

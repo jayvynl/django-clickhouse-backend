@@ -1,3 +1,36 @@
+### 1.0.2 (2023-02-28)
+- Fix test db name when NAME not provided in DATABASES setting.
+- Fix Enum error when provided an IntegerChoices value.
+- Add document about multiple db settings.
+
+### 1.0.1 (2023-02-23)
+
+- Add `return_int` parameter to `Enum[8|16]Field` to control whether to get an int or str value when querying from the database.
+- Fix TupleField container_class.
+- Add fields documentation.
+
+
+### 1.0.0 (2023-02-21)
+
+- Add tests for migrations.
+- Fix bytes escaping.
+- Fix date and datetime lookup.
+- Add documentations.
+- Add lots of new field types:
+  - Float32/64
+  - [U]Int8/16/32/64/128/256
+  - Date/Date32/DateTime('timezone')/DateTime64('timezone')
+  - String/FixedString(N)
+  - Enum8/16
+  - Array(T)
+  - Bool
+  - UUID
+  - Decimal
+  - IPv4/IPv6
+  - LowCardinality(T)
+  - Tuple(T1, T2, ...)
+  - Map(key, value)
+
 0.2.1 (2022-10-30)
 ---
 

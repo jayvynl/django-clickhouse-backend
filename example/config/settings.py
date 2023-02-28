@@ -71,6 +71,9 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'clickhouse_backend.backend',
+        'TEST': {
+            'MIGRATE': False
+        }
     }
 }
 

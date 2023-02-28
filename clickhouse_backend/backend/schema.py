@@ -406,8 +406,12 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if old_field.null and not new_field.null:
             old_default = self.effective_default(old_field)
             new_default = self.effective_default(new_field)
+            if hasattr(self, 'skip_default_on_alter'):
+                skip = self.skip_default_on_alter(new_field)
+            else:
+                skip = self.skip_default(new_field)
             if (
-                not self.skip_default_on_alter(new_field) and
+                not skip and
                 old_default != new_default
                 and new_default is not None
             ):

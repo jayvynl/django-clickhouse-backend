@@ -151,6 +151,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         # from flush at the end of each testcase. Only use this feature when you are
         # aware of the effect in TransactionTestCase.
         self.fake_transaction = settings_dict.get("fake_transaction", False)
+        if not self.settings_dict["NAME"]:
+            self.settings_dict["NAME"] = "default"
 
     @property
     def fake_transaction(self):

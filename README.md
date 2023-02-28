@@ -56,9 +56,8 @@ $ python setup.py install
 
 ### Configuration
 
-we can use the docker compose file under the project for test and try
 
-Only `ENGINE` is required, other options have default values.
+Only `ENGINE` is required in database setting, other options have default values.
 
 - ENGINE: required, set to `clickhouse_backend.backend`.
 - NAME: database name, default `default`.
@@ -67,21 +66,82 @@ Only `ENGINE` is required, other options have default values.
 - USER: database user, default `default`.
 - PASSWORD: database password, default empty.
 
-  ```python
-  DATABASES = {
-      'default': {
-          'ENGINE': 'clickhouse_backend.backend',
-          'NAME': 'default',
-          'HOST': 'localhost',
-          'USER': 'DB_USER',
-          'PASSWORD': 'DB_PASSWORD',
-          'TEST': {
-              'fake_transaction': True
-          }
-      }
-  }
-  DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-  ```
+In the most cases, you may just use clickhouse to store some big events tables,
+and use some RDBMS to store other tables.
+Here I give an example setting for clickhouse and postgresql.
+
+```python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'HOST': 'localhost',
+        'USER': 'postgres',
+        'PASSWORD': '123456',
+        'NAME': 'postgres',
+    },
+    'clickhouse': {
+        'ENGINE': 'clickhouse_backend.backend',
+        'NAME': 'default',
+        'HOST': 'localhost',
+        'USER': 'DB_USER',
+        'PASSWORD': 'DB_PASSWORD',
+        'TEST': {
+            'fake_transaction': True
+        }
+    }
+}
+DATABASE_ROUTERS = ['dbrouters.ClickHouseRouter']
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+```
+
+```python
+# dbrouters.py
+from clickhouse_backend.models import ClickhouseModel
+
+def get_subclasses(class_):
+    classes = class_.__subclasses__()
+
+    index = 0
+    while index < len(classes):
+        classes.extend(classes[index].__subclasses__())
+        index += 1
+
+    return list(set(classes))
+
+
+class ClickHouseRouter:
+    def __init__(self):
+        self.route_model_names = set()
+        for model in get_subclasses(ClickhouseModel):
+            if model._meta.abstract:
+                continue
+            self.route_model_names.add(model._meta.label_lower)
+
+    def db_for_read(self, model, **hints):
+        if (model._meta.label_lower in self.route_model_names
+                or hints.get('clickhouse')):
+            return 'clickhouse'
+        return None
+
+    def db_for_write(self, model, **hints):
+        if (model._meta.label_lower in self.route_model_names
+                or hints.get('clickhouse')):
+            return 'clickhouse'
+        return None
+
+    def allow_migrate(self, db, app_label, model_name=None, **hints):
+        if (f'{app_label}.{model_name}' in self.route_model_names
+                or hints.get('clickhouse')):
+            return db == 'clickhouse'
+        elif db == 'clickhouse':
+            return False
+        return None
+```
+
+You should use [database router](https://docs.djangoproject.com/en/4.1/topics/db/multi-db/#automatic-database-routing) to
+automatically route your queries to the right database. In the preceding example, I write a database router which route all
+queries from subclasses of `clickhouse_backend.models.ClickhouseModel` or custom migrations with a `clickhouse` hint key to clickhouse.
+All other queries are routed to the default database (postgresql).
 
 `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'` is required to working with django migration.
 More details will be covered in [DEFAULT_AUTO_FIELD](https://github.com/jayvynl/django-clickhouse-backend/blob/main/docs/Configurations.md#default_auto_field).
@@ -317,33 +377,7 @@ $ tox
 Changelog
 ---
 
-### 1.0.1 (2023-02-23)
-
-- Add `return_int` parameter to `Enum[8|16]Field` to control whether to get an int or str value when querying from the database.
-- Fix TupleField container_class.
-- Add fields documentation.
-
-
-### 1.0.0 (2023-02-21)
-
-- Add tests for migrations.
-- Fix bytes escaping.
-- Fix date and datetime lookup.
-- Add documentations.
-- Add lots of new field types:
-  - Float32/64
-  - [U]Int8/16/32/64/128/256
-  - Date/Date32/DateTime('timezone')/DateTime64('timezone')
-  - String/FixedString(N)
-  - Enum8/16
-  - Array(T)
-  - Bool
-  - UUID
-  - Decimal
-  - IPv4/IPv6
-  - LowCardinality(T)
-  - Tuple(T1, T2, ...)
-  - Map(key, value)
+[All changelogs](https://github.com/jayvynl/django-clickhouse-backend/blob/main/CHANGELOG.md).
 
 
 License

@@ -18,10 +18,9 @@ class ClickhouseMixin:
             sql = "%s %s" % (prefix, sql.lstrip())
             if suffix:
                 sql = "%s %s" % (sql, suffix)
-        setting_info = getattr(self.query, "setting_info", None)
-        if setting_info:
+        if getattr(self.query, "setting_info", None):
             setting_sql, setting_params = self.connection.ops.settings_sql(
-                **setting_info
+                **self.query.setting_info
             )
             sql = "%s %s" % (sql, setting_sql)
             params = (*params, *setting_params)
@@ -169,7 +168,7 @@ class SQLUpdateCompiler(ClickhouseMixin, compiler.SQLUpdateCompiler):
             result.append("WHERE 1")
 
         params = (*update_params, *params)
-        if hasattr(self.query, "setting_info") and self.query.setting_info:
+        if getattr(self.query, "setting_info", None):
             setting_sql, setting_params = self.connection.ops.settings_sql(
                 **self.query.setting_info
             )

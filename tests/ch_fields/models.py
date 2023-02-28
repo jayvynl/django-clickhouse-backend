@@ -1,3 +1,5 @@
+from django.db.models import IntegerChoices
+
 from clickhouse_backend import models
 
 
@@ -65,11 +67,17 @@ class DateTime64Model(models.ClickhouseModel):
 
 
 class EnumModel(models.ClickhouseModel):
+    class Fruits(IntegerChoices):
+        APPLE = 1
+        BANANA = 2
+        PEACH = 3
+
     CHOICES = ((1, b"a"), (2, "Smile 😀"), (3, "九转大肠"))
 
     enum = models.EnumField(null=True, choices=CHOICES)
     enum8 = models.Enum8Field(null=True, choices=CHOICES)
     enum16 = models.Enum16Field(null=True, choices=CHOICES)
+    fruit = models.EnumField(choices=Fruits.choices, default=Fruits.BANANA)
 
 
 class ArrayModel(models.ClickhouseModel):
