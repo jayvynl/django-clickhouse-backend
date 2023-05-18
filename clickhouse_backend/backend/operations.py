@@ -304,7 +304,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         suffix = ""
         options = {}
         unknown_settings = []
-        for setting, value in settings:
+        for setting, value in settings.items():
             if setting in self.explain_settings:
                 options[setting] = int(bool(value))
             else:
