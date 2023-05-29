@@ -25,7 +25,7 @@ class Event(models.ClickhouseModel):
         db_table = 'event'
         engine = models.ReplacingMergeTree(
             order_by=['id'],
-            partition_by=Func('timestamp', function='toYYYYMMDD')
+            partition_by=models.toYYYYMMDD('timestamp')
         )
         indexes = [
             models.Index(

@@ -1,5 +1,6 @@
 from collections import namedtuple
 
+from django.db import router
 from django.db.models.sql import query
 from django.db.models.sql import subqueries
 
@@ -15,6 +16,10 @@ class Query(query.Query):
         else:
             super().__init__(model, where, alias_cols)
         self.setting_info = {}
+
+    def sql_with_params(self):
+        """Choose the right db when database router is used."""
+        return self.get_compiler(router.db_for_read(self.model)).as_sql()
 
     def clone(self):
         obj = super().clone()
