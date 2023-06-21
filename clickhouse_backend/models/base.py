@@ -25,7 +25,9 @@ def as_clickhouse(self, compiler, connection, **extra_context):
 functions.Random.as_clickhouse = as_clickhouse
 
 
-class ClickhouseManager(BaseManager.from_queryset(QuerySet)):
+class ClickhouseManager(models.Manager):
+    _queryset_class = QuerySet
+
     def get_queryset(self):
         """
         User defined Query and QuerySet class that support clickhouse particular query.
@@ -46,9 +48,9 @@ class ClickhouseModel(models.Model):
 
     def _do_update(self, base_qs, using, pk_val, values, update_fields, forced_update):
         """
-         Try to update the model. Return True if the model was updated (if an
-         update query was done and a matching row was found in the DB).
-         """
+        Try to update the model. Return True if the model was updated (if an
+        update query was done and a matching row was found in the DB).
+        """
         filtered = base_qs.filter(pk=pk_val)
         if not values:
             # We can end up here when saving a model in inheritance chain where
@@ -57,15 +59,4 @@ class ClickhouseModel(models.Model):
             # is a model with just PK - in that case check that the PK still
             # exists.
             return update_fields is not None or filtered.exists()
-        return (
-            filtered.exists()
-            and
-            # It may happen that the object is deleted from the DB right after
-            # this check, causing the subsequent UPDATE to return zero matching
-            # rows. The same result can occur in some rare cases when the
-            # database returns zero despite the UPDATE being executed
-            # successfully (a row is matched and updated). In order to
-            # distinguish these two cases, the object's existence in the
-            # database is again checked for if the UPDATE query returns 0.
-            (filtered._update(values) > 0 or filtered.exists())
-        )
+        return filtered._update(values) > 0

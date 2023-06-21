@@ -53,3 +53,14 @@ class PrimaryKeyWithDefault(ClickhouseModel):
 
 class ChildPrimaryKeyWithDefault(PrimaryKeyWithDefault):
     pass
+
+
+class DjangoArticle(models.Model):
+    headline = models.CharField(max_length=100, default="Default headline")
+    pub_date = models.DateTimeField()
+
+    class Meta:
+        ordering = ("pub_date", "headline")
+
+    def __str__(self):
+        return self.headline
