@@ -1,9 +1,13 @@
+import re
+
 from clickhouse_driver.dbapi import connection
 from clickhouse_driver.dbapi import cursor
 from clickhouse_driver.dbapi import errors
 from clickhouse_pool.pool import ChPoolError
 
 from .pool import ClickhousePool
+
+update_pattern = re.compile(r'\s*alter\s+table\s+(.+)\s+update.+where\s+(.+)', flags=re.IGNORECASE)
 
 
 class Cursor(cursor.Cursor):
@@ -27,6 +31,19 @@ class Cursor(cursor.Cursor):
                 self._connection.pool.push(self._client)
             except ChPoolError:
                 pass
+
+    def execute(self, operation, parameters=None):
+        """fix https://github.com/jayvynl/django-clickhouse-backend/issues/9"""
+        if update_pattern.match(operation):
+            query = self._client.substitute_params(
+                    operation, parameters, self._client.connection.context
+                )
+            table, where = update_pattern.match(query).groups()
+            super().execute(f'select count(*) from {table} where {where}')
+            rowcount, = self.fetchone()
+            self._reset_state()
+            self._rowcount = rowcount
+        super().execute(operation, parameters)
 
 
 class Connection(connection.Connection):

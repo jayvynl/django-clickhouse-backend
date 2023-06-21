@@ -4,17 +4,14 @@ from unittest import mock
 
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import DEFAULT_DB_ALIAS, DatabaseError, connections, models
-from django.db.models.manager import BaseManager
 from django.db.models.query import MAX_GET_RESULTS, EmptyQuerySet
 from django.test import (
-    SimpleTestCase,
     TestCase,
     TransactionTestCase,
     skipUnlessDBFeature,
 )
 from django.utils.translation import gettext_lazy
 
-from clickhouse_backend import compat
 from .models import (
     Article,
     ArticleSelectOnSave,
@@ -22,6 +19,7 @@ from .models import (
     FeaturedArticle,
     PrimaryKeyWithDefault,
     SelfRef,
+    DjangoArticle
 )
 
 
@@ -632,12 +630,12 @@ class ConcurrentSaveTests(TransactionTestCase):
 class SelectOnSaveTests(TestCase):
     def test_select_on_save(self):
         a1 = Article.objects.create(pub_date=datetime.now())
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(1):
             a1.save()
         asos = ArticleSelectOnSave.objects.create(pub_date=datetime.now())
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(1):
             asos.save()
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(1):
             asos.save(force_update=True)
         Article.objects.all().delete()
         with self.assertRaisesMessage(
@@ -671,7 +669,7 @@ class SelectOnSaveTests(TestCase):
         try:
             Article._base_manager._queryset_class = FakeQuerySet
             asos = ArticleSelectOnSave.objects.create(pub_date=datetime.now())
-            with self.assertNumQueries(3):
+            with self.assertNumQueries(2):
                 asos.save()
                 self.assertTrue(FakeQuerySet.called)
         finally:
@@ -808,3 +806,17 @@ class ModelRefreshTests(TestCase):
         a2_prefetched.refresh_from_db(fields=["selfref_set"])
         # Cache was cleared and new results are available.
         self.assertCountEqual(a2_prefetched.selfref_set.all(), [s])
+
+
+class DjangoModelTests(TestCase):
+    def test_saving_an_object_again_does_not_create_a_new_object(self):
+        a = DjangoArticle(headline="original", pub_date=datetime(2014, 5, 16))
+        a.save()
+        current_id = a.id
+
+        a.save()
+        self.assertEqual(a.id, current_id)
+
+        a.headline = "Updated headline"
+        a.save()
+        self.assertEqual(a.id, current_id)

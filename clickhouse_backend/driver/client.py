@@ -5,7 +5,7 @@ from clickhouse_driver import client
 
 from .escape import escape_params
 
-insert_pattern = re.compile(r'\s*insert\s*into', flags=re.IGNORECASE)
+insert_pattern = re.compile(r'\s*insert\s+into', flags=re.IGNORECASE)
 
 
 class Client(client.Client):
