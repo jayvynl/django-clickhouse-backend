@@ -165,13 +165,6 @@ DATABASES = {
 }
 ```
 
-**Note:**
-
-Due to a [bug](https://github.com/mymarilyn/clickhouse-driver/issues/363) of clickhouse-driver 0.2.5,
-when set `null=True` and `low_cardinality=True` at the same time to UUIDField, an exception will be raised when inserting a row.
-
-The same bug also exists in DateField and Date32Field.
-
 
 ### Date and Date32
 
@@ -204,14 +197,6 @@ But supporting integer or float may cause strange behavior,
 as integer and float are treated as unix timestamps,
 clickhouse store them as date in the [server timezone](https://clickhouse.com/docs/en/operations/server-configuration-parameters/settings#server_configuration_parameters-timezone), which may not be what you want.
 So this feature is not implemented currently.
-
-
-**Note:**
-
-Due to a [bug](https://github.com/mymarilyn/clickhouse-driver/issues/363) of clickhouse-driver 0.2.5,
-when set `null=True` and `low_cardinality=True` at the same time to DateField or Date32Field, an exception will be raised when inserting a row.
-
-The same bug also exists in UUIDField.
 
 
 ### DateTime and DateTime64

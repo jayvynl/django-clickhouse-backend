@@ -1,3 +1,10 @@
+### 1.0.3
+- Fix reading settings in explain, pull request [#13](https://github.com/jayvynl/django-clickhouse-backend/pull/13) by [mahdi-jfri](https://github.com/mahdi-jfri).
+- Add toYYYYMM[DD[hhmmss]] functions.
+- Fix str(queryset.query) when default database is not clickhouse.
+- Fix [bug when save django model instance](https://github.com/jayvynl/django-clickhouse-backend/issues/9).
+- Support [clickhouse-driver 0.2.6](https://github.com/mymarilyn/clickhouse-driver), drop support for python3.6.
+
 ### 1.0.2 (2023-02-28)
 - Fix test db name when NAME not provided in DATABASES setting.
 - Fix Enum error when provided an IntegerChoices value.
