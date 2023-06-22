@@ -149,22 +149,6 @@ class DateField(FieldMixin, fields.DateField):
     """Support integer or float may cause strange behavior,
     as integer and float are always treated as UTC timestamps,
     clickhouse store them as date in utc, which may not be what you want.
-
-    Due to a bug of clickhouse-driver 0.2.5,
-    when set null and low_cardinality the same time to DateField or Date32Field,
-    an exception will be raised when create a row.
-    The same bug is also in UUIDField.
-    Below is the minimum reproducing code:
-
-    from clickhouse_driver import Client
-    from datetime import date
-
-    client = Client('localhost', settings={'allow_suspicious_low_cardinality_types': 1})
-    client.execute('create table test (lnd LowCardinality(Nullable(Date))) engine MergeTree order by ()')
-    client.execute('insert into test values', [{'lnd': date.today()}])
-
-    ...
-    AttributeError: 'int' object has no attribute 'year'
     """
     def __init__(self, *args, low_cardinality=False, **kwargs):
         self.low_cardinality = low_cardinality

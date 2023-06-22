@@ -31,7 +31,7 @@ Read [Documentation](https://github.com/jayvynl/django-clickhouse-backend/blob/m
 
 **Requirements:**
 
-- [Python](https://www.python.org/) >= 3.6
+- [Python](https://www.python.org/) >= 3.7
 - [Django](https://docs.djangoproject.com/) >= 3.2
 - [clickhouse driver](https://github.com/mymarilyn/clickhouse-driver)
 - [clickhouse pool](https://github.com/ericmccarthy7/clickhouse-pool)

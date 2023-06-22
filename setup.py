@@ -21,10 +21,10 @@ setup(
     long_description_content_type="text/markdown",
     license="MIT",
     keywords='Django ClickHouse database backend engine driver',
-    python_requires='>=3.6, <4',
+    python_requires='>=3.7, <4',
     install_requires=[
         "django>=3.2",
-        "clickhouse-driver==0.2.5",
+        "clickhouse-driver==0.2.6",
         "clickhouse-pool==0.5.3",
     ],
     classifiers=[
@@ -38,7 +38,6 @@ setup(
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",

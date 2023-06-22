@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
 from typing import Sequence, Dict, Union
@@ -37,7 +37,8 @@ def escape_binary(item: bytes, context):
     return b2s[1:]
 
 
-def escape_param(item, context):
+@escape.maybe_enquote_for_server
+def escape_param(item, context, for_server=False):
     if item is None:
         return 'NULL'
 
@@ -47,17 +48,23 @@ def escape_param(item, context):
     elif isinstance(item, date):
         return "'%s'" % item.strftime('%Y-%m-%d')
 
+    elif isinstance(item, time):
+        return "'%s'" % item.strftime('%H:%M:%S')
+
     elif isinstance(item, str):
+        # We need double escaping for server-side parameters.
+        if for_server:
+            item = ''.join(escape.escape_chars_map.get(c, c) for c in item)
         return "'%s'" % ''.join(escape.escape_chars_map.get(c, c) for c in item)
 
     elif isinstance(item, list):
-        return "[%s]" % ', '.join(str(escape_param(x, context)) for x in item)
+        return "[%s]" % ', '.join(str(escape_param(x, context, for_server=for_server)) for x in item)
 
     elif isinstance(item, tuple):
-        return "(%s)" % ', '.join(str(escape_param(x, context)) for x in item)
+        return "(%s)" % ', '.join(str(escape_param(x, context, for_server=for_server)) for x in item)
 
     elif isinstance(item, Enum):
-        return escape_param(item.value, context)
+        return escape_param(item.value, context, for_server=for_server)
 
     elif isinstance(item, (UUID, IPv4Address, IPv6Address)):
         return "'%s'" % str(item)
@@ -69,19 +76,19 @@ def escape_param(item, context):
         return item
 
 
-def escape_params(params: Params, context: Dict) -> Params:
+def escape_params(params: Params, context: Dict, for_server=False) -> Params:
     """Escape param to qualified string representation.
 
     This function is not used in INSERT INTO queries.
     """
     if isinstance(params, Dict):
         escaped = {
-            key: escape_param(value, context)
+            key: escape_param(value, context, for_server=for_server)
             for key, value in params.items()
         }
     else:
         escaped = tuple(
-            escape_param(value, context)
+            escape_param(value, context, for_server=for_server)
             for value in params
         )
 
