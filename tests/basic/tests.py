@@ -12,6 +12,7 @@ from django.test import (
 )
 from django.utils.translation import gettext_lazy
 
+from clickhouse_backend import compat
 from .models import (
     Article,
     ArticleSelectOnSave,
@@ -148,7 +149,15 @@ class ModelInstanceCreationTests(TestCase):
     def test_save_parent_primary_with_default(self):
         # An UPDATE attempt is skipped when an inherited primary key has
         # default.
-        with self.assertNumQueries(2):
+        #
+        if compat.dj_ge42:
+            # Django 4.2 add BEGIN and COMMIT debug queries.
+            # https://github.com/django/django/blob/a18e0f44d5692b656bd8ea178e830ebdc80a000d/django/db/backends/base/base.py#L496
+            # https://github.com/django/django/blob/a18e0f44d5692b656bd8ea178e830ebdc80a000d/django/db/backends/base/base.py#L312
+            num_queries = 4
+        else:
+            num_queries = 2
+        with self.assertNumQueries(num_queries):
             ChildPrimaryKeyWithDefault().save()
 
 

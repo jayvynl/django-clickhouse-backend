@@ -10,6 +10,7 @@ from django.db.backends.ddl_references import (
 from django.db.models.expressions import ExpressionList
 from django.db.models.indexes import IndexExpression
 
+from clickhouse_backend import compat
 from clickhouse_backend.driver.escape import escape_param
 
 
@@ -363,6 +364,15 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             self.quote_name(old_field.column) != self.quote_name(new_field.column) or
             (old_path, old_args, old_kwargs) != (new_path, new_args, new_kwargs)
         )
+
+    def _alter_column_type_sql(
+        self, model, old_field, new_field, new_type, old_collation=None, new_collation=None
+    ):
+        """Django4.2 add old_collation, new_collation"""
+        if compat.dj_ge42:
+            return super()._alter_column_type_sql(model, old_field, new_field, new_type, old_collation, new_collation)
+        else:
+            return super()._alter_column_type_sql(model, old_field, new_field, new_type)
 
     def _alter_field(self, model, old_field, new_field, old_type, new_type,
                      old_db_params, new_db_params, strict=False):

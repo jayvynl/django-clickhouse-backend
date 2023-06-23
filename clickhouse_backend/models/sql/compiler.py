@@ -1,12 +1,15 @@
 from django.db.models.fields import BigAutoField
 from django.db.models.sql import compiler
 
+from clickhouse_backend import compat
 from clickhouse_backend.idworker import id_worker
+
+if compat.dj_ge42:
+    from django.core.exceptions import FullResultSet
 
 
 class ClickhouseMixin:
-    def as_sql(self, *args, **kwargs):
-        sql, params = super().as_sql(*args, **kwargs)
+    def _add_explain_sql(self, sql, params):
         # Backward compatible for django 3.2
         explain_info = getattr(self.query, "explain_info", None)
         if explain_info:
@@ -18,6 +21,9 @@ class ClickhouseMixin:
             sql = "%s %s" % (prefix, sql.lstrip())
             if suffix:
                 sql = "%s %s" % (sql, suffix)
+        return sql, params
+
+    def _add_settings_sql(self, sql, params):
         if getattr(self.query, "setting_info", None):
             setting_sql, setting_params = self.connection.ops.settings_sql(
                 **self.query.setting_info
@@ -26,12 +32,30 @@ class ClickhouseMixin:
             params = (*params, *setting_params)
         return sql, params
 
+    def _compile_where(self, table):
+        if compat.dj_ge42:
+            try:
+                where, params = self.compile(self.query.where)
+            except FullResultSet:
+                where, params = "", ()
+        else:
+            where, params = self.compile(self.query.where)
+        if where:
+            where = where.replace(table + ".", "")
+        else:
+            where = "1"
+        return where, params
+
 
 class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
-    pass
+    def as_sql(self, *args, **kwargs):
+        sql, params = super().as_sql(*args, **kwargs)
+        sql, params = self._add_settings_sql(sql, params)
+        sql, params = self._add_explain_sql(sql, params)
+        return sql, params
 
 
-class SQLInsertCompiler(ClickhouseMixin, compiler.SQLInsertCompiler):
+class SQLInsertCompiler(compiler.SQLInsertCompiler):
     def as_sql(self):
         # We don't need quote_name_unless_alias() here, since these are all
         # going to be column names (so we can avoid the extra overhead).
@@ -62,11 +86,16 @@ class SQLInsertCompiler(ClickhouseMixin, compiler.SQLInsertCompiler):
         ]
 
         placeholder_rows, param_rows = self.assemble_as_sql(fields, value_rows)
+        # https://clickhouse.com/docs/en/sql-reference/statements/insert-into
+        # If you want to specify SETTINGS for INSERT query then you have to do it before FORMAT clause
+        # since everything after FORMAT format_name is treated as data.
+        if getattr(self.query, "setting_info", None):
+            setting_sql, setting_params = self.connection.ops.settings_sql(
+                **self.query.setting_info
+            )
+            result.append(setting_sql % setting_params)
+
         result.append(self.connection.ops.bulk_insert_sql(fields, placeholder_rows))
-        if hasattr(self.query, "get_settings"):
-            settings_string = self.query.get_settings()
-            if settings_string:
-                result.append(settings_string)
         return [(" ".join(result), param_rows)]
 
     def execute_sql(self, returning_fields=None):
@@ -84,16 +113,14 @@ class SQLDeleteCompiler(ClickhouseMixin, compiler.SQLDeleteCompiler):
         "table"."column" in WHERE clause.
         """
         table = self.quote_name_unless_alias(query.base_table)
-        result = [
-            "ALTER TABLE %s DELETE" % table
-        ]
-        where, params = self.compile(query.where)
-        where = where.replace(table + ".", "")
-        if where:
-            result.append("WHERE %s" % where)
-        else:
-            result.append("WHERE 1")
-        return " ".join(result), tuple(params)
+        delete = "ALTER TABLE %s DELETE" % table
+        where, params = self._compile_where(table)
+        return f"{delete} WHERE {where}", tuple(params)
+
+    def as_sql(self):
+        sql, params = super().as_sql()
+        sql, params = self._add_settings_sql(sql, params)
+        return sql, params
 
 
 class SQLUpdateCompiler(ClickhouseMixin, compiler.SQLUpdateCompiler):
@@ -124,18 +151,14 @@ class SQLUpdateCompiler(ClickhouseMixin, compiler.SQLUpdateCompiler):
                     )
             elif hasattr(val, "prepare_database_save"):
                 if field.remote_field:
-                    val = field.get_db_prep_save(
-                        val.prepare_database_save(field),
-                        connection=self.connection,
-                    )
+                    val = val.prepare_database_save(field)
                 else:
                     raise TypeError(
                         "Tried to update field %s with a model instance, %r. "
                         "Use a value compatible with %s."
                         % (field, val, field.__class__.__name__)
                     )
-            else:
-                val = field.get_db_prep_save(val, connection=self.connection)
+            val = field.get_db_prep_save(val, connection=self.connection)
 
             # Getting the placeholder for the field.
             if hasattr(field, "get_placeholder"):
@@ -159,23 +182,15 @@ class SQLUpdateCompiler(ClickhouseMixin, compiler.SQLUpdateCompiler):
             "ALTER TABLE %s UPDATE" % table,
             ", ".join(values).replace(table + ".", ""),
         ]
-        where, params = self.compile(self.query.where)
-        where = where.replace(table + ".", "")
-
-        if where:
-            result.append("WHERE %s" % where)
-        else:
-            result.append("WHERE 1")
-
+        where, params = self._compile_where(table)
+        result.append(f"WHERE {where}")
         params = (*update_params, *params)
-        if getattr(self.query, "setting_info", None):
-            setting_sql, setting_params = self.connection.ops.settings_sql(
-                **self.query.setting_info
-            )
-            result.append(setting_sql)
-            params = (*params, *setting_params)
-        return " ".join(result), params
+        return self._add_settings_sql(" ".join(result), params)
 
 
 class SQLAggregateCompiler(ClickhouseMixin, compiler.SQLAggregateCompiler):
-    pass
+    def as_sql(self):
+        sql, params = super().as_sql()
+        sql, params = self._add_settings_sql(sql, params)
+        sql, params = self._add_explain_sql(sql, params)
+        return sql, params
