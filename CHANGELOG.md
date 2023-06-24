@@ -4,6 +4,7 @@
 - Fix str(queryset.query) when default database is not clickhouse.
 - Fix [bug when save django model instance](https://github.com/jayvynl/django-clickhouse-backend/issues/9).
 - Support [clickhouse-driver 0.2.6](https://github.com/mymarilyn/clickhouse-driver), drop support for python3.6.
+- Support [Django 4.2](https://docs.djangoproject.com).
 
 ### 1.0.2 (2023-02-28)
 - Fix test db name when NAME not provided in DATABASES setting.

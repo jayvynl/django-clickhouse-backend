@@ -344,21 +344,6 @@ class DatabaseOperations(BaseDatabaseOperations):
         cursor.execute(query % params)
         return cursor.fetchone()[0]
 
-    def savepoint_create_sql(self, sid):
-        if self.fake_transaction:
-            return "SELECT 1"
-        return super().savepoint_create_sql(sid)
-
-    def savepoint_commit_sql(self, sid):
-        if self.fake_transaction:
-            return "SELECT 1"
-        return super().savepoint_commit_sql(sid)
-
-    def savepoint_rollback_sql(self, sid):
-        if self.fake_transaction:
-            return "SELECT 1"
-        return super().savepoint_rollback_sql(sid)
-
     def last_executed_query(self, cursor, sql, params):
         if params:
             if insert_pattern.match(sql):

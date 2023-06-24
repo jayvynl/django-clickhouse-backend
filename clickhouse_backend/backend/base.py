@@ -203,6 +203,15 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def create_cursor(self, name=None):
         return self.connection.cursor()
 
+    def _savepoint(self, sid):
+        pass
+
+    def _savepoint_rollback(self, sid):
+        pass
+
+    def _savepoint_commit(self, sid):
+        pass
+
     def _set_autocommit(self, autocommit):
         pass
 
