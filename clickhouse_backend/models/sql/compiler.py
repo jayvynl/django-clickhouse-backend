@@ -151,14 +151,18 @@ class SQLUpdateCompiler(ClickhouseMixin, compiler.SQLUpdateCompiler):
                     )
             elif hasattr(val, "prepare_database_save"):
                 if field.remote_field:
-                    val = val.prepare_database_save(field)
+                    val = field.get_db_prep_save(
+                        val.prepare_database_save(field),
+                        connection=self.connection,
+                    )
                 else:
                     raise TypeError(
                         "Tried to update field %s with a model instance, %r. "
                         "Use a value compatible with %s."
                         % (field, val, field.__class__.__name__)
                     )
-            val = field.get_db_prep_save(val, connection=self.connection)
+            else:
+                val = field.get_db_prep_save(val, connection=self.connection)
 
             # Getting the placeholder for the field.
             if hasattr(field, "get_placeholder"):
