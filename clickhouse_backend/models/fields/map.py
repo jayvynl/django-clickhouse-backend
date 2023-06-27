@@ -163,6 +163,8 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
         return value
 
     def get_db_prep_save(self, value, connection):
+        if hasattr(value, "as_sql"):
+            return value
         if isinstance(value, collections.abc.Mapping):
             return {
                 self.key_field.get_db_prep_save(k, connection):

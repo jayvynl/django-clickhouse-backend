@@ -100,7 +100,23 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_partial_indexes = False
 
     # Does the backend support JSONField?
-    supports_json_field = False
+    supports_json_field = True
+    # Can the backend introspect a JSONField?
+    can_introspect_json_field = True
+    # Does the backend support primitives in JSONField?
+    supports_primitives_in_json_field = False
+    # Is there a true datatype for JSON?
+    has_native_json_field = True
+    # Does the backend use PostgreSQL-style JSON operators like '->'?
+    has_json_operators = False
+    # Does the backend support __contains and __contained_by lookups for
+    # a JSONField?
+    supports_json_field_contains = False
+    # Does value__d__contains={'f': 'g'} (without a list around the dict) match
+    # {'d': [{'f': 'g'}]}?
+    json_key_contains_list_matching_requires_list = False
+    # Does the backend support JSONObject() database function?
+    has_json_object_function = False
 
     # Does the backend support column collations?
     supports_collation_on_charfield = False

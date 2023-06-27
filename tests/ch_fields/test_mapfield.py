@@ -19,7 +19,7 @@ class MapFieldTests(TestCase):
             "Nullable is not supported by MapField."
         )
 
-    def test_key_vale_field(self):
+    def test_key_value_field(self):
         field = models.MapField(
             models.Float64Field(name="field"),
             models.Int8Field(name="field"),

@@ -28,6 +28,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "BigAutoField": "Int64",
         "IPAddressField": "IPv4",
         "GenericIPAddressField": "IPv6",
+        "JSONField": "JSON",
         "BinaryField": "String",
         "CharField": "FixedString(%(max_length)s)",
         "DateField": "Date32",
