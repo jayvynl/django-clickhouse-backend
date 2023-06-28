@@ -1,6 +1,7 @@
 from django.db.backends.base.operations import BaseDatabaseOperations
 
 from clickhouse_backend import compat
+from clickhouse_backend.driver import JSON
 from clickhouse_backend.driver.client import insert_pattern
 from clickhouse_backend.utils import get_timezone
 
@@ -294,7 +295,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         return value
 
     def adapt_json_value(self, value, encoder):
-        return value
+        return JSON(value)
 
     def explain_query_prefix(self, format=None, **options):
         # bypass normal explain prefix insert in compiler.as_sql

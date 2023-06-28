@@ -25,6 +25,16 @@ class MapFieldTests(TestCase):
             "clickhouse_backend.models.JSONField"
         )
 
+    def test_value(self):
+        v = {
+            "a": [1, 2, 3],
+            "b": [{"c": 1}, {"c": 2}],
+            "c": {"d": "e"}
+        }
+        o = JSONModel.objects.create(json=v)
+        o.refresh_from_db()
+        self.assertEqual(o.json, v)
+
     def test_filter(self):
         v = {
             "a": [1, 2, 3],
@@ -35,3 +45,4 @@ class MapFieldTests(TestCase):
         assert JSONModel.objects.filter(json__a=[1, 2, 3]).exists()
         assert JSONModel.objects.filter(json__b__0__c=1).exists()
         assert JSONModel.objects.filter(json__c__d="e").exists()
+        assert JSONModel.objects.filter(json__c={"d": "e"}).exists()

@@ -61,7 +61,7 @@ def escape_param(item, context, for_server=False):
         return "[%s]" % ', '.join(str(escape_param(x, context, for_server=for_server)) for x in item)
 
     elif isinstance(item, tuple):
-        return "(%s)" % ', '.join(str(escape_param(x, context, for_server=for_server)) for x in item)
+        return "tuple(%s)" % ', '.join(str(escape_param(x, context, for_server=for_server)) for x in item)
 
     elif isinstance(item, Enum):
         return escape_param(item.value, context, for_server=for_server)
@@ -71,6 +71,15 @@ def escape_param(item, context, for_server=False):
 
     elif isinstance(item, types.Binary):
         return escape_binary(item, context)
+
+    elif isinstance(item, types.JSON):
+        value = item.value
+        if isinstance(value, list):
+            return escape_param([types.JSON(v) for v in value], context, for_server=for_server)
+        elif isinstance(value, dict):
+            return escape_param(tuple(types.JSON(v) for v in value.values()), context, for_server=for_server)
+        else:
+            return escape_param(value, context, for_server=for_server)
 
     else:
         return item
