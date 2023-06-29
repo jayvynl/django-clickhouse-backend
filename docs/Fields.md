@@ -73,6 +73,7 @@ Supported date types are:
 - LowCardinality(T)
 - Tuple(T1, T2, ...)
 - Map(key, value)
+- JSON
 
 
 ### [U]Int(8|16|32|64|128|256)
@@ -551,7 +552,7 @@ Valid key fields are:
 - GenericIPAddressField
 
 
-When query from the database, MapFile get dict.
+When query from the database, MapField get dict.
 
 
 #### Lookups
@@ -567,10 +568,10 @@ class MapModel(models.ClickhouseModel):
 
 MapModel.objects.create(
     map={
-          "baidu": "39.156.66.10",
-          "bing.com": "13.107.21.200",
-          "google.com": "172.217.163.46"
-      }
+        "baidu": "39.156.66.10",
+        "bing.com": "13.107.21.200",
+        "google.com": "172.217.163.46"
+    }
 )
 ```
 
@@ -634,3 +635,74 @@ MapModel.objects.annotate(
 ).values('value')
 # <QuerySet [{'value': '::ffff:d6b:15c8'}]>
 ```
+
+
+### JSON
+
+Field importing path: `clickhouse_backend.models.JSONField`.
+
+Neither Nullable nor LowCardinality is supported.
+
+When query from the database, JSONField get dict or list.
+
+The JSON data type is an experimental feature. To use it, set `allow_experimental_object_type = 1` in the database settings.
+For example:
+
+```python
+DATABASES = {
+    'default': {
+        'ENGINE': 'clickhouse_backend.backend',
+        'OPTIONS': {
+            'settings': {
+                'allow_experimental_object_type': 1,
+            }
+        }
+    }
+}
+```
+
+#### Lookups
+
+Currently only key lookup is supported.
+
+```python
+from clickhouse_backend import models
+
+class JSONModel(models.ClickhouseModel):
+    json = models.JSONField()
+
+v = {'a': [1, 2, 3], 'b': [{'c': 1}, {'d': 2}], 'c': {'d': 'e'}}
+instance = JSONModel.objects.create(json=v)
+instance.refresh_from_db()
+instance.json
+# {'a': [1, 2, 3], 'b': [{'c': 1, 'd': 0}, {'c': 0, 'd': 2}], 'c': {'d': 'e'}}
+```
+
+**Note** JSONField value may change after saved to database. This is because clickhouse internally store [JSON](https://clickhouse.com/docs/en/sql-reference/data-types/json)
+as [Tuple](https://clickhouse.com/docs/en/sql-reference/data-types/tuple) and [Array](https://clickhouse.com/docs/en/sql-reference/data-types/array).
+[Clickhouse try best to store JSON in a uniform schema](https://clickhouse.com/docs/en/integrations/data-formats/json#handling-data-changes).
+Sometimes when you insert a JSON value that is not compatible with existing schema, clickhouse will fail.
+
+
+##### key
+
+Get the value of specific key.
+
+```python
+JSONModel.objects.values('json__a')
+# <QuerySet [{'json__a': [1, 2, 3]}]>
+JSONModel.objects.values('json__b__0__c')
+# <QuerySet [{'json__b__0__c': 1}]>
+JSONModel.objects.values('json__c__d')
+# <QuerySet [{'json__c__d': 'e'}]>
+JSONModel.objects.values('json__c')
+# <QuerySet [{'json__c': {'d': 'e'}}]>
+
+JSONModel.objects.filter(json__c={'any_key': 'e'}).exists()
+# True
+JSONModel.objects.filter(json__c=('e',)).exists()
+# True
+```
+
+Note the strange behaviors of the last two examples. That's because clickhouse store python dict as [named tuple](https://clickhouse.com/docs/en/sql-reference/data-types/tuple#addressing-tuple-elements),
+named tuples are just normal tuples when compared, the `name` is not taken into account.
