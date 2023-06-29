@@ -1,8 +1,6 @@
 from django.db import models
 from django.db.migrations import state
-from django.db.models import functions
 from django.db.models import options
-from django.db.models.manager import BaseManager
 
 from .query import QuerySet
 from .sql import Query
@@ -14,15 +12,6 @@ options.DEFAULT_NAMES = (
 )
 # Also monkey patch state.DEFAULT_NAMES, this makes new option names contained in migrations.
 state.DEFAULT_NAMES = options.DEFAULT_NAMES
-
-
-def as_clickhouse(self, compiler, connection, **extra_context):
-    return functions.Random.as_sql(
-        self, compiler, connection, function="rand64", **extra_context
-    )
-
-
-functions.Random.as_clickhouse = as_clickhouse
 
 
 class ClickhouseManager(models.Manager):

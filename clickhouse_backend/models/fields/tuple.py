@@ -230,6 +230,9 @@ class TupleField(FieldMixin, Field):
             return value
         self._validate_length(value)
         values = []
+        # when set allow_experimental_object_type=1 at session level, value will be a dict.
+        if isinstance(value, dict):
+            value = value.values()
         for i, field in zip(value, self._base_fields):
             if hasattr(field, "from_db_value"):
                 values.append(field.from_db_value(i, expression, connection))

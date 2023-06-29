@@ -39,6 +39,8 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             return "TupleField"
         elif data_type.startswith("Map"):
             return "MapField"
+        elif data_type == "Object('json')":
+            return "JSONField"
 
         return f"{data_type}Field"  # Int8
 

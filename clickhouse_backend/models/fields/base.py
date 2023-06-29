@@ -6,9 +6,8 @@ class FieldMixin:
     """All clickhouse field should inherit this mixin.
 
     1. Remove unsupported arguments: unique, db_index, unique_for_date,
-       unique_for_month, unique_for_year, db_tablespace.
+       unique_for_month, unique_for_year, db_tablespace, db_collation.
     2. Return shortened name in deconstruct method.
-    3. Add low_cardinality attribute, corresponding to clickhouse LowCardinality Data Type.
 
     low_cardinality argument is added separately in every specific field that support LowCardinality.
     If added in this mixin, then PyCharm will not supply argument hints.

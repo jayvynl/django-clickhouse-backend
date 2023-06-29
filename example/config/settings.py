@@ -71,6 +71,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'clickhouse_backend.backend',
+        'OPTIONS': {
+            'settings': {
+                'allow_experimental_object_type': 1,
+            }
+        },
         'TEST': {
             'MIGRATE': False
         }

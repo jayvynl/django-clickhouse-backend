@@ -13,6 +13,7 @@ from clickhouse_backend.validators import MaxBytesValidator
 from .array import *
 from .base import FieldMixin
 from .integer import *
+from .json import *
 from .map import *
 from .tuple import *
 
@@ -30,7 +31,7 @@ __all__ = [
     "DateField", "Date32Field", "DateTimeField", "DateTime64Field",
     "Enum8Field", "Enum16Field", "EnumField",
     "IPv4Field", "IPv6Field", "GenericIPAddressField",
-    "ArrayField", "TupleField", "MapField",
+    "ArrayField", "TupleField", "MapField", "JSONField",
 ]
 
 
