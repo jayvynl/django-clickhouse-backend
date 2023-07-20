@@ -1,3 +1,6 @@
+### 1.1.0
+- Change `AutoFiled` and `SmallAutoField` to clickhouse `Int64`. This can be more compatible with the existing apps.
+
 ### 1.0.3
 - Fix reading settings in explain, pull request [#13](https://github.com/jayvynl/django-clickhouse-backend/pull/13) by [mahdi-jfri](https://github.com/mahdi-jfri).
 - Add toYYYYMM[DD[hhmmss]] functions.
