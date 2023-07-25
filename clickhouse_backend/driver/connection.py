@@ -10,7 +10,7 @@ from clickhouse_pool.pool import ChPoolError
 from .escape import escape_params
 from .pool import ClickhousePool
 
-update_pattern = re.compile(r'\s*alter\s+table\s+(.+)\s+update.+where\s+(.+)', flags=re.IGNORECASE)
+update_pattern = re.compile(r'\s*alter\s+table\s+(.+)\s+update.+?where\s+(.+)', flags=re.IGNORECASE)
 
 
 def send_query(self, query, query_id=None, params=None):
