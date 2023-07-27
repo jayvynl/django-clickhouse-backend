@@ -18,7 +18,8 @@ A clear and concise description of what you expected to happen.
 
 **Versions**
 
-- Version of package with the problem.
-- Clickhouse-driver version.
 - ClickHouse server version. Version can be obtained by running `SELECT version()` query.
 - Python version.
+- Clickhouse-driver version.
+- Django version.
+- Django clickhouse backend version.
