@@ -1,3 +1,8 @@
+### 1.1.0
+- Change `AutoFiled` and `SmallAutoField` to clickhouse `Int64`, so that id worker can generate value for them.
+This allows more compatibilities with existing apps such as `django.contrib.auth`.
+- `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'` is no longer a required configuration item.
+
 ### 1.0.3
 - Fix reading settings in explain, pull request [#13](https://github.com/jayvynl/django-clickhouse-backend/pull/13) by [mahdi-jfri](https://github.com/mahdi-jfri).
 - Add toYYYYMM[DD[hhmmss]] functions.

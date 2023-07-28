@@ -23,8 +23,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     # If a column type is set to None, it won't be included in the output.
     data_types = {
         # Django fields.
-        "SmallAutoField": "Int16",
-        "AutoField": "Int32",
+        "SmallAutoField": "Int64",
+        "AutoField": "Int64",
         "BigAutoField": "Int64",
         "IPAddressField": "IPv4",
         "GenericIPAddressField": "IPv6",

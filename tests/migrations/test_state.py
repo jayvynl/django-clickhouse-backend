@@ -1682,7 +1682,7 @@ class ModelStateTests(SimpleTestCase):
     def test_sanity_index_name(self):
         field = models.IntegerField()
         options = {"indexes": [models.Index(fields=["field"])]}
-        if compat.dj32:
+        if not compat.dj_ge4:
             msg = "Indexes passed to ModelState require a name attribute. <Index: fields='field'> doesn't have one."
         else:
             msg = (

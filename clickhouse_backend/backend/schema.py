@@ -7,6 +7,7 @@ from django.db.backends.base.schema import (
 from django.db.backends.ddl_references import (
     Expressions, IndexName, Statement, Table, Columns
 )
+from django.db.models.constraints import CheckConstraint, UniqueConstraint
 from django.db.models.expressions import ExpressionList
 from django.db.models.indexes import IndexExpression
 
@@ -82,9 +83,12 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             ))
             constraints.append(self._column_check_sql(field))
         for constraint in model._meta.constraints:
-            constraints.append(
-                constraint.constraint_sql(model, self)
-            )
+            if isinstance(constraint, CheckConstraint):
+                constraints.append(
+                    constraint.constraint_sql(model, self)
+                )
+        if any(isinstance(c, UniqueConstraint) for c in model._meta.constraints):
+            warnings.warn("Clickhouse does not support unique constraint.")
 
         engine = self._get_engine(model)
         extra_parts = self._model_extra_sql(model, engine)

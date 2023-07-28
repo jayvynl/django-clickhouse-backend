@@ -2921,7 +2921,7 @@ class AutodetectorTests(BaseAutodetectorTests):
         changes = self.get_changes(
             [], [self.author_empty, self.author_proxy_third, self.book_proxy_fk]
         )
-        if compat.dj32:
+        if not compat.dj_ge4:
             # The field name the FK on the book model points to
             self.assertEqual(changes['otherapp'][0].operations[0].fields[2][1].remote_field.field_name, 'id')
             # Now, we test the custom pk field name

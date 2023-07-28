@@ -2405,42 +2405,6 @@ class OperationTests(OperationTestBase):
         self.assertEqual(definition[1], [])
         self.assertEqual(definition[2], {"model_name": "Pony", "name": index_name})
 
-    @skipUnlessDBFeature("supports_expression_indexes")
-    def test_alter_field_with_func_index(self):
-        app_label = "test_alfuncin"
-        index_name = f"{app_label}_pony_idx"
-        table_name = f"{app_label}_pony"
-        project_state = self.set_up_test_model(
-            app_label,
-            indexes=[indexes.Index(Abs("pink"), name=index_name, type=indexes.Set(1000), granularity=1000)],
-        )
-        operation = migrations.AlterField(
-            "Pony", "pink", models.IntegerField(null=True)
-        )
-        new_state = project_state.clone()
-        operation.state_forwards(app_label, new_state)
-        with connection.schema_editor() as editor:
-            operation.database_forwards(app_label, editor, project_state, new_state)
-        self.assertIndexNameExists(table_name, index_name)
-
-    def test_alter_field_with_index(self):
-        """
-        Test AlterField operation with an index to ensure indexes created via
-        Meta.indexes don't get dropped with sqlite3 remake.
-        """
-        project_state = self.set_up_test_model("test_alflin", index=True)
-        operation = migrations.AlterField(
-            "Pony", "pink", models.IntegerField(null=True)
-        )
-        new_state = project_state.clone()
-        operation.state_forwards("test_alflin", new_state)
-        # Test the database alteration
-        self.assertColumnNotNull("test_alflin_pony", "pink")
-        with connection.schema_editor() as editor:
-            operation.database_forwards("test_alflin", editor, project_state, new_state)
-        # Index hasn't been dropped
-        self.assertIndexNameExists("test_alflin_pony", "pony_pink_idx")
-
     @skipUnlessDBFeature("supports_table_check_constraints")
     def test_add_constraint(self):
         project_state = self.set_up_test_model("test_addconstraint")

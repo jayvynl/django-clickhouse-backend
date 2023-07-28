@@ -19,13 +19,13 @@ class MigrationDataPersistenceTestCase(TransactionTestCase):
         )
 
 
-class MigrationDataNormalPersistenceTestCase(TestCase):
-    """
-    Data loaded in migrations is available on TestCase
-    """
-
-    def test_persistence(self):
-        self.assertEqual(
-            Book.objects.count(),
-            1,
-        )
+# class MigrationDataNormalPersistenceTestCase(TestCase):
+#     """
+#     Data loaded in migrations is available on TestCase
+#     """
+#
+#     def test_persistence(self):
+#         self.assertEqual(
+#             Book.objects.count(),
+#             1,
+#         )

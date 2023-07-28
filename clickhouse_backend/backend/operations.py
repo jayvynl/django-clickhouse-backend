@@ -23,8 +23,8 @@ class DatabaseOperations(BaseDatabaseOperations):
         "PositiveBigIntegerField": (0, 18446744073709551615),
         "PositiveSmallIntegerField": (0, 65535),
         "PositiveIntegerField": (0, 4294967295),
-        "SmallAutoField": (-32768, 32767),
-        "AutoField": (-2147483648, 2147483647),
+        "SmallAutoField": (-9223372036854775808, 9223372036854775807),
+        "AutoField": (-9223372036854775808, 9223372036854775807),
         "BigAutoField": (-9223372036854775808, 9223372036854775807),
         # Clickhouse fields.
         "Int8Field": (-1 << 7, -1 ^ (-1 << 7)),

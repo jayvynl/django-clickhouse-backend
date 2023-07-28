@@ -51,9 +51,7 @@ Valid `TEST` keys:
   But this will have a side effect, that is, the clickhouse data of each test case will not be isolated. So in general it is not recommended to use this feature unless you know very well what is the impaction.
 
 
-### DEFAULT_AUTO_FIELD
-
-`DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'` IS REQUIRED TO WORKING WITH DJANGO MIGRATION.
+### Auto Field
 
 Django ORM depends heavily on single column primary key, this primary key is a unique identifier of an ORM object.
 All `get` `save` `delete` actions depend on primary key.
@@ -64,20 +62,10 @@ There is [no unique constraint](https://github.com/ClickHouse/ClickHouse/issues/
 
 By default, django will add a field named `id` as auto increasing primary key.
 
-- AutoField
+Django `AutoField`, `SmallAutoField` and `BigAutoField` ar mapped to clickhouse Int64 data type. If primary key is not specified when insert data, then `clickhouse_driver.idworker.id_worker` is used to generate this unique id.
 
-  Mapped to clickhouse Int32 data type. You should generate this unique id yourself.
+Default `id_worker` is an instance of `clickhouse.idworker.snowflake.SnowflakeIDWorker` which implement [twitter snowflake id](https://en.wikipedia.org/wiki/Snowflake_ID).
+If data insertions happen on multiple datacenter, server, process or thread, you should ensure uniqueness of (CLICKHOUSE_WORKER_ID, CLICKHOUSE_DATACENTER_ID) environment variable.
+Because work_id and datacenter_id are 5 bits, they should be an integer between 0 and 31. CLICKHOUSE_WORKER_ID default to 0, CLICKHOUSE_DATACENTER_ID will be generated randomly if not provided.
 
-- BigAutoField
-
-  Mapped to clickhouse Int64 data type. If primary key is not specified when insert data, then `clickhouse_driver.idworker.id_worker` is used to generate this unique id.
-
-  Default id_worker is an instance of `clickhouse.idworker.snowflake.SnowflakeIDWorker` which implement [twitter snowflake id](https://en.wikipedia.org/wiki/Snowflake_ID).
-  If data insertions happen on multiple datacenter, server, process or thread, you should ensure uniqueness of (CLICKHOUSE_WORKER_ID, CLICKHOUSE_DATACENTER_ID) environment variable.
-  Because work_id and datacenter_id are 5 bits, they should be an integer between 0 and 31. CLICKHOUSE_WORKER_ID default to 0, CLICKHOUSE_DATACENTER_ID will be generated randomly if not provided.
-
-  `clickhouse.idworker.snowflake.SnowflakeIDWorker` is not thread safe. You could inherit `clickhouse.idworker.base.BaseIDWorker` and implement one, then set `CLICKHOUSE_ID_WORKER` in `settings.py` to doted import path of your IDWorker instance.
-
-Django use a table named `django_migrations` to track migration files. ID field should be BigAutoField, so that IDWorker can generate unique id for you.
-After Django 3.2，a new [config `DEFAULT_AUTO_FIELD`](https://docs.djangoproject.com/en/4.1/releases/3.2/#customizing-type-of-auto-created-primary-keys) is introduced to control field type of default primary key.
-So `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'` is required if you want to use migrations with django clickhouse backend.
+`clickhouse.idworker.snowflake.SnowflakeIDWorker` is not thread safe. You could inherit `clickhouse.idworker.base.BaseIDWorker` and implement one, then set `CLICKHOUSE_ID_WORKER` in `settings.py` to doted import path of your IDWorker instance.

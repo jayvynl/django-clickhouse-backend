@@ -28,6 +28,8 @@ Read [Documentation](https://github.com/jayvynl/django-clickhouse-backend/blob/m
 - In outer join, clickhouse will set missing columns to empty values (0 for number, empty string for text, unix epoch for date/datatime) instead of NULL. 
   So Count("book") resolve to 1 in a missing LEFT OUTER JOIN match, not 0.
   In aggregation expression Avg("book__rating", default=2.5), default=2.5 have no effect in a missing match.
+- Clickhouse does not support unique constraint and foreignkey constraint. `ForeignKey`, `ManyToManyField` and `OneToOneField` can be used with clickhouse backend, but no database level constraints will be added, so there could be some consistency problems.
+- Clickhouse does not support transaction. If any exception occurs during migrating, then your clickhouse database will be in an untracked state. Any migration should be full tested in test environment before deployed to production environment.
 
 **Requirements:**
 
@@ -85,13 +87,9 @@ DATABASES = {
         'HOST': 'localhost',
         'USER': 'DB_USER',
         'PASSWORD': 'DB_PASSWORD',
-        'TEST': {
-            'fake_transaction': True
-        }
     }
 }
 DATABASE_ROUTERS = ['dbrouters.ClickHouseRouter']
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 ```
 
 ```python
@@ -143,8 +141,6 @@ automatically route your queries to the right database. In the preceding example
 queries from subclasses of `clickhouse_backend.models.ClickhouseModel` or custom migrations with a `clickhouse` hint key to clickhouse.
 All other queries are routed to the default database (postgresql).
 
-`DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'` is required to working with django migration.
-More details will be covered in [DEFAULT_AUTO_FIELD](https://github.com/jayvynl/django-clickhouse-backend/blob/main/docs/Configurations.md#default_auto_field).
 
 ### Model Definition
 
@@ -224,7 +220,7 @@ this operation will generate migration file under apps/migrations/
 then we mirgrate
 
 ```shell
-$ python manage.py migrate
+$ python manage.py migrate --database clickhouse
 ```
 
 for the first time run, this operation will generate django_migrations table with create table sql like this
