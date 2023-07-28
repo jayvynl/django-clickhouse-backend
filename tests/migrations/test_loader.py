@@ -173,7 +173,7 @@ class LoaderTests(TestCase):
         msg = "There is more than one migration for 'migrations' with the prefix '0'"
         with self.assertRaisesMessage(AmbiguityError, msg):
             migration_loader.get_migration_by_prefix("migrations", "0")
-        if compat.dj32:
+        if not compat.dj_ge4:
             msg = "There no migrations for 'migrations' with the prefix 'blarg'"
         else:
             msg = "There is no migration for 'migrations' with the prefix 'blarg'"

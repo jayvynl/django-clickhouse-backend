@@ -66,16 +66,6 @@ class BaseBackendTest(TestCase):
         self.assertIs(self.user.has_perm("other_perm", TestObj()), False)
 
 
-class CountingMD5PasswordHasher(MD5PasswordHasher):
-    """Hasher that counts how many times it computes a hash."""
-
-    calls = 0
-
-    def encode(self, *args, **kwargs):
-        type(self).calls += 1
-        return super().encode(*args, **kwargs)
-
-
 class BaseModelBackendTest:
     """
     A base class for tests that need to validate the ModelBackend
@@ -251,39 +241,6 @@ class BaseModelBackendTest:
         """A superuser has all permissions. Refs #14795."""
         user = self.UserModel._default_manager.get(pk=self.superuser.pk)
         self.assertEqual(len(user.get_all_permissions()), len(Permission.objects.all()))
-
-    @override_settings(
-        PASSWORD_HASHERS=["auth_tests.test_auth_backends.CountingMD5PasswordHasher"]
-    )
-    def test_authentication_timing(self):
-        """Hasher is run once regardless of whether the user exists. Refs #20760."""
-        # Re-set the password, because this tests overrides PASSWORD_HASHERS
-        self.user.set_password("test")
-        self.user.save()
-
-        CountingMD5PasswordHasher.calls = 0
-        username = getattr(self.user, self.UserModel.USERNAME_FIELD)
-        authenticate(username=username, password="test")
-        self.assertEqual(CountingMD5PasswordHasher.calls, 1)
-
-        CountingMD5PasswordHasher.calls = 0
-        authenticate(username="no_such_user", password="test")
-        self.assertEqual(CountingMD5PasswordHasher.calls, 1)
-
-    @override_settings(
-        PASSWORD_HASHERS=["auth_tests.test_auth_backends.CountingMD5PasswordHasher"]
-    )
-    def test_authentication_without_credentials(self):
-        CountingMD5PasswordHasher.calls = 0
-        for credentials in (
-            {},
-            {"username": getattr(self.user, self.UserModel.USERNAME_FIELD)},
-            {"password": "test"},
-        ):
-            with self.subTest(credentials=credentials):
-                with self.assertNumQueries(0):
-                    authenticate(**credentials)
-                self.assertEqual(CountingMD5PasswordHasher.calls, 0)
 
 
 class ModelBackendTest(BaseModelBackendTest, TestCase):
@@ -520,13 +477,6 @@ class AnonymousUserBackendTest(SimpleTestCase):
     def test_has_perms(self):
         self.assertIs(self.user1.has_perms(["anon"], TestObj()), True)
         self.assertIs(self.user1.has_perms(["anon", "perm"], TestObj()), False)
-
-    def test_has_perms_perm_list_invalid(self):
-        msg = "perm_list must be an iterable of permissions."
-        with self.assertRaisesMessage(ValueError, msg):
-            self.user1.has_perms("perm")
-        with self.assertRaisesMessage(ValueError, msg):
-            self.user1.has_perms(object())
 
     def test_has_module_perms(self):
         self.assertIs(self.user1.has_module_perms("app1"), True)

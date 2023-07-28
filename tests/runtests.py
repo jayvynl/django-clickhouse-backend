@@ -4,7 +4,7 @@ import sys
 
 import django
 from django.conf import settings
-from clickhouse_backend.compat import dj32
+from clickhouse_backend.compat import dj_ge4
 from django.test.utils import get_runner
 
 RUNTESTS_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -66,7 +66,7 @@ if __name__ == '__main__':
         action="store_true",
         help="Turn on the SQL query logger within tests.",
     )
-    if dj32:
+    if not dj_ge4:
         from django.test.runner import default_test_processes
         parser.add_argument(
             '--parallel', nargs='?', default=0, type=int,
@@ -96,7 +96,7 @@ if __name__ == '__main__':
     django.setup()
 
     parallel = options.parallel
-    if not dj32 and parallel in {0, "auto"}:
+    if dj_ge4 and parallel in {0, "auto"}:
         # This doesn't work before django.setup() on some databases.
         from django.db import connections
         from django.test.runner import get_max_test_processes
