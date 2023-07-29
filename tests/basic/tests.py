@@ -829,3 +829,10 @@ class DjangoModelTests(TestCase):
         a.headline = "Updated headline"
         a.save()
         self.assertEqual(a.id, current_id)
+
+
+class RawSQLTest(TestCase):
+    def test_insert_select(self):
+        table = Article._meta.db_table
+        with connections[DEFAULT_DB_ALIAS].cursor() as cursor:
+            cursor.execute(f'insert into {table} select * from {table}')
