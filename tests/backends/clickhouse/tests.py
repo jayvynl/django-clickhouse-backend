@@ -1,19 +1,15 @@
-import copy
-import unittest
-from io import StringIO
 from unittest import mock
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db import (
-    DEFAULT_DB_ALIAS,
     DatabaseError,
-    NotSupportedError,
     connection,
-    connections,
 )
+from django.test import TestCase
+
 from clickhouse_backend.backend.base import DatabaseWrapper
-from django.test import TestCase, override_settings
 from clickhouse_backend.backend.operations import DatabaseOperations
+
 
 class Tests(TestCase):
     databases = {"default", "other"}
