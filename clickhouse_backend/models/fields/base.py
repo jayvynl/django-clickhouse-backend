@@ -12,6 +12,7 @@ class FieldMixin:
     low_cardinality argument is added separately in every specific field that support LowCardinality.
     If added in this mixin, then PyCharm will not supply argument hints.
     """
+
     nullable_allowed = True
 
     def check(self, **kwargs):
@@ -24,8 +25,7 @@ class FieldMixin:
         if self.null and not self.nullable_allowed:
             return [
                 checks.Error(
-                    "Nullable is not supported by %s." %
-                    self.__class__.__name__,
+                    "Nullable is not supported by %s." % self.__class__.__name__,
                     obj=self,
                 )
             ]
@@ -50,7 +50,9 @@ class FieldMixin:
         if getattr(self, "low_cardinality", False):
             kwargs["low_cardinality"] = self.low_cardinality
         if path.startswith("clickhouse_backend.models.fields"):
-            path = path.replace("clickhouse_backend.models.fields", "clickhouse_backend.models")
+            path = path.replace(
+                "clickhouse_backend.models.fields", "clickhouse_backend.models"
+            )
         return name, path, args, kwargs
 
     def _nested_type(self, value):
@@ -66,8 +68,8 @@ class FieldMixin:
     def _check_backend(self, connection):
         if connection.vendor != "clickhouse":
             raise ImproperlyConfigured(
-                "%s must only be used with django clickhouse backend." %
-                self.__class__.__name__
+                "%s must only be used with django clickhouse backend."
+                % self.__class__.__name__
             )
 
     def db_type(self, connection):

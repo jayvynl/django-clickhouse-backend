@@ -1,10 +1,14 @@
 from django.db.models.expressions import ExpressionList, F, Func
-from django.db.models.indexes import IndexExpression, split_identifier, names_digest
+from django.db.models.indexes import IndexExpression, names_digest, split_identifier
 from django.db.models.sql import Query
 
 __all__ = [
     "Index",
-    "MinMax", "Set", "NgrambfV1", "TokenbfV1", "BloomFilter",
+    "MinMax",
+    "Set",
+    "NgrambfV1",
+    "TokenbfV1",
+    "BloomFilter",
 ]
 
 
@@ -29,8 +33,7 @@ class Index:
             raise ValueError("Index.fields must be a list or tuple.")
         if not expressions and not fields:
             raise ValueError(
-                "At least one field or expression is required to define an "
-                "index."
+                "At least one field or expression is required to define an " "index."
             )
         if expressions and fields:
             raise ValueError(
@@ -83,10 +86,14 @@ class Index:
             col_suffixes = [order[1] for order in self.fields_orders]
             expressions = None
         return schema_editor._create_index_sql(
-            model, fields=fields, name=self.name,
+            model,
+            fields=fields,
+            name=self.name,
             col_suffixes=col_suffixes,
-            type=self.type, granularity=self.granularity,
-            expressions=expressions, **kwargs,
+            type=self.type,
+            granularity=self.granularity,
+            expressions=expressions,
+            **kwargs,
         )
 
     def remove_sql(self, model, schema_editor, **kwargs):
@@ -95,7 +102,9 @@ class Index:
     def deconstruct(self):
         path = "%s.%s" % (self.__class__.__module__, self.__class__.__name__)
         if path.startswith("clickhouse_backend.models.indexes"):
-            path = path.replace("clickhouse_backend.models.indexes", "clickhouse_backend.models")
+            path = path.replace(
+                "clickhouse_backend.models.indexes", "clickhouse_backend.models"
+            )
         kwargs = {"name": self.name}
         if self.fields:
             kwargs["fields"] = self.fields
@@ -117,7 +126,9 @@ class Index:
         fit its size by truncating the excess length.
         """
         _, table_name = split_identifier(model._meta.db_table)
-        column_names = [model._meta.get_field(field_name).column for field_name in self.fields]
+        column_names = [
+            model._meta.get_field(field_name).column for field_name in self.fields
+        ]
         # The length of the parts of the name is based on the default max
         # length of 30 characters.
         hash_data = [table_name] + column_names + [self.suffix]
@@ -137,11 +148,12 @@ class Index:
         return "<%s:%s%s%s%s>" % (
             self.__class__.__name__,
             "" if not self.fields else " fields='%s'" % ", ".join(self.fields),
-            "" if not self.expressions else " expressions='%s'" % ", ".join([
-                str(expression) for expression in self.expressions
-            ]),
+            ""
+            if not self.expressions
+            else " expressions='%s'"
+            % ", ".join([str(expression) for expression in self.expressions]),
             " type=%s" % self.type,
-            " granularity=%s" % self.granularity
+            " granularity=%s" % self.granularity,
         )
 
     def __eq__(self, other):
@@ -154,7 +166,9 @@ class Type(Func):
     def deconstruct(self):
         path, args, kwargs = super().deconstruct()
         if path.startswith("clickhouse_backend.models.indexes"):
-            path = path.replace("clickhouse_backend.models.indexes", "clickhouse_backend.models")
+            path = path.replace(
+                "clickhouse_backend.models.indexes", "clickhouse_backend.models"
+            )
         return path, args, kwargs
 
 

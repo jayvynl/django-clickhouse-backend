@@ -33,8 +33,8 @@ class SchoolClass(ClickhouseModel):
 
 
 class VeryLongModelNameZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ(ClickhouseModel):
-    primary_key_is_quite_long_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz = models.BigAutoField(
-        primary_key=True
+    primary_key_is_quite_long_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz = (
+        models.BigAutoField(primary_key=True)
     )
     charfield_is_quite_long_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz = models.CharField(
         max_length=100

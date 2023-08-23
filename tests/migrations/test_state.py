@@ -16,6 +16,7 @@ from django.test import SimpleTestCase, override_settings
 from django.test.utils import isolate_apps
 
 from clickhouse_backend import compat
+
 from .models import (
     FoodManager,
     FoodQuerySet,
@@ -75,7 +76,6 @@ class StateTests(SimpleTestCase):
                 indexes = [models.Index(fields=["title"])]
 
         class Food(models.Model):
-
             food_mgr = FoodManager("a", "b")
             food_qs = FoodQuerySet.as_manager()
             food_no_mgr = NoMigrationFoodManager("x", "y")
@@ -90,7 +90,6 @@ class StateTests(SimpleTestCase):
                 apps = new_apps
 
         class FoodNoDefaultManager(models.Model):
-
             food_no_mgr = NoMigrationFoodManager("x", "y")
             food_mgr = FoodManager("a", "b")
             food_qs = FoodQuerySet.as_manager()
@@ -1027,12 +1026,7 @@ class StateTests(SimpleTestCase):
         project_state.add_model(ModelState.from_model(Magazine))
         self.assertEqual(len(project_state.apps.get_models()), 3)
 
-    @override_settings(
-        INSTALLED_APPS=[
-            'migrations',
-            'django.contrib.contenttypes'
-        ]
-    )
+    @override_settings(INSTALLED_APPS=["migrations", "django.contrib.contenttypes"])
     def test_real_apps(self):
         """
         Including real apps can resolve dangling FK errors.
@@ -1069,6 +1063,7 @@ class StateTests(SimpleTestCase):
         )
 
     if compat.dj_ge4:
+
         def test_real_apps_non_set(self):
             with self.assertRaises(AssertionError):
                 ProjectState(real_apps=["contenttypes"])
@@ -1105,6 +1100,7 @@ class StateTests(SimpleTestCase):
         )
 
     if compat.dj_ge4:
+
         def test_modelstate_get_field_order_wrt(self):
             new_apps = Apps()
 
@@ -1204,6 +1200,7 @@ class StateTests(SimpleTestCase):
 
 
 if compat.dj_ge4:
+
     class StateRelationsTests(SimpleTestCase):
         def get_base_project_state(self):
             new_apps = Apps()
@@ -1828,7 +1825,6 @@ class ModelStateTests(SimpleTestCase):
         new_apps = Apps(["migrations"])
 
         class Food(models.Model):
-
             food_mgr = FoodManager("a", "b")
             food_qs = FoodQuerySet.as_manager()
             food_no_mgr = NoMigrationFoodManager("x", "y")

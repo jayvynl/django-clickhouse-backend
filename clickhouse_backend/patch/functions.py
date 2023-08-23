@@ -15,4 +15,5 @@ def patch_random():
         return functions.Random.as_sql(
             self, compiler, connection, function="rand64", **extra_context
         )
+
     functions.Random.as_clickhouse = random_as_clickhouse

@@ -5,8 +5,9 @@ from .client import Client
 
 class ClickhousePool(clickhouse_pool.ChPool):
     """Support connection from dsn and use `clickhouse_backend.driver.client.Client`."""
+
     def __init__(self, **kwargs):
-        self.dsn = kwargs.pop('dsn', None)
+        self.dsn = kwargs.pop("dsn", None)
         super().__init__(**kwargs)
 
     def _connect(self, key: str = None) -> Client:

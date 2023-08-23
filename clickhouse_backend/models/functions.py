@@ -2,14 +2,14 @@ from django.conf import settings
 from django.db.models import Func, Value
 
 __all__ = [
-    'toYYYYMM',
-    'toYYYYMMDD',
-    'toYYYYMMDDhhmmss',
+    "toYYYYMM",
+    "toYYYYMMDD",
+    "toYYYYMMDDhhmmss",
 ]
 
 
 class toYYYYMM(Func):
-    function = 'toYYYYMM'
+    function = "toYYYYMM"
 
     def __init__(self, *expressions, output_field=None, **extra):
         arity = len(expressions)
@@ -29,8 +29,8 @@ class toYYYYMM(Func):
 
 
 class toYYYYMMDD(toYYYYMM):
-    function = 'toYYYYMMDD'
+    function = "toYYYYMMDD"
 
 
 class toYYYYMMDDhhmmss(toYYYYMM):
-    function = 'toYYYYMMDDhhmmss'
+    function = "toYYYYMMDDhhmmss"

@@ -6,7 +6,6 @@ from django.db.backends.utils import strip_quotes
 
 
 class DatabaseCreation(BaseDatabaseCreation):
-
     def _quote_name(self, name):
         return self.connection.ops.quote_name(name)
 
@@ -20,11 +19,13 @@ class DatabaseCreation(BaseDatabaseCreation):
     def _database_exists(self, cursor, database_name):
         cursor.execute(
             "SELECT 1 FROM system.databases WHERE name = %s",
-            [strip_quotes(database_name)]
+            [strip_quotes(database_name)],
         )
         return cursor.fetchone() is not None
 
-    def create_test_db(self, verbosity=1, autoclobber=False, serialize=True, keepdb=False):
+    def create_test_db(
+        self, verbosity=1, autoclobber=False, serialize=True, keepdb=False
+    ):
         super().create_test_db(verbosity, autoclobber, serialize, keepdb)
         test_settings = self.connection.settings_dict["TEST"]
         if "fake_transaction" in test_settings:
@@ -38,7 +39,10 @@ class DatabaseCreation(BaseDatabaseCreation):
                 return
             super()._execute_create_test_db(cursor, parameters, keepdb)
         except Exception as e:
-            if not e.args or getattr(e.args[0], "code", "") != ErrorCodes.DATABASE_ALREADY_EXISTS:
+            if (
+                not e.args
+                or getattr(e.args[0], "code", "") != ErrorCodes.DATABASE_ALREADY_EXISTS
+            ):
                 # All errors except "database already exists" cancel tests.
                 self.log("Got an error creating the test database: %s" % e)
                 sys.exit(2)

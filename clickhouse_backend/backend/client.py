@@ -4,32 +4,32 @@ from django.db.backends.base.client import BaseDatabaseClient
 
 
 class DatabaseClient(BaseDatabaseClient):
-    executable_name = 'clickhouse-client'
+    executable_name = "clickhouse-client"
 
     @classmethod
     def settings_to_cmd_args_env(cls, settings_dict, parameters):
         args = [cls.executable_name]
-        options = settings_dict.get('OPTIONS', {})
+        options = settings_dict.get("OPTIONS", {})
 
-        host = settings_dict.get('HOST')
-        port = settings_dict.get('PORT')
-        dbname = settings_dict.get('NAME')
-        user = settings_dict.get('USER')
-        passwd = settings_dict.get('PASSWORD')
-        secure = options.get('secure')
+        host = settings_dict.get("HOST")
+        port = settings_dict.get("PORT")
+        dbname = settings_dict.get("NAME")
+        user = settings_dict.get("USER")
+        passwd = settings_dict.get("PASSWORD")
+        secure = options.get("secure")
 
         if host:
-            args += ['-h', host]
+            args += ["-h", host]
         if port:
-            args += ['--port', str(port)]
+            args += ["--port", str(port)]
         if user:
-            args += ['-u', user]
+            args += ["-u", user]
         if passwd:
-            args += ['--password', passwd]
+            args += ["--password", passwd]
         if dbname:
-            args += ['-d', dbname]
+            args += ["-d", dbname]
         if secure:
-            args += ['--secure']
+            args += ["--secure"]
         args.extend(parameters)
         return args, None
 

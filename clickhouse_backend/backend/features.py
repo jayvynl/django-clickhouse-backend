@@ -53,16 +53,16 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # Map fields which some backends may not be able to differentiate to the
     # field it's introspected as.
     introspected_field_types = {
-        'BigIntegerField': 'BigIntegerField',
-        'BinaryField': 'BinaryField',
-        'BooleanField': 'BooleanField',
-        'CharField': 'CharField',
-        'GenericIPAddressField': 'GenericIPAddressField',
-        'IntegerField': 'IntegerField',
-        'PositiveBigIntegerField': 'PositiveBigIntegerField',
-        'PositiveIntegerField': 'PositiveIntegerField',
-        'PositiveSmallIntegerField': 'PositiveSmallIntegerField',
-        'SmallIntegerField': 'SmallIntegerField',
+        "BigIntegerField": "BigIntegerField",
+        "BinaryField": "BinaryField",
+        "BooleanField": "BooleanField",
+        "CharField": "CharField",
+        "GenericIPAddressField": "GenericIPAddressField",
+        "IntegerField": "IntegerField",
+        "PositiveBigIntegerField": "PositiveBigIntegerField",
+        "PositiveIntegerField": "PositiveIntegerField",
+        "PositiveSmallIntegerField": "PositiveSmallIntegerField",
+        "SmallIntegerField": "SmallIntegerField",
     }
 
     # https://clickhouse.com/docs/en/sql-reference/statements/alter/index/
@@ -125,7 +125,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_non_deterministic_collations = False
 
     # SQL template override for tests.aggregation.tests.NowUTC
-    test_now_utc_template = 'now64()'
+    test_now_utc_template = "now64()"
 
     @cached_property
     def supports_transactions(self):

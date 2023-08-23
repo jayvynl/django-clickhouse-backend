@@ -44,6 +44,7 @@ from django.test.utils import Approximate, CaptureQueriesContext
 from django.utils import timezone
 
 from clickhouse_backend import compat
+
 from .models import Author, Book, Publisher, Store
 
 
@@ -78,12 +79,8 @@ class AggregateTestCase(TestCase):
         cls.a8.friends.add(cls.a9)
         cls.a9.friends.add(cls.a8)
 
-        cls.p1 = Publisher.objects.create(
-            name="Apress", num_awards=3
-        )
-        cls.p2 = Publisher.objects.create(
-            name="Sams", num_awards=1
-        )
+        cls.p1 = Publisher.objects.create(name="Apress", num_awards=3)
+        cls.p2 = Publisher.objects.create(name="Sams", num_awards=1)
         cls.p3 = Publisher.objects.create(name="Prentice Hall", num_awards=7)
         cls.p4 = Publisher.objects.create(name="Morgan Kaufmann", num_awards=9)
         cls.p5 = Publisher.objects.create(name="Jonno's House of Books", num_awards=0)
@@ -974,8 +971,8 @@ class AggregateTestCase(TestCase):
             )
         else:
             msg = (
-                'Expression contains mixed types: FloatField, DecimalField. '
-                'You must set output_field.'
+                "Expression contains mixed types: FloatField, DecimalField. "
+                "You must set output_field."
             )
         qs = Book.objects.annotate(sums=Sum("rating") + Sum("pages") + Sum("price"))
         with self.assertRaisesMessage(FieldError, msg):
@@ -1160,7 +1157,8 @@ class AggregateTestCase(TestCase):
 
         qs = Book.objects.annotate(
             sums=MySum(
-                F("rating") + F("pages") + Cast("price", FloatField()), output_field=IntegerField()
+                F("rating") + F("pages") + Cast("price", FloatField()),
+                output_field=IntegerField(),
             )
         )
         self.assertEqual(str(qs.query).count("sum("), 1)
@@ -1176,7 +1174,8 @@ class AggregateTestCase(TestCase):
 
         qs = Book.objects.annotate(
             sums=MySum(
-                F("rating") + F("pages") + Cast("price", FloatField()), output_field=IntegerField()
+                F("rating") + F("pages") + Cast("price", FloatField()),
+                output_field=IntegerField(),
             )
         )
         self.assertEqual(str(qs.query).count("sum("), 1)
@@ -1193,7 +1192,8 @@ class AggregateTestCase(TestCase):
 
         qs = Book.objects.annotate(
             sums=MySum(
-                F("rating") + F("pages") + Cast("price", FloatField()), output_field=IntegerField()
+                F("rating") + F("pages") + Cast("price", FloatField()),
+                output_field=IntegerField(),
             )
         )
         self.assertEqual(str(qs.query).count("MAX("), 1)
@@ -1267,13 +1267,14 @@ class AggregateTestCase(TestCase):
     #     self.assertEqual(ctx[0]["sql"].lower().count("latest_book_pubdate"), 1)
 
     if compat.dj_ge41:
+
         def test_aggregation_filter_exists(self):
             publishers_having_more_than_one_book_qs = (
                 Book.objects.values("publisher")
                 .annotate(cnt=Count("isbn"))
                 .filter(cnt__gt=1)
             )
-            query = publishers_having_more_than_one_book_qs.query.exists('default')
+            query = publishers_having_more_than_one_book_qs.query.exists("default")
             _, _, group_by = query.get_compiler(connection=connection).pre_sql_setup()
             self.assertEqual(len(group_by), 1)
 
@@ -1309,6 +1310,7 @@ class AggregateTestCase(TestCase):
                 self.assertEqual(list(books_qs), expected_result)
 
     if compat.dj_ge41:
+
         def test_filter_in_subquery_or_aggregation(self):
             """
             Filtering against an aggregate requires the usage of the HAVING clause.
@@ -1347,6 +1349,7 @@ class AggregateTestCase(TestCase):
         )
 
     if compat.dj_ge4:
+
         def test_empty_result_optimization(self):
             with self.assertNumQueries(0):
                 self.assertEqual(
@@ -1412,10 +1415,9 @@ class AggregateTestCase(TestCase):
                 )
 
         def test_aggregation_default_unsupported_by_count(self):
-
-                msg = "Count does not allow default."
-                with self.assertRaisesMessage(TypeError, msg):
-                    Count("age", default=0)
+            msg = "Count does not allow default."
+            with self.assertRaisesMessage(TypeError, msg):
+                Count("age", default=0)
 
         # Clickhouse aggregation function is resolved to nan in empty rows.
         def test_aggregation_default_unset(self):
@@ -1431,7 +1433,8 @@ class AggregateTestCase(TestCase):
                     result = Author.objects.filter(age__gt=100).aggregate(
                         value=Aggregate("age"),
                     )
-                    self.assertEqual(str(result["value"]), 'nan')
+                    self.assertEqual(str(result["value"]), "nan")
+
         # Clickhouse aggregation function is resolved to nan in empty rows.
         # def test_aggregation_default_zero(self):
         #     for Aggregate in [Avg, Max, Min, StdDev, Sum, Variance]:
@@ -1497,7 +1500,9 @@ class AggregateTestCase(TestCase):
             if connection.vendor == "mysql":
                 # Workaround for #30224 for MySQL & MariaDB.
                 expr.default = Cast(expr.default, DateField())
-            queryset = Publisher.objects.annotate(earliest_pubdate=expr).order_by("name")
+            queryset = Publisher.objects.annotate(earliest_pubdate=expr).order_by(
+                "name"
+            )
             self.assertSequenceEqual(
                 queryset.values("name", "earliest_pubdate"),
                 [
@@ -1553,11 +1558,15 @@ class AggregateTestCase(TestCase):
                 [
                     {
                         "isbn": "013235613",
-                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                        "oldest_store_opening": datetime.datetime(
+                            1945, 4, 25, 16, 24, 14
+                        ),
                     },
                     {
                         "isbn": "013790395",
-                        "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
+                        "oldest_store_opening": datetime.datetime(
+                            2001, 3, 15, 11, 23, 37
+                        ),
                     },
                     {
                         "isbn": "067232959",
@@ -1565,15 +1574,21 @@ class AggregateTestCase(TestCase):
                     },
                     {
                         "isbn": "155860191",
-                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                        "oldest_store_opening": datetime.datetime(
+                            1945, 4, 25, 16, 24, 14
+                        ),
                     },
                     {
                         "isbn": "159059725",
-                        "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
+                        "oldest_store_opening": datetime.datetime(
+                            2001, 3, 15, 11, 23, 37
+                        ),
                     },
                     {
                         "isbn": "159059996",
-                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                        "oldest_store_opening": datetime.datetime(
+                            1945, 4, 25, 16, 24, 14
+                        ),
                     },
                 ],
             )
@@ -1591,11 +1606,15 @@ class AggregateTestCase(TestCase):
                 [
                     {
                         "isbn": "013235613",
-                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                        "oldest_store_opening": datetime.datetime(
+                            1945, 4, 25, 16, 24, 14
+                        ),
                     },
                     {
                         "isbn": "013790395",
-                        "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
+                        "oldest_store_opening": datetime.datetime(
+                            2001, 3, 15, 11, 23, 37
+                        ),
                     },
                     {
                         "isbn": "067232959",
@@ -1605,15 +1624,21 @@ class AggregateTestCase(TestCase):
                     },
                     {
                         "isbn": "155860191",
-                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                        "oldest_store_opening": datetime.datetime(
+                            1945, 4, 25, 16, 24, 14
+                        ),
                     },
                     {
                         "isbn": "159059725",
-                        "oldest_store_opening": datetime.datetime(2001, 3, 15, 11, 23, 37),
+                        "oldest_store_opening": datetime.datetime(
+                            2001, 3, 15, 11, 23, 37
+                        ),
                     },
                     {
                         "isbn": "159059996",
-                        "oldest_store_opening": datetime.datetime(1945, 4, 25, 16, 24, 14),
+                        "oldest_store_opening": datetime.datetime(
+                            1945, 4, 25, 16, 24, 14
+                        ),
                     },
                 ],
             )
@@ -1660,6 +1685,7 @@ class AggregateTestCase(TestCase):
             self.assertEqual(len(qs), 6)
 
     if compat.dj_ge4:
+
         def test_exists_extra_where_with_aggregate(self):
             qs = Book.objects.annotate(
                 count=Count("id"),

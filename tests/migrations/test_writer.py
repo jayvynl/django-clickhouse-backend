@@ -22,7 +22,6 @@ except ImportError:
 
 import custom_migration_operations.more_operations
 import custom_migration_operations.operations
-
 from django import get_version
 from django.conf import SettingsReference, settings
 from django.core.validators import EmailValidator, RegexValidator
@@ -31,13 +30,13 @@ from django.db.migrations.serializer import BaseSerializer
 from django.db.migrations.writer import MigrationWriter, OperationWriter
 from django.test import SimpleTestCase, ignore_warnings
 from django.utils.deconstruct import deconstructible
-
 from django.utils.functional import SimpleLazyObject
 from django.utils.timezone import get_default_timezone, get_fixed_timezone
 from django.utils.translation import gettext_lazy as _
 
-from .models import FoodManager, FoodQuerySet
 from clickhouse_backend import compat
+
+from .models import FoodManager, FoodQuerySet
 
 
 class DeconstructibleInstances:
@@ -741,6 +740,7 @@ class WriterTests(SimpleTestCase):
         self.assertSerializedEqual(type(None))
 
     if compat.dj_ge4:
+
         def test_serialize_type_model(self):
             self.assertSerializedEqual(models.Model)
             self.assertSerializedResultEqual(

@@ -47,10 +47,10 @@ class SnowflakeIDWorker(BaseIDWorker):
         """
         # sanity check
         if worker_id > MAX_WORKER_ID or worker_id < 0:
-            raise ValueError('worker_id值越界')
+            raise ValueError("worker_id值越界")
 
         if datacenter_id > MAX_DATACENTER_ID or datacenter_id < 0:
-            raise ValueError('datacenter_id值越界')
+            raise ValueError("datacenter_id值越界")
 
         self.worker_id = worker_id
         self.datacenter_id = datacenter_id
@@ -74,7 +74,11 @@ class SnowflakeIDWorker(BaseIDWorker):
 
         # 时钟回拨
         if timestamp < self.last_timestamp:
-            logging.error('clock is moving backwards. Rejecting requests until {}'.format(self.last_timestamp))
+            logging.error(
+                "clock is moving backwards. Rejecting requests until {}".format(
+                    self.last_timestamp
+                )
+            )
             raise InvalidSystemClock
 
         if timestamp == self.last_timestamp:
@@ -86,8 +90,12 @@ class SnowflakeIDWorker(BaseIDWorker):
 
         self.last_timestamp = timestamp
 
-        new_id = ((timestamp - TWEPOCH) << TIMESTAMP_LEFT_SHIFT) | (self.datacenter_id << DATACENTER_ID_SHIFT) | \
-                 (self.worker_id << WORKER_ID_SHIFT) | self.sequence
+        new_id = (
+            ((timestamp - TWEPOCH) << TIMESTAMP_LEFT_SHIFT)
+            | (self.datacenter_id << DATACENTER_ID_SHIFT)
+            | (self.worker_id << WORKER_ID_SHIFT)
+            | self.sequence
+        )
         return new_id
 
     def _til_next_millis(self, last_timestamp):
@@ -108,13 +116,12 @@ def get_environ_int(name, minium, maximum, default=None):
         except ValueError:
             raise ValueError(
                 '"%s" is not a valid %s. '
-                'Hint: set value to an integer between %s and %s'
+                "Hint: set value to an integer between %s and %s"
                 % (value, name, minium, maximum)
             )
         if value < minium or value > maximum:
             raise ValueError(
-                '%s must be an integer between %s and %s'
-                % (name, minium, maximum)
+                "%s must be an integer between %s and %s" % (name, minium, maximum)
             )
     else:
         value = default
@@ -131,8 +138,8 @@ def get_default_id_worker():
     :return: BaseIDWorker.
     """
 
-    worker_id = get_environ_int('CLICKHOUSE_WORKER_ID', 0, MAX_WORKER_ID, 0)
-    datacenter_id = get_environ_int('CLICKHOUSE_DATACENTER_ID', 0, MAX_DATACENTER_ID)
+    worker_id = get_environ_int("CLICKHOUSE_WORKER_ID", 0, MAX_WORKER_ID, 0)
+    datacenter_id = get_environ_int("CLICKHOUSE_DATACENTER_ID", 0, MAX_DATACENTER_ID)
     if datacenter_id is None:
         datacenter_id = random.randint(0, MAX_DATACENTER_ID)
     return SnowflakeIDWorker(datacenter_id=datacenter_id, worker_id=worker_id)

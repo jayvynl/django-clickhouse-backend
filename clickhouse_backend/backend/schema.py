@@ -5,7 +5,11 @@ from django.db.backends.base.schema import (
     _related_non_m2m_objects,
 )
 from django.db.backends.ddl_references import (
-    Expressions, IndexName, Statement, Table, Columns
+    Columns,
+    Expressions,
+    IndexName,
+    Statement,
+    Table,
 )
 from django.db.models.constraints import CheckConstraint, UniqueConstraint
 from django.db.models.expressions import ExpressionList
@@ -22,16 +26,20 @@ class ChColumns(Columns):
             try:
                 suffix = self.col_suffixes[idx]
                 if suffix:
-                    col = '-{}'.format(col)
+                    col = "-{}".format(col)
             except IndexError:
                 pass
             return col
 
-        return ', '.join(col_str(column, idx) for idx, column in enumerate(self.columns))
+        return ", ".join(
+            col_str(column, idx) for idx, column in enumerate(self.columns)
+        )
 
 
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
-    sql_create_table = "CREATE TABLE %(table)s (%(definition)s) ENGINE = %(engine)s %(extra)s"
+    sql_create_table = (
+        "CREATE TABLE %(table)s (%(definition)s) ENGINE = %(engine)s %(extra)s"
+    )
     sql_rename_table = "RENAME TABLE %(old_table)s TO %(new_table)s"
     sql_delete_table = "DROP TABLE %(table)s"
     sql_alter_column_type = "MODIFY COLUMN %(column)s %(type)s"
@@ -60,7 +68,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if db_params["check"]:
             return self._check_sql(
                 name=self._column_check_name(field),
-                check=self.sql_check_constraint % db_params
+                check=self.sql_check_constraint % db_params,
             )
 
     def table_sql(self, model):
@@ -77,16 +85,17 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 continue
             params.extend(extra_params)
             # Add the SQL to our big list.
-            column_sqls.append("%s %s" % (
-                self.quote_name(field.column),
-                definition,
-            ))
+            column_sqls.append(
+                "%s %s"
+                % (
+                    self.quote_name(field.column),
+                    definition,
+                )
+            )
             constraints.append(self._column_check_sql(field))
         for constraint in model._meta.constraints:
             if isinstance(constraint, CheckConstraint):
-                constraints.append(
-                    constraint.constraint_sql(model, self)
-                )
+                constraints.append(constraint.constraint_sql(model, self))
         if any(isinstance(c, UniqueConstraint) for c in model._meta.constraints):
             warnings.warn("Clickhouse does not support unique constraint.")
 
@@ -100,20 +109,20 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 if constraint
             ),
             "engine": self._get_engine_expression(model, engine),
-            "extra": " ".join(extra_parts)
+            "extra": " ".join(extra_parts),
         }
         return sql, params
 
     def _get_engine(self, model):
         from clickhouse_backend.models.engines import MergeTree
+
         return getattr(
-            model._meta,
-            "engine",
-            MergeTree(order_by=model._meta.pk.attname)
+            model._meta, "engine", MergeTree(order_by=model._meta.pk.attname)
         )
 
     def _get_engine_expression(self, model, engine):
         from clickhouse_backend.models.sql import Query
+
         compiler = Query(model, alias_cols=False).get_compiler(
             connection=self.connection
         )
@@ -158,18 +167,24 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             "Refer to https://clickhouse.com/docs/en/engines/table-engines/"
             "mergetree-family/mergetree/#table_engine-mergetree-data_skipping-indexes"
         )
-        if any(field.db_index for field in model._meta.local_fields) or model._meta.index_together:
+        if (
+            any(field.db_index for field in model._meta.local_fields)
+            or model._meta.index_together
+        ):
             warnings.warn(msg)
 
         for index in model._meta.indexes:
             output.append(index.create_sql(model, self))
 
         from clickhouse_backend.models.engines import BaseMergeTree
+
         engine = self._get_engine(model)
         if output and not isinstance(engine, BaseMergeTree):
-            raise ValueError("Index manipulation is supported only for tables with "
-                             "*MergeTree engine (including replicated variants). Refer to "
-                             "https://clickhouse.com/docs/en/sql-reference/statements/alter/index.")
+            raise ValueError(
+                "Index manipulation is supported only for tables with "
+                "*MergeTree engine (including replicated variants). Refer to "
+                "https://clickhouse.com/docs/en/sql-reference/statements/alter/index."
+            )
         return output
 
     def _get_expression(self, model, *expressions):
@@ -179,16 +194,20 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             index_expression.set_wrapper_classes(self.connection)
             index_expressions.append(index_expression)
         from clickhouse_backend.models.sql import Query
+
         query = Query(model, alias_cols=False)
         expression_list = ExpressionList(*index_expressions).resolve_expression(query)
         compiler = query.get_compiler(
             connection=self.connection,
         )
-        return Expressions(model._meta.db_table, expression_list, compiler, self.quote_value)
+        return Expressions(
+            model._meta.db_table, expression_list, compiler, self.quote_value
+        )
 
     def _model_extra_sql(self, model, engine):
         extra_parts = []
         from clickhouse_backend.models.engines import BaseMergeTree
+
         if isinstance(engine, BaseMergeTree):
             order_by = engine.order_by
             partition_by = engine.partition_by
@@ -201,9 +220,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                     "ORDER BY (%s)" % self._get_expression(model, *order_by)
                 )
             else:
-                extra_parts.append(
-                    "ORDER BY tuple()"
-                )
+                extra_parts.append("ORDER BY tuple()")
             if partition_by:
                 if not isinstance(partition_by, (list, tuple)):
                     partition_by = [partition_by]
@@ -235,9 +252,10 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         check_sql = self._column_check_sql(field)
         if check_sql:
             self.deferred_sql.append(
-                self.sql_create_constraint % {
+                self.sql_create_constraint
+                % {
                     "table": self.quote_name(model._meta.db_table),
-                    "constraint": check_sql
+                    "constraint": check_sql,
                 }
             )
 
@@ -257,7 +275,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 "WHERE 1 SETTINGS mutations_sync=1"
             )
             self.execute(
-                sql_update_default % {
+                sql_update_default
+                % {
                     "table": self.quote_name(model._meta.db_table),
                     "column": self.quote_name(field.column),
                     "default": "%s",
@@ -356,6 +375,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         )
 
         from clickhouse_backend.models import EnumField
+
         if not isinstance(old_field, EnumField):
             old_kwargs.pop("choices", None)
         if not isinstance(new_field, EnumField):
@@ -364,25 +384,43 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         for attr in non_database_attrs:
             old_kwargs.pop(attr, None)
             new_kwargs.pop(attr, None)
-        return (
-            self.quote_name(old_field.column) != self.quote_name(new_field.column) or
-            (old_path, old_args, old_kwargs) != (new_path, new_args, new_kwargs)
-        )
+        return self.quote_name(old_field.column) != self.quote_name(
+            new_field.column
+        ) or (old_path, old_args, old_kwargs) != (new_path, new_args, new_kwargs)
 
     def _alter_column_type_sql(
-        self, model, old_field, new_field, new_type, old_collation=None, new_collation=None
+        self,
+        model,
+        old_field,
+        new_field,
+        new_type,
+        old_collation=None,
+        new_collation=None,
     ):
         """Django4.2 add old_collation, new_collation"""
         if compat.dj_ge42:
-            return super()._alter_column_type_sql(model, old_field, new_field, new_type, old_collation, new_collation)
+            return super()._alter_column_type_sql(
+                model, old_field, new_field, new_type, old_collation, new_collation
+            )
         else:
             return super()._alter_column_type_sql(model, old_field, new_field, new_type)
 
-    def _alter_field(self, model, old_field, new_field, old_type, new_type,
-                     old_db_params, new_db_params, strict=False):
+    def _alter_field(
+        self,
+        model,
+        old_field,
+        new_field,
+        old_type,
+        new_type,
+        old_db_params,
+        new_db_params,
+        strict=False,
+    ):
         # Change check constraints?
-        if (old_db_params["check"] and (old_db_params["check"] != new_db_params["check"]
-                                        or old_field.column != new_field.column)):
+        if old_db_params["check"] and (
+            old_db_params["check"] != new_db_params["check"]
+            or old_field.column != new_field.column
+        ):
             constraint_name = self._column_check_name(old_field)
             self.execute(self._delete_check_sql(model, constraint_name))
         # Have they renamed the column?
@@ -420,15 +458,11 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if old_field.null and not new_field.null:
             old_default = self.effective_default(old_field)
             new_default = self.effective_default(new_field)
-            if hasattr(self, 'skip_default_on_alter'):
+            if hasattr(self, "skip_default_on_alter"):
                 skip = self.skip_default_on_alter(new_field)
             else:
                 skip = self.skip_default(new_field)
-            if (
-                not skip and
-                old_default != new_default
-                and new_default is not None
-            ):
+            if not skip and old_default != new_default and new_default is not None:
                 needs_database_default = True
                 actions.append(
                     self._alter_column_default_sql(model, old_field, new_field)
@@ -439,9 +473,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             if fragment:
                 null_actions.append(fragment)
         # Only if we have a default and there is a change from NULL to NOT NULL
-        four_way_default_alteration = (
-            new_field.has_default() and
-            (old_field.null and not new_field.null)
+        four_way_default_alteration = new_field.has_default() and (
+            old_field.null and not new_field.null
         )
         if actions or null_actions:
             if not four_way_default_alteration:
@@ -455,7 +488,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             # Apply those actions
             for sql, params in actions:
                 self.execute(
-                    self.sql_alter_column % {
+                    self.sql_alter_column
+                    % {
                         "table": self.quote_name(model._meta.db_table),
                         "changes": sql,
                     },
@@ -464,7 +498,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             if four_way_default_alteration:
                 # Update existing rows with default value
                 self.execute(
-                    self.sql_update_with_default % {
+                    self.sql_update_with_default
+                    % {
                         "table": self.quote_name(model._meta.db_table),
                         "column": self.quote_name(new_field.column),
                         "default": "%s",
@@ -475,7 +510,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 # now
                 for sql, params in null_actions:
                     self.execute(
-                        self.sql_alter_column % {
+                        self.sql_alter_column
+                        % {
                             "table": self.quote_name(model._meta.db_table),
                             "changes": sql,
                         },
@@ -486,9 +522,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 self.execute(sql, params)
         # Type alteration on primary key? Then we need to alter the column
         # referring to us.
-        drop_foreign_keys = (
-            (old_field.primary_key and new_field.primary_key)
-            and (old_type != new_type)
+        drop_foreign_keys = (old_field.primary_key and new_field.primary_key) and (
+            old_type != new_type
         )
         rels_to_update = []
         if drop_foreign_keys:
@@ -501,7 +536,9 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         for old_rel, new_rel in rels_to_update:
             rel_db_params = new_rel.field.db_parameters(connection=self.connection)
             rel_type = rel_db_params["type"]
-            if new_rel.field.null and "Nullable" not in rel_type:  # Compatible with django fields.
+            if (
+                new_rel.field.null and "Nullable" not in rel_type
+            ):  # Compatible with django fields.
                 rel_type = "Nullable(%s)" % rel_type
             fragment, other_actions = self._alter_column_type_sql(
                 new_rel.related_model, old_rel.field, new_rel.field, rel_type
@@ -517,14 +554,17 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             for sql, params in other_actions:
                 self.execute(sql, params)
         # Does it have check constraints we need to add?
-        if (new_db_params["check"] and (old_db_params["check"] != new_db_params["check"]
-                                        or old_field.column != new_field.column)):
+        if new_db_params["check"] and (
+            old_db_params["check"] != new_db_params["check"]
+            or old_field.column != new_field.column
+        ):
             check_sql = self._column_check_sql(new_field)
             if check_sql:
                 self.execute(
-                    self.sql_create_constraint % {
+                    self.sql_create_constraint
+                    % {
                         "table": self.quote_name(model._meta.db_table),
-                        "constraint": check_sql
+                        "constraint": check_sql,
                     }
                 )
         # Drop the default if we need to
@@ -542,8 +582,20 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if self.connection.features.connection_persists_old_columns:
             self.connection.close()
 
-    def _create_index_sql(self, model, *, fields=None, name=None, sql=None, suffix="", col_suffixes=None,
-                          type=None, granularity=None, expressions=None, inline=False):
+    def _create_index_sql(
+        self,
+        model,
+        *,
+        fields=None,
+        name=None,
+        sql=None,
+        suffix="",
+        col_suffixes=None,
+        type=None,
+        granularity=None,
+        expressions=None,
+        inline=False,
+    ):
         """
         Return the SQL statement to create the index for one or several fields
         or expressions. `sql` can be specified if the syntax differs from the
@@ -552,6 +604,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         fields = fields or []
         expressions = expressions or []
         from clickhouse_backend.models.sql import Query
+
         compiler = Query(model, alias_cols=False).get_compiler(
             connection=self.connection,
         )
@@ -564,6 +617,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             if name is None:
                 name = self._create_index_name(*args, **kwargs)
             return self.quote_name(name)
+
         return Statement(
             sql_create_index,
             table=Table(table, self.quote_name),
@@ -574,7 +628,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 else Expressions(table, expressions, compiler, self.quote_value)
             ),
             type=Expressions(table, type, compiler, self.quote_value),
-            granularity=granularity
+            granularity=granularity,
         )
 
     def alter_unique_together(self, model, old_unique_together, new_unique_together):

@@ -3,7 +3,7 @@ import json
 
 from django.contrib.postgres.utils import prefix_validation_error
 from django.core import checks, exceptions
-from django.db.models import lookups, Field, Func, Value
+from django.db.models import Field, Func, Value, lookups
 from django.db.models.fields.mixins import CheckFieldDefaultMixin
 from django.utils.translation import gettext_lazy as _
 
@@ -57,7 +57,9 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
         self.value_field = value_field
         # For performance, only add a from_db_value() method if the base field
         # implements it.
-        if hasattr(self.key_field, "from_db_value") or hasattr(self.value_field, "from_db_value"):
+        if hasattr(self.key_field, "from_db_value") or hasattr(
+            self.value_field, "from_db_value"
+        ):
             self.from_db_value = self._from_db_value
         super().__init__(**kwargs)
 
@@ -69,7 +71,9 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
         try:
             return self.__dict__["model"]
         except KeyError:
-            raise AttributeError("'%s' object has no attribute 'model'" % self.__class__.__name__)
+            raise AttributeError(
+                "'%s' object has no attribute 'model'" % self.__class__.__name__
+            )
 
     @model.setter
     def model(self, model):
@@ -106,8 +110,10 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
                         obj=self,
                     )
                 )
-            if (getattr(self.key_field, "low_cardinality", False)
-                    and key_type not in {"StringField", "FixedStringField"}):
+            if getattr(self.key_field, "low_cardinality", False) and key_type not in {
+                "StringField",
+                "FixedStringField",
+            }:
                 errors.append(
                     checks.Error(
                         "Only Map key of String and FixedString can be low cardinality.",
@@ -117,7 +123,9 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
             # Remove the field name checks as they are not needed here.
             base_errors = self.key_field.check()
             if base_errors:
-                messages = "\n    ".join("%s (%s)" % (error.msg, error.id) for error in base_errors)
+                messages = "\n    ".join(
+                    "%s (%s)" % (error.msg, error.id) for error in base_errors
+                )
                 errors.append(
                     checks.Error(
                         "Key field for map has errors:\n    %s" % messages,
@@ -126,7 +134,9 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
                 )
             base_errors = self.value_field.check()
             if base_errors:
-                messages = "\n    ".join("%s (%s)" % (error.msg, error.id) for error in base_errors)
+                messages = "\n    ".join(
+                    "%s (%s)" % (error.msg, error.id) for error in base_errors
+                )
                 errors.append(
                     checks.Error(
                         "Value field for map has errors:\n    %s" % messages,
@@ -142,13 +152,22 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
 
     @property
     def description(self):
-        return "Map of (%s, %s)" % (self.key_field.description, self.value_field.description)
+        return "Map of (%s, %s)" % (
+            self.key_field.description,
+            self.value_field.description,
+        )
 
     def db_type(self, connection):
-        return 'Map(%s, %s)' % (self.key_field.db_type(connection), self.value_field.db_type(connection))
+        return "Map(%s, %s)" % (
+            self.key_field.db_type(connection),
+            self.value_field.db_type(connection),
+        )
 
     def cast_db_type(self, connection):
-        return 'Map(%s, %s)' % (self.key_field.cast_db_type(connection), self.value_field.cast_db_type(connection))
+        return "Map(%s, %s)" % (
+            self.key_field.cast_db_type(connection),
+            self.value_field.cast_db_type(connection),
+        )
 
     def get_placeholder(self, value, compiler, connection):
         return "%s::{}".format(self.db_type(connection))
@@ -156,8 +175,9 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
     def get_db_prep_value(self, value, connection, prepared=False):
         if isinstance(value, collections.abc.Mapping):
             return {
-                self.key_field.get_db_prep_value(k, connection, prepared=prepared):
-                self.value_field.get_db_prep_value(v, connection, prepared=prepared)
+                self.key_field.get_db_prep_value(
+                    k, connection, prepared=prepared
+                ): self.value_field.get_db_prep_value(v, connection, prepared=prepared)
                 for k, v in value.items()
             }
         return value
@@ -167,8 +187,9 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
             return value
         if isinstance(value, collections.abc.Mapping):
             return {
-                self.key_field.get_db_prep_save(k, connection):
-                self.value_field.get_db_prep_save(v, connection)
+                self.key_field.get_db_prep_save(
+                    k, connection
+                ): self.value_field.get_db_prep_save(v, connection)
                 for k, v in value.items()
             }
         return value
@@ -176,11 +197,15 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
         if path.startswith("clickhouse_backend.models.map"):
-            path = path.replace("clickhouse_backend.models.map", "clickhouse_backend.models")
-        kwargs.update({
-            "key_field": self.key_field.clone(),
-            "value_field": self.value_field.clone(),
-        })
+            path = path.replace(
+                "clickhouse_backend.models.map", "clickhouse_backend.models"
+            )
+        kwargs.update(
+            {
+                "key_field": self.key_field.clone(),
+                "value_field": self.value_field.clone(),
+            }
+        )
         return name, path, args, kwargs
 
     def to_python(self, value):
@@ -191,8 +216,7 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
             return value
         value = dict(value)
         return {
-            self.key_field.to_python(k):
-                self.value_field.to_python(v)
+            self.key_field.to_python(k): self.value_field.to_python(v)
             for k, v in value.items()
         }
 
@@ -213,8 +237,7 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
         else:
             value_func = self.from_db_value_noop
         return {
-            key_func(k, expression, connection):
-            value_func(v, expression, connection)
+            key_func(k, expression, connection): value_func(v, expression, connection)
             for k, v in value.items()
         }
 
@@ -307,7 +330,7 @@ class MapRHSMixin:
 
 @MapField.register_lookup
 class MapHasKey(lookups.FieldGetDbPrepValueMixin, lookups.Lookup):
-    lookup_name = 'has_key'
+    lookup_name = "has_key"
     prepare_rhs = False
 
     def as_clickhouse(self, compiler, connection):

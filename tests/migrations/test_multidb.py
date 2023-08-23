@@ -112,7 +112,7 @@ class MultiDBOperationTests(OperationTestBase):
         sql = [
             (
                 "INSERT INTO {0}_pony (pink, weight) VALUES".format(app_label),
-                [(1, 3.55), (3, 5.0)]
+                [(1, 3.55), (3, 5.0)],
             )
         ]
 

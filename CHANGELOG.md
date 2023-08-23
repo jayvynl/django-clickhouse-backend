@@ -1,3 +1,6 @@
+### 1.1.1
+- [Black](https://github.com/psf/black) code style.
+
 ### 1.1.0
 - Change `AutoFiled` and `SmallAutoField` to clickhouse `Int64`, so that id worker can generate value for them.
 This allows more compatibilities with existing apps such as `django.contrib.auth`.

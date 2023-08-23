@@ -8,7 +8,7 @@ from .sql import Query
 options.DEFAULT_NAMES = (
     *options.DEFAULT_NAMES,
     # Clickhouse features
-    'engine',
+    "engine",
 )
 # Also monkey patch state.DEFAULT_NAMES, this makes new option names contained in migrations.
 state.DEFAULT_NAMES = options.DEFAULT_NAMES
@@ -22,10 +22,7 @@ class ClickhouseManager(models.Manager):
         User defined Query and QuerySet class that support clickhouse particular query.
         """
         return self._queryset_class(
-            model=self.model,
-            query=Query(self.model),
-            using=self._db,
-            hints=self._hints
+            model=self.model, query=Query(self.model), using=self._db, hints=self._hints
         )
 
 

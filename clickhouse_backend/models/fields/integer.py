@@ -1,18 +1,25 @@
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db.models import fields
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 
 from clickhouse_backend.backend.operations import DatabaseOperations
+
 from .base import FieldMixin
 
 __all__ = [
-    "Int8Field", "UInt8Field",
-    "Int16Field", "UInt16Field",
-    "Int32Field", "UInt32Field",
-    "Int64Field", "UInt64Field",
-    "Int128Field", "UInt128Field",
-    "Int256Field", "UInt256Field",
+    "Int8Field",
+    "UInt8Field",
+    "Int16Field",
+    "UInt16Field",
+    "Int32Field",
+    "UInt32Field",
+    "Int64Field",
+    "UInt64Field",
+    "Int128Field",
+    "UInt128Field",
+    "Int256Field",
+    "UInt256Field",
 ]
 
 
@@ -20,6 +27,7 @@ class IntegerFieldMixin(FieldMixin):
     """
     Make positive integer have correct limitation corresponding to clickhouse uint type.
     """
+
     @cached_property
     def validators(self):
         validators_ = [*self.default_validators, *self._validators]
@@ -27,22 +35,28 @@ class IntegerFieldMixin(FieldMixin):
         min_value, max_value = DatabaseOperations.integer_field_ranges[internal_type]
         if min_value is not None and not any(
             (
-                isinstance(validator, MinValueValidator) and (
+                isinstance(validator, MinValueValidator)
+                and (
                     validator.limit_value()
                     if callable(validator.limit_value)
                     else validator.limit_value
-                ) >= min_value
-            ) for validator in validators_
+                )
+                >= min_value
+            )
+            for validator in validators_
         ):
             validators_.append(MinValueValidator(min_value))
         if max_value is not None and not any(
             (
-                isinstance(validator, MaxValueValidator) and (
+                isinstance(validator, MaxValueValidator)
+                and (
                     validator.limit_value()
                     if callable(validator.limit_value)
                     else validator.limit_value
-                ) <= max_value
-            ) for validator in validators_
+                )
+                <= max_value
+            )
+            for validator in validators_
         ):
             validators_.append(MaxValueValidator(max_value))
         return validators_
@@ -50,7 +64,9 @@ class IntegerFieldMixin(FieldMixin):
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
         if path.startswith("clickhouse_backend.models.integer"):
-            path = path.replace("clickhouse_backend.models.integer", "clickhouse_backend.models")
+            path = path.replace(
+                "clickhouse_backend.models.integer", "clickhouse_backend.models"
+            )
         return name, path, args, kwargs
 
 

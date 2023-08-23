@@ -4,17 +4,15 @@ from django.db.migrations.operations.fields import FieldOperation
 from django.db.migrations.state import ModelState, ProjectState
 from django.db.models.functions import Abs
 from django.db.transaction import atomic
-from django.test import (
-    SimpleTestCase,
-    override_settings,
-    skipUnlessDBFeature,
-)
+from django.test import SimpleTestCase, override_settings, skipUnlessDBFeature
 from django.test.utils import CaptureQueriesContext
 
+from clickhouse_backend import compat
 from clickhouse_backend.models import indexes
+
 from .models import FoodManager, FoodQuerySet, UnicodeModel
 from .test_base import OperationTestBase
-from clickhouse_backend import compat
+
 
 class Mixin:
     pass
@@ -1267,10 +1265,10 @@ class OperationTests(OperationTestBase):
         Pony = new_state.apps.get_model("test_adbinfl", "Pony")
         pony = Pony.objects.get(pk=pony.pk)
         # SQLite returns buffer/memoryview, cast to bytes for checking.
-        self.assertEqual(bytes(pony.blob, 'utf-8'), b"some text")
-        self.assertEqual(bytes(pony.empty, 'utf-8'), b"")
-        self.assertEqual(bytes(pony.digits, 'utf-8'), b"42")
-        self.assertEqual(bytes(pony.quotes, 'utf-8'), b'"\'"')
+        self.assertEqual(bytes(pony.blob, "utf-8"), b"some text")
+        self.assertEqual(bytes(pony.empty, "utf-8"), b"")
+        self.assertEqual(bytes(pony.digits, "utf-8"), b"42")
+        self.assertEqual(bytes(pony.quotes, "utf-8"), b'"\'"')
 
     def test_column_name_quoting(self):
         """
@@ -2136,8 +2134,18 @@ class OperationTests(OperationTestBase):
         project_state = self.set_up_test_model("test_adin")
         msg = "An index must be named."
         with self.assertRaisesMessage(ValueError, msg):
-            migrations.AddIndex("Pony", indexes.Index(fields=["pink"], type=indexes.Set(1000), granularity=1000))
-        index = indexes.Index(fields=["pink"], name="test_adin_pony_pink_idx", type=indexes.Set(1000), granularity=1000)
+            migrations.AddIndex(
+                "Pony",
+                indexes.Index(
+                    fields=["pink"], type=indexes.Set(1000), granularity=1000
+                ),
+            )
+        index = indexes.Index(
+            fields=["pink"],
+            name="test_adin_pony_pink_idx",
+            type=indexes.Set(1000),
+            granularity=1000,
+        )
         operation = migrations.AddIndex("Pony", index)
         self.assertEqual(
             operation.describe(),
@@ -2218,6 +2226,7 @@ class OperationTests(OperationTestBase):
         self.assertIndexNameExists("test_rmin_pony", "pony_test_idx")
 
     if compat.dj_ge41:
+
         def test_rename_index(self):
             app_label = "test_rnin"
             project_state = self.set_up_test_model(app_label, index=True)
@@ -2250,7 +2259,9 @@ class OperationTests(OperationTestBase):
             with connection.schema_editor() as editor, self.assertNumQueries(
                 expected_queries
             ):
-                operation.database_backwards(app_label, editor, new_state, project_state)
+                operation.database_backwards(
+                    app_label, editor, new_state, project_state
+                )
             self.assertIndexNameExists(table_name, "pony_pink_idx")
             self.assertIndexNameNotExists(table_name, "new_pony_test_idx")
             # Deconstruction.
@@ -2281,7 +2292,12 @@ class OperationTests(OperationTestBase):
 
     def test_add_index_state_forwards(self):
         project_state = self.set_up_test_model("test_adinsf")
-        index = indexes.Index(fields=["pink"], name="test_adinsf_pony_pink_idx", type=indexes.Set(1000), granularity=1000)
+        index = indexes.Index(
+            fields=["pink"],
+            name="test_adinsf_pony_pink_idx",
+            type=indexes.Set(1000),
+            granularity=1000,
+        )
         old_model = project_state.apps.get_model("test_adinsf", "Pony")
         new_state = project_state.clone()
 
@@ -2292,7 +2308,12 @@ class OperationTests(OperationTestBase):
 
     def test_remove_index_state_forwards(self):
         project_state = self.set_up_test_model("test_rminsf")
-        index = indexes.Index(fields=["pink"], name="test_rminsf_pony_pink_idx", type=indexes.Set(1000), granularity=1000)
+        index = indexes.Index(
+            fields=["pink"],
+            name="test_rminsf_pony_pink_idx",
+            type=indexes.Set(1000),
+            granularity=1000,
+        )
         migrations.AddIndex("Pony", index).state_forwards("test_rminsf", project_state)
         old_model = project_state.apps.get_model("test_rminsf", "Pony")
         new_state = project_state.clone()
@@ -2303,6 +2324,7 @@ class OperationTests(OperationTestBase):
         self.assertIsNot(old_model, new_model)
 
     if compat.dj_ge41:
+
         def test_rename_index_state_forwards(self):
             app_label = "test_rnidsf"
             project_state = self.set_up_test_model(app_label, index=True)
@@ -2338,7 +2360,9 @@ class OperationTests(OperationTestBase):
         index_name = f"{app_label}_pony_abs_idx"
         table_name = f"{app_label}_pony"
         project_state = self.set_up_test_model(app_label)
-        index = indexes.Index(Abs("weight"), name=index_name, type=indexes.Set(1000), granularity=1000)
+        index = indexes.Index(
+            Abs("weight"), name=index_name, type=indexes.Set(1000), granularity=1000
+        )
         operation = migrations.AddIndex("Pony", index)
         self.assertEqual(
             operation.describe(),
@@ -2374,7 +2398,12 @@ class OperationTests(OperationTestBase):
         project_state = self.set_up_test_model(
             app_label,
             indexes=[
-                indexes.Index(Abs("weight"), name=index_name, type=indexes.Set(1000), granularity=1000),
+                indexes.Index(
+                    Abs("weight"),
+                    name=index_name,
+                    type=indexes.Set(1000),
+                    granularity=1000,
+                ),
             ],
         )
         self.assertTableExists(table_name)
@@ -3265,7 +3294,9 @@ class OperationTests(OperationTestBase):
         project_state = self.set_up_test_model("test_runsql")
         # Create the operation
         operation = migrations.RunSQL(
-            ["CREATE TABLE i_love_ponies (id int, special_thing varchar(15)) ENGINE MergeTree ORDER BY id;"],
+            [
+                "CREATE TABLE i_love_ponies (id int, special_thing varchar(15)) ENGINE MergeTree ORDER BY id;"
+            ],
             ["DROP TABLE i_love_ponies"],
         )
         param_operation = migrations.RunSQL(
@@ -3287,7 +3318,10 @@ class OperationTests(OperationTestBase):
             # backwards
             [
                 "ALTER TABLE i_love_ponies DELETE WHERE special_thing = 'Django';",
-                ["ALTER TABLE i_love_ponies DELETE WHERE special_thing = 'Ponies';", None],
+                [
+                    "ALTER TABLE i_love_ponies DELETE WHERE special_thing = 'Ponies';",
+                    None,
+                ],
                 (
                     "ALTER TABLE i_love_ponies DELETE WHERE id = %s OR special_thing = %s;",
                     [3, "Python"],
@@ -3363,6 +3397,7 @@ class OperationTests(OperationTestBase):
             operation.database_backwards("test_runsql", editor, None, None)
 
     if compat.dj_ge4:
+
         def test_run_sql_add_missing_semicolon_on_collect_sql(self):
             project_state = self.set_up_test_model("test_runsql")
             new_state = project_state.clone()
@@ -3993,7 +4028,13 @@ class SwappableOperationTests(OperationTestBase):
         Add/RemoveIndex operations ignore swapped models.
         """
         operation = migrations.AddIndex(
-            "Pony", indexes.Index(fields=["pink"], name="my_name_idx", type=indexes.Set(1000), granularity=1000)
+            "Pony",
+            indexes.Index(
+                fields=["pink"],
+                name="my_name_idx",
+                type=indexes.Set(1000),
+                granularity=1000,
+            ),
         )
         project_state, new_state = self.make_test_state("test_adinigsw", operation)
         with connection.schema_editor() as editor:
@@ -4006,7 +4047,13 @@ class SwappableOperationTests(OperationTestBase):
             )
 
         operation = migrations.RemoveIndex(
-            "Pony", indexes.Index(fields=["pink"], name="my_name_idx", type=indexes.Set(1000), granularity=1000)
+            "Pony",
+            indexes.Index(
+                fields=["pink"],
+                name="my_name_idx",
+                type=indexes.Set(1000),
+                granularity=1000,
+            ),
         )
         project_state, new_state = self.make_test_state("test_rminigsw", operation)
         with connection.schema_editor() as editor:

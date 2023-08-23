@@ -6,6 +6,7 @@ from django.utils.asyncio import async_unsafe
 from django.utils.functional import cached_property
 
 from clickhouse_backend import driver as Database  # NOQA
+
 from .client import DatabaseClient
 from .creation import DatabaseCreation
 from .features import DatabaseFeatures
@@ -67,7 +68,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "ClickhouseDateField": "Date",
         "Date32Field": "Date32",
         "ClickhouseDateTimeField": "DateTime('UTC')" if settings.USE_TZ else "DateTime",
-        "DateTime64Field": "DateTime64(%(precision)s, 'UTC')" if settings.USE_TZ else "DateTime64(%(precision)s)",
+        "DateTime64Field": "DateTime64(%(precision)s, 'UTC')"
+        if settings.USE_TZ
+        else "DateTime64(%(precision)s)",
         "EnumField": "Enum",
         "Enum8Field": "Enum8",
         "Enum16Field": "Enum16",
@@ -171,7 +174,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             raise ImproperlyConfigured(
                 "The database name '%s' (%d characters) is longer than "
                 "Clickhouse's limit of %d characters. Supply a shorter NAME "
-                "in settings.DATABASES." % (
+                "in settings.DATABASES."
+                % (
                     settings_dict["NAME"],
                     len(settings_dict["NAME"]),
                     self.ops.max_name_length(),
