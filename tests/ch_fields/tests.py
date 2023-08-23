@@ -9,23 +9,24 @@ from django.test import TestCase
 from django.utils import timezone
 
 from clickhouse_backend import models
+
 from .models import (
+    BoolModel,
+    Date32Model,
+    DateModel,
+    DateTime64Model,
+    DateTimeModel,
+    DecimalModel,
+    EnumModel,
+    FixedStringModel,
+    FloatModel,
     Foo,
     IntModel,
-    FloatModel,
-    DecimalModel,
-    BoolModel,
-    StringModel,
-    FixedStringModel,
-    UUIDModel,
-    DateModel,
-    Date32Model,
-    DateTimeModel,
-    DateTime64Model,
-    EnumModel,
     IPModel,
     IPv4Model,
     IPv6Model,
+    StringModel,
+    UUIDModel,
 )
 
 
@@ -38,7 +39,7 @@ class BasicFieldTests(TestCase):
             unique_for_month=True,
             unique_for_year=True,
             db_tablespace="a",
-            db_collation="C"
+            db_collation="C",
         )
         name, path, args, kwargs = field.deconstruct()
         self.assertEqual(path, "clickhouse_backend.models.StringField")
@@ -86,26 +87,28 @@ class BasicFieldTests(TestCase):
 
 class IntFieldTests(TestCase):
     int_field_classes = [
-            models.Int8Field,
-            models.UInt8Field,
-            models.Int16Field,
-            models.UInt16Field,
-            models.Int32Field,
-            models.UInt32Field,
-            models.Int64Field,
-            models.UInt64Field,
-            models.Int128Field,
-            models.UInt128Field,
-            models.Int256Field,
-            models.UInt256Field
-        ]
+        models.Int8Field,
+        models.UInt8Field,
+        models.Int16Field,
+        models.UInt16Field,
+        models.Int32Field,
+        models.UInt32Field,
+        models.Int64Field,
+        models.UInt64Field,
+        models.Int128Field,
+        models.UInt128Field,
+        models.Int256Field,
+        models.UInt256Field,
+    ]
 
     def test_deconstruct(self):
         for field_class in self.int_field_classes:
             for bo in [True, False]:
                 field = field_class(null=bo, low_cardinality=bo)
                 name, path, args, kwargs = field.deconstruct()
-                self.assertEqual(path, f"clickhouse_backend.models.{field_class.__name__}")
+                self.assertEqual(
+                    path, f"clickhouse_backend.models.{field_class.__name__}"
+                )
                 if bo:
                     self.assertTrue(kwargs["null"])
                     self.assertTrue(kwargs["low_cardinality"])
@@ -144,12 +147,8 @@ class IntFieldTests(TestCase):
 
     def test_filter(self):
         IntModel.objects.create(int8=101)
-        self.assertFalse(
-            IntModel.objects.filter(int8__lt=99.9).exists()
-        )
-        self.assertTrue(
-            IntModel.objects.filter(int8__gt="100").exists()
-        )
+        self.assertFalse(IntModel.objects.filter(int8__lt=99.9).exists())
+        self.assertTrue(IntModel.objects.filter(int8__gt="100").exists())
 
 
 class FloatFieldTests(TestCase):
@@ -182,12 +181,8 @@ class FloatFieldTests(TestCase):
 
     def test_filter(self):
         FloatModel.objects.create(float64=123.456)
-        self.assertFalse(
-            FloatModel.objects.filter(float64__lt=100).exists()
-        )
-        self.assertTrue(
-            FloatModel.objects.filter(float64__gt=Decimal("100")).exists()
-        )
+        self.assertFalse(FloatModel.objects.filter(float64__lt=100).exists())
+        self.assertTrue(FloatModel.objects.filter(float64__gt=Decimal("100")).exists())
 
 
 class DecimalFieldTests(TestCase):
@@ -215,12 +210,8 @@ class DecimalFieldTests(TestCase):
 
     def test_filter(self):
         DecimalModel.objects.create(decimal=Decimal("123.456"))
-        self.assertFalse(
-            DecimalModel.objects.filter(decimal__lt=99.9).exists()
-        )
-        self.assertTrue(
-            DecimalModel.objects.filter(decimal__gt=100).exists()
-        )
+        self.assertFalse(DecimalModel.objects.filter(decimal__lt=99.9).exists())
+        self.assertTrue(DecimalModel.objects.filter(decimal__gt=100).exists())
 
 
 class BoolFieldTests(TestCase):
@@ -240,12 +231,8 @@ class BoolFieldTests(TestCase):
 
     def test_filter(self):
         BoolModel.objects.create(boo=True)
-        self.assertFalse(
-            BoolModel.objects.filter(boo=False).exists()
-        )
-        self.assertTrue(
-            BoolModel.objects.filter(boo__iexact='true').exists()
-        )
+        self.assertFalse(BoolModel.objects.filter(boo=False).exists())
+        self.assertTrue(BoolModel.objects.filter(boo__iexact="true").exists())
 
 
 class StringFieldTests(TestCase):
@@ -277,9 +264,7 @@ class StringFieldTests(TestCase):
 
     def test_filter(self):
         StringModel.objects.create(string="Quick fox!")
-        self.assertFalse(
-            StringModel.objects.filter(string=9).exists()
-        )
+        self.assertFalse(StringModel.objects.filter(string=9).exists())
         self.assertTrue(
             StringModel.objects.filter(string__istartswith="quick").exists()
         )
@@ -319,15 +304,13 @@ class FixedStringFieldTests(TestCase):
 
     def test_filter(self):
         FixedStringModel.objects.create(fixed_string="Quick fox!")
-        self.assertFalse(
-            FixedStringModel.objects.filter(fixed_string=9).exists()
-        )
+        self.assertFalse(FixedStringModel.objects.filter(fixed_string=9).exists())
         self.assertTrue(
             FixedStringModel.objects.filter(fixed_string__istartswith="quick").exists()
         )
 
     def test_check(self):
-        field = models.FixedStringField(name='field')
+        field = models.FixedStringField(name="field")
         self.assertTrue(field.check())
 
     def test_deconstruct(self):
@@ -354,9 +337,7 @@ class UUIDFieldTests(TestCase):
         self.assertFalse(
             UUIDModel.objects.filter(uuid__iexact=str(v).replace("-", "")).exists()
         )
-        self.assertTrue(
-            UUIDModel.objects.filter(uuid=v).exists()
-        )
+        self.assertTrue(UUIDModel.objects.filter(uuid=v).exists())
 
 
 class DateFieldTests(TestCase):
@@ -375,12 +356,8 @@ class DateFieldTests(TestCase):
     def test_filter(self):
         dt = timezone.now()
         DateModel.objects.create(date=dt)
-        self.assertTrue(
-            DateModel.objects.filter(date=dt.strftime("%Y-%m-%d")).exists()
-        )
-        self.assertTrue(
-            DateModel.objects.filter(date=dt).exists()
-        )
+        self.assertTrue(DateModel.objects.filter(date=dt.strftime("%Y-%m-%d")).exists())
+        self.assertTrue(DateModel.objects.filter(date=dt).exists())
 
 
 class Date32FieldTests(TestCase):
@@ -402,9 +379,7 @@ class Date32FieldTests(TestCase):
         self.assertTrue(
             Date32Model.objects.filter(date32=dt.strftime("%Y-%m-%d")).exists()
         )
-        self.assertTrue(
-            Date32Model.objects.filter(date32=dt).exists()
-        )
+        self.assertTrue(Date32Model.objects.filter(date32=dt).exists())
 
 
 class DateTimeFieldTests(TestCase):
@@ -429,12 +404,8 @@ class DateTimeFieldTests(TestCase):
         dt = timezone.now()
         ts = dt.timestamp()
         DateTimeModel.objects.create(datetime=dt)
-        self.assertTrue(
-            DateTimeModel.objects.filter(datetime=ts).exists()
-        )
-        self.assertTrue(
-            DateTimeModel.objects.filter(datetime=dt).exists()
-        )
+        self.assertTrue(DateTimeModel.objects.filter(datetime=ts).exists())
+        self.assertTrue(DateTimeModel.objects.filter(datetime=dt).exists())
 
 
 class DateTime64FieldTests(TestCase):
@@ -457,17 +428,16 @@ class DateTime64FieldTests(TestCase):
         dt = timezone.now()
         ts = dt.timestamp()
         DateTime64Model.objects.create(datetime64=dt)
-        self.assertTrue(
-            DateTime64Model.objects.filter(datetime64=ts).exists()
-        )
-        self.assertTrue(
-            DateTime64Model.objects.filter(datetime64=dt).exists()
-        )
+        self.assertTrue(DateTime64Model.objects.filter(datetime64=ts).exists())
+        self.assertTrue(DateTime64Model.objects.filter(datetime64=dt).exists())
 
     def test_check(self):
-        for precision in [None, '6', -1, 10]:
-            field = models.DateTime64Field(precision=precision, name='field')
-            self.assertEqual(field.check()[0].msg, "'precision' must be an integer, valid range: [ 0 : 9 ].")
+        for precision in [None, "6", -1, 10]:
+            field = models.DateTime64Field(precision=precision, name="field")
+            self.assertEqual(
+                field.check()[0].msg,
+                "'precision' must be an integer, valid range: [ 0 : 9 ].",
+            )
 
     def test_deconstruct(self):
         field = models.DateTime64Field(precision=6)
@@ -490,29 +460,30 @@ class EnumFieldTests(TestCase):
             field = field_class(choices=tuple(), name="field")
             self.assertEqual(
                 field.check()[0].msg,
-                f"{field_class.__name__} must define a 'choices' attribute."
+                f"{field_class.__name__} must define a 'choices' attribute.",
             )
 
     def test_invalid_choices(self):
         for field_class in self.field_classes:
-            msg = (
-                "'choices' must be an iterable containing "
-                "(int, str) tuples."
-            )
+            msg = "'choices' must be an iterable containing " "(int, str) tuples."
             field = field_class(choices=[(1, "a"), ("b", 2)], name="field")
             self.assertEqual(field.check()[0].msg, msg)
             field = field_class(choices=[(1, b"a\xff"), (2, 3.0)], name="field")
             self.assertEqual(field.check()[0].msg, msg)
 
-            field = field_class(choices=[(1, "a"), (field_class.MIN_INT - 1, "b")], name="field")
-            self.assertEqual(
-                field.check()[0].msg,
-                f"'choices' must be in range: [ {field_class.MIN_INT} : {field_class.MAX_INT} ]."
+            field = field_class(
+                choices=[(1, "a"), (field_class.MIN_INT - 1, "b")], name="field"
             )
-            field = field_class(choices=[(1, "a"), (field_class.MAX_INT + 1, "b")], name="field")
             self.assertEqual(
                 field.check()[0].msg,
-                f"'choices' must be in range: [ {field_class.MIN_INT} : {field_class.MAX_INT} ]."
+                f"'choices' must be in range: [ {field_class.MIN_INT} : {field_class.MAX_INT} ].",
+            )
+            field = field_class(
+                choices=[(1, "a"), (field_class.MAX_INT + 1, "b")], name="field"
+            )
+            self.assertEqual(
+                field.check()[0].msg,
+                f"'choices' must be in range: [ {field_class.MIN_INT} : {field_class.MAX_INT} ].",
             )
 
     def test_valid_choices(self):
@@ -527,9 +498,13 @@ class EnumFieldTests(TestCase):
             field = field_class(choices=[(1, b"a\xff"), (2, "b")], name="field")
             self.assertEqual(field.choices, [(1, b"a\xff"), (2, "b")])
 
-            field = field_class(choices=[(1, "a"), (field_class.MIN_INT, "b")], name="field")
+            field = field_class(
+                choices=[(1, "a"), (field_class.MIN_INT, "b")], name="field"
+            )
             self.assertFalse(field.check())
-            field = field_class(choices=[(1, "a"), (field_class.MAX_INT, "b")], name="field")
+            field = field_class(
+                choices=[(1, "a"), (field_class.MAX_INT, "b")], name="field"
+            )
             self.assertFalse(field.check())
 
     def test_db_type(self):
@@ -538,41 +513,35 @@ class EnumFieldTests(TestCase):
             field.check()
             self.assertEqual(
                 field.db_type(connection),
-                f"{connection.data_types[field.get_internal_type()]}('a'=1, 'b'=2)"
+                f"{connection.data_types[field.get_internal_type()]}('a'=1, 'b'=2)",
             )
 
             field = field_class(choices=[(2, "b"), (1, b"a")], name="field")
             field.check()
             self.assertEqual(
                 field.db_type(connection),
-                f"{connection.data_types[field.get_internal_type()]}('a'=1, 'b'=2)"
+                f"{connection.data_types[field.get_internal_type()]}('a'=1, 'b'=2)",
             )
 
             field = field_class(choices=[(1, b"a'\xff"), (2, "b")], name="field")
             field.check()
             self.assertEqual(
                 field.db_type(connection),
-                f"{connection.data_types[field.get_internal_type()]}('a\\'\\xff'=1, 'b'=2)"
+                f"{connection.data_types[field.get_internal_type()]}('a\\'\\xff'=1, 'b'=2)",
             )
 
     def test_value_to_string(self):
         o = EnumModel(enum=1, enum8="Smile 😀", enum16="九转大肠".encode("utf-8"))
-        self.assertEqual(
-            o._meta.get_field("enum").value_to_string(o),
-            1
-        )
-        self.assertEqual(
-            o._meta.get_field("enum8").value_to_string(o),
-            2
-        )
-        self.assertEqual(
-            o._meta.get_field("enum16").value_to_string(o),
-            3
-        )
+        self.assertEqual(o._meta.get_field("enum").value_to_string(o), 1)
+        self.assertEqual(o._meta.get_field("enum8").value_to_string(o), 2)
+        self.assertEqual(o._meta.get_field("enum16").value_to_string(o), 3)
 
     def test_value(self):
-        o = EnumModel.objects.create(enum=1, enum8="Smile 😀",
-                                     enum16=b"\xe4\xb9\x9d\xe8\xbd\xac\xe5\xa4\xa7\xe8\x82\xa0")
+        o = EnumModel.objects.create(
+            enum=1,
+            enum8="Smile 😀",
+            enum16=b"\xe4\xb9\x9d\xe8\xbd\xac\xe5\xa4\xa7\xe8\x82\xa0",
+        )
         o.refresh_from_db()
         self.assertEqual((o.enum, o.enum8, o.enum16), (1, 2, 3))
 
@@ -589,36 +558,28 @@ class EnumFieldTests(TestCase):
         o.refresh_from_db()
         self.assertEqual(o.fruit, EnumModel.Fruits.PEACH)
         self.assertTrue(EnumModel.objects.filter(fruit=EnumModel.Fruits.PEACH).exists())
-        self.assertTrue(EnumModel.objects.filter(fruit__gte=EnumModel.Fruits.PEACH).exists())
+        self.assertTrue(
+            EnumModel.objects.filter(fruit__gte=EnumModel.Fruits.PEACH).exists()
+        )
 
     def test_filter(self):
-        EnumModel.objects.create(enum=1, enum8="Smile 😀",
-                                 enum16=b"\xe4\xb9\x9d\xe8\xbd\xac\xe5\xa4\xa7\xe8\x82\xa0")
-        self.assertTrue(
-            EnumModel.objects.filter(enum__lt=2).exists()
+        EnumModel.objects.create(
+            enum=1,
+            enum8="Smile 😀",
+            enum16=b"\xe4\xb9\x9d\xe8\xbd\xac\xe5\xa4\xa7\xe8\x82\xa0",
         )
-        self.assertTrue(
-            EnumModel.objects.filter(enum8__istartswith="smile").exists()
-        )
-        self.assertTrue(
-            EnumModel.objects.filter(enum16=3).exists()
-        )
-        self.assertTrue(
-            EnumModel.objects.filter(enum16="九转大肠").exists()
-        )
-        self.assertTrue(
-            EnumModel.objects.filter(enum16__contains="转大").exists()
-        )
+        self.assertTrue(EnumModel.objects.filter(enum__lt=2).exists())
+        self.assertTrue(EnumModel.objects.filter(enum8__istartswith="smile").exists())
+        self.assertTrue(EnumModel.objects.filter(enum16=3).exists())
+        self.assertTrue(EnumModel.objects.filter(enum16="九转大肠").exists())
+        self.assertTrue(EnumModel.objects.filter(enum16__contains="转大").exists())
 
 
 class IPv4FieldTests(TestCase):
     def test_deconstruct(self):
         field = models.IPv4Field()
         name, path, args, kwargs = field.deconstruct()
-        self.assertEqual(
-            path,
-            "clickhouse_backend.models.IPv4Field"
-        )
+        self.assertEqual(path, "clickhouse_backend.models.IPv4Field")
         self.assertNotIn("unpack_ipv4", kwargs)
         self.assertNotIn("protocol", kwargs)
         self.assertNotIn("max_length", kwargs)
@@ -636,22 +597,15 @@ class IPv4FieldTests(TestCase):
     def test_filter(self):
         v = "1.2.3.4"
         IPv4Model.objects.create(ipv4=v)
-        self.assertTrue(
-            IPv4Model.objects.filter(ipv4=v).exists()
-        )
-        self.assertTrue(
-            IPv4Model.objects.filter(ipv4__contains="2.3").exists()
-        )
+        self.assertTrue(IPv4Model.objects.filter(ipv4=v).exists())
+        self.assertTrue(IPv4Model.objects.filter(ipv4__contains="2.3").exists())
 
 
 class IPv6FieldTests(TestCase):
     def test_deconstruct(self):
         field = models.IPv6Field()
         name, path, args, kwargs = field.deconstruct()
-        self.assertEqual(
-            path,
-            "clickhouse_backend.models.IPv6Field"
-        )
+        self.assertEqual(path, "clickhouse_backend.models.IPv6Field")
         self.assertNotIn("unpack_ipv4", kwargs)
         self.assertNotIn("protocol", kwargs)
         self.assertNotIn("max_length", kwargs)
@@ -665,22 +619,15 @@ class IPv6FieldTests(TestCase):
     def test_filter(self):
         v = "::ffff:3.4.5.6"
         IPv6Model.objects.create(ipv6=v)
-        self.assertTrue(
-            IPv6Model.objects.filter(ipv6=v).exists()
-        )
-        self.assertTrue(
-            IPv6Model.objects.filter(ipv6__contains="3.4").exists()
-        )
+        self.assertTrue(IPv6Model.objects.filter(ipv6=v).exists())
+        self.assertTrue(IPv6Model.objects.filter(ipv6__contains="3.4").exists())
 
 
 class GenericIPAddressFieldTests(TestCase):
     def test_deconstruct(self):
         field = models.GenericIPAddressField(protocol="both", unpack_ipv4=True)
         name, path, args, kwargs = field.deconstruct()
-        self.assertEqual(
-            path,
-            "clickhouse_backend.models.GenericIPAddressField"
-        )
+        self.assertEqual(path, "clickhouse_backend.models.GenericIPAddressField")
         self.assertEqual(kwargs["unpack_ipv4"], True)
         self.assertNotIn("protocol", kwargs)
         self.assertNotIn("max_length", kwargs)
@@ -694,12 +641,6 @@ class GenericIPAddressFieldTests(TestCase):
     def test_filter(self):
         v = "::ffff:3.4.5.6"
         IPModel.objects.create(ip=v)
-        self.assertTrue(
-            IPModel.objects.filter(ip=v).exists()
-        )
-        self.assertTrue(
-            IPModel.objects.filter(ip="3.4.5.6").exists()
-        )
-        self.assertTrue(
-            IPModel.objects.filter(ip__contains="3.4").exists()
-        )
+        self.assertTrue(IPModel.objects.filter(ip=v).exists())
+        self.assertTrue(IPModel.objects.filter(ip="3.4.5.6").exists())
+        self.assertTrue(IPModel.objects.filter(ip__contains="3.4").exists())

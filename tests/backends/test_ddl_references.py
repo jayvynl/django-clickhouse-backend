@@ -13,6 +13,7 @@ from django.test import SimpleTestCase, TransactionTestCase
 
 from clickhouse_backend.models.indexes import IndexExpression
 from clickhouse_backend.models.sql import Query
+
 from .models import Person
 
 

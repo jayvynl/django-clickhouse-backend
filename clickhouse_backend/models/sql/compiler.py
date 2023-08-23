@@ -72,7 +72,8 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
                 setattr(obj, opts.pk.attname, id_worker.get_id())
 
         result = [
-            "%s %s(%s)" % (
+            "%s %s(%s)"
+            % (
                 insert_statement,
                 qn(opts.db_table),
                 ", ".join(qn(f.column) for f in fields),
@@ -80,8 +81,10 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
         ]
 
         value_rows = [
-            [self.prepare_value(field, self.pre_save_val(field, obj))
-             for field in fields]
+            [
+                self.prepare_value(field, self.pre_save_val(field, obj))
+                for field in fields
+            ]
             for obj in self.query.objs
         ]
 
@@ -93,7 +96,8 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
             setting_sql, setting_params = self.connection.ops.settings_sql(
                 **self.query.setting_info
             )
-            result.append(setting_sql % setting_params)
+            qv = self.connection.schema_editor().quote_value
+            result.append((setting_sql % map(qv, setting_params)) % ())
 
         result.append(self.connection.ops.bulk_insert_sql(fields, placeholder_rows))
         return [(" ".join(result), param_rows)]

@@ -1,5 +1,3 @@
-from pathlib import Path
+VERSION = (1, 1, 1)
 
-__version__ = (
-    Path(__file__).parent / 'VERSION'
-).read_text().strip()
+__version__ = ".".join(map(str, VERSION))

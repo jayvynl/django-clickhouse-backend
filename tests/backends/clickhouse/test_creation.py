@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from io import StringIO
 from unittest import mock
 
-from clickhouse_driver.errors import ServerException, ErrorCodes
+from clickhouse_driver.errors import ErrorCodes, ServerException
 from django.db import DatabaseError, connection
 from django.db.backends.base.creation import BaseDatabaseCreation
 from django.test import SimpleTestCase
@@ -32,17 +32,13 @@ class DatabaseCreationTests(SimpleTestCase):
 
     def _execute_raise_database_already_exists(self, cursor, parameters, keepdb=False):
         server_error = ServerException(
-            "Database test already exists.",
-            ErrorCodes.DATABASE_ALREADY_EXISTS
+            "Database test already exists.", ErrorCodes.DATABASE_ALREADY_EXISTS
         )
         error = DatabaseError(server_error)
         raise DatabaseError(server_error) from error
 
     def _execute_raise_unhandled(self, cursor, parameters, keepdb=False):
-        server_error = ServerException(
-            "",
-            ErrorCodes.DATABASE_ACCESS_DENIED
-        )
+        server_error = ServerException("", ErrorCodes.DATABASE_ACCESS_DENIED)
         error = DatabaseError(server_error)
         raise DatabaseError() from error
 

@@ -1,8 +1,7 @@
 from collections import namedtuple
 
 from django.db import router
-from django.db.models.sql import query
-from django.db.models.sql import subqueries
+from django.db.models.sql import query, subqueries
 
 from clickhouse_backend import compat
 

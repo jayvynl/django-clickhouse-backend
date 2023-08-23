@@ -5,22 +5,19 @@ from unittest import mock
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import DEFAULT_DB_ALIAS, DatabaseError, connections, models
 from django.db.models.query import MAX_GET_RESULTS, EmptyQuerySet
-from django.test import (
-    TestCase,
-    TransactionTestCase,
-    skipUnlessDBFeature,
-)
+from django.test import TestCase, TransactionTestCase, skipUnlessDBFeature
 from django.utils.translation import gettext_lazy
 
 from clickhouse_backend import compat
+
 from .models import (
     Article,
     ArticleSelectOnSave,
     ChildPrimaryKeyWithDefault,
+    DjangoArticle,
     FeaturedArticle,
     PrimaryKeyWithDefault,
     SelfRef,
-    DjangoArticle
 )
 
 
@@ -607,7 +604,6 @@ class ModelLookupTest(TestCase):
 
 
 class ConcurrentSaveTests(TransactionTestCase):
-
     available_apps = ["basic"]
 
     @skipUnlessDBFeature("test_db_allows_multiple_connections")
@@ -835,4 +831,4 @@ class RawSQLTest(TestCase):
     def test_insert_select(self):
         table = Article._meta.db_table
         with connections[DEFAULT_DB_ALIAS].cursor() as cursor:
-            cursor.execute(f'insert into {table} select * from {table}')
+            cursor.execute(f"insert into {table} select * from {table}")

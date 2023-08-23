@@ -4,11 +4,12 @@ import sys
 
 import django
 from django.conf import settings
-from clickhouse_backend.compat import dj_ge4
 from django.test.utils import get_runner
 
+from clickhouse_backend.compat import dj_ge4
+
 RUNTESTS_DIR = os.path.abspath(os.path.dirname(__file__))
-SKIP_DIRS = ['unsupported']
+SKIP_DIRS = ["unsupported"]
 
 
 def get_test_modules():
@@ -28,7 +29,7 @@ def get_test_modules():
             yield test_module
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the Django test suite.")
     parser.add_argument(
         "modules",
@@ -68,13 +69,19 @@ if __name__ == '__main__':
     )
     if not dj_ge4:
         from django.test.runner import default_test_processes
+
         parser.add_argument(
-            '--parallel', nargs='?', default=0, type=int,
-            const=default_test_processes(), metavar='N',
-            help='Run tests using up to N parallel processes.',
+            "--parallel",
+            nargs="?",
+            default=0,
+            type=int,
+            const=default_test_processes(),
+            metavar="N",
+            help="Run tests using up to N parallel processes.",
         )
     else:
         from django.test.runner import parallel_type
+
         parser.add_argument(
             "--parallel",
             nargs="?",
@@ -90,7 +97,7 @@ if __name__ == '__main__':
     options = parser.parse_args()
     options.modules = [os.path.normpath(labels) for labels in options.modules]
 
-    os.environ['DJANGO_SETTINGS_MODULE'] = 'settings'
+    os.environ["DJANGO_SETTINGS_MODULE"] = "settings"
     modules = list(get_test_modules())
     settings.INSTALLED_APPS.extend(modules)
     django.setup()
@@ -100,6 +107,7 @@ if __name__ == '__main__':
         # This doesn't work before django.setup() on some databases.
         from django.db import connections
         from django.test.runner import get_max_test_processes
+
         if all(conn.features.can_clone_databases for conn in connections.all()):
             parallel = get_max_test_processes()
         else:

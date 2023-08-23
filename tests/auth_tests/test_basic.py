@@ -7,6 +7,7 @@ from django.test import TestCase, override_settings
 from django.utils import translation
 
 from clickhouse_backend import compat
+
 from .models import CustomUser
 
 
@@ -131,6 +132,7 @@ class TestGetUser(TestCase):
         self.assertEqual(user.username, created_user.username)
 
     if compat.dj_ge41:
+
         def test_get_user_fallback_secret(self):
             created_user = User.objects.create_user(
                 "testuser", "test@example.com", "testpw"

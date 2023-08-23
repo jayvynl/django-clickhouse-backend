@@ -16,6 +16,7 @@ from django.test import (
 from django.test.utils import isolate_lru_cache
 
 from clickhouse_backend import compat
+
 from .test_base import MigrationTestBase
 
 
@@ -120,6 +121,7 @@ class ExecutorTests(MigrationTestBase):
         self.assertTableNotExists("migrations_book")
 
     if compat.dj_ge4:
+
         @override_settings(
             MIGRATION_MODULES={"migrations": "migrations.test_migrations_squashed"},
         )
@@ -745,6 +747,7 @@ class ExecutorTests(MigrationTestBase):
         )
 
     if compat.dj_ge4:
+
         @override_settings(
             MIGRATION_MODULES={"migrations": "migrations.test_migrations_squashed"}
         )
@@ -832,6 +835,7 @@ class ExecutorTests(MigrationTestBase):
         )
 
     if compat.dj_ge41:
+
         @mock.patch.object(MigrationRecorder, "has_table", return_value=False)
         def test_migrate_skips_schema_creation(self, mocked_has_table):
             """

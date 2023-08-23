@@ -1,15 +1,22 @@
-from django.db.models.expressions import Value, Func
+from django.db.models.expressions import Func, Value
 
 __all__ = [
-    "Engine", "BaseMergeTree",
+    "Engine",
+    "BaseMergeTree",
     "MergeTree",
-    "ReplacingMergeTree", "GraphiteMergeTree",
-    "CollapsingMergeTree", "VersionedCollapsingMergeTree",
-    "SummingMergeTree", "AggregatingMergeTree",
+    "ReplacingMergeTree",
+    "GraphiteMergeTree",
+    "CollapsingMergeTree",
+    "VersionedCollapsingMergeTree",
+    "SummingMergeTree",
+    "AggregatingMergeTree",
     "ReplicatedMergeTree",
-    "ReplicatedReplacingMergeTree", "ReplicatedGraphiteMergeTree",
-    "ReplicatedCollapsingMergeTree", "ReplicatedVersionedCollapsingMergeTree",
-    "ReplicatedSummingMergeTree", "ReplicatedAggregatingMergeTree"
+    "ReplicatedReplacingMergeTree",
+    "ReplicatedGraphiteMergeTree",
+    "ReplicatedCollapsingMergeTree",
+    "ReplicatedVersionedCollapsingMergeTree",
+    "ReplicatedSummingMergeTree",
+    "ReplicatedAggregatingMergeTree",
 ]
 
 
@@ -17,7 +24,9 @@ class Engine(Func):
     def deconstruct(self):
         path, args, kwargs = super().deconstruct()
         if path.startswith("clickhouse_backend.models.engines"):
-            path = path.replace("clickhouse_backend.models.engines", "clickhouse_backend.models")
+            path = path.replace(
+                "clickhouse_backend.models.engines", "clickhouse_backend.models"
+            )
         return path, args, kwargs
 
 
@@ -67,7 +76,8 @@ class ReplicatedMixin:
     def __init__(self, *expressions, **extra):
         if self.arity is not None and len(expressions) != self.arity + 2:
             raise TypeError(
-                "'%s' takes exactly %s %s (%s given)" % (
+                "'%s' takes exactly %s %s (%s given)"
+                % (
                     self.__class__.__name__,
                     self.arity + 2,
                     "arguments",
@@ -76,7 +86,8 @@ class ReplicatedMixin:
             )
         if self.arity is None and len(expressions) < 2:
             raise TypeError(
-                "'%s' takes at least %s %s (%s given)" % (
+                "'%s' takes at least %s %s (%s given)"
+                % (
                     self.__class__.__name__,
                     2,
                     "arguments",
@@ -108,7 +119,9 @@ class ReplicatedCollapsingMergeTree(ReplicatedMixin, CollapsingMergeTree):
     function = "ReplicatedCollapsingMergeTree"
 
 
-class ReplicatedVersionedCollapsingMergeTree(ReplicatedMixin, VersionedCollapsingMergeTree):
+class ReplicatedVersionedCollapsingMergeTree(
+    ReplicatedMixin, VersionedCollapsingMergeTree
+):
     function = "ReplicatedCollapsingMergeTree"
 
 

@@ -25,15 +25,8 @@ from django.test import TestCase, skipUnlessDBFeature
 from django.test.utils import register_lookup
 
 from clickhouse_backend import compat
-from .models import (
-    Author,
-    Book,
-    Company,
-    DepartmentStore,
-    Employee,
-    Publisher,
-    Store,
-)
+
+from .models import Author, Book, Company, DepartmentStore, Employee, Publisher, Store
 
 
 class NonAggregateAnnotationTestCase(TestCase):
@@ -259,6 +252,7 @@ class NonAggregateAnnotationTestCase(TestCase):
         self.assertTrue(all(not book.selected for book in books))
 
     if compat.dj_ge41:
+
         def test_full_expression_annotation(self):
             books = Book.objects.annotate(
                 selected=ExpressionWrapper(~Q(pk__in=[]), output_field=BooleanField()),
@@ -280,8 +274,11 @@ class NonAggregateAnnotationTestCase(TestCase):
             self.assertEqual(qs["selected__sum"], Book.objects.count())
 
     if compat.dj_ge4:
+
         def test_empty_queryset_annotation(self):
-            qs = Author.objects.annotate(empty=Subquery(Author.objects.values("id").none()))
+            qs = Author.objects.annotate(
+                empty=Subquery(Author.objects.values("id").none())
+            )
             self.assertIsNone(qs.first().empty)
 
     def test_annotate_with_aggregation(self):
@@ -957,7 +954,8 @@ class NonAggregateAnnotationTestCase(TestCase):
         long_books_qs = (
             Book.objects.filter(pages__gt=400)
             .annotate(book_annotate=Value(1))
-            .alias(book_alias=Value(1)).values("pk")
+            .alias(book_alias=Value(1))
+            .values("pk")
         )
         publisher_books_qs = Publisher.objects.filter(
             book__in=long_books_qs,

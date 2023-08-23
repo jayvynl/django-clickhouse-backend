@@ -3,14 +3,14 @@ import json
 from django.contrib.postgres.utils import prefix_validation_error
 from django.contrib.postgres.validators import ArrayMaxLengthValidator
 from django.core import checks, exceptions
-from django.db.models import lookups, Field, Func, Value
+from django.db.models import Field, Func, Value, lookups
 from django.db.models.fields.mixins import CheckFieldDefaultMixin
+from django.utils.itercompat import is_iterable
 from django.utils.translation import gettext_lazy as _
 
 from .base import FieldMixin
 from .integer import UInt64Field
 from .utils import AttributeSetter
-from django.utils.itercompat import is_iterable
 
 __all__ = ["ArrayField"]
 
@@ -27,7 +27,10 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
         self.base_field = base_field
         self.size = size
         if self.size:
-            self.default_validators = [*self.default_validators, ArrayMaxLengthValidator(self.size)]
+            self.default_validators = [
+                *self.default_validators,
+                ArrayMaxLengthValidator(self.size),
+            ]
         # For performance, only add a from_db_value() method if the base field
         # implements it.
         if hasattr(self.base_field, "from_db_value"):
@@ -42,7 +45,9 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
         try:
             return self.__dict__["model"]
         except KeyError:
-            raise AttributeError("'%s' object has no attribute 'model'" % self.__class__.__name__)
+            raise AttributeError(
+                "'%s' object has no attribute 'model'" % self.__class__.__name__
+            )
 
     @model.setter
     def model(self, model):
@@ -66,7 +71,9 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
             # Remove the field name checks as they are not needed here.
             base_errors = self.base_field.check()
             if base_errors:
-                messages = "\n    ".join("%s (%s)" % (error.msg, error.id) for error in base_errors)
+                messages = "\n    ".join(
+                    "%s (%s)" % (error.msg, error.id) for error in base_errors
+                )
                 errors.append(
                     checks.Error(
                         "Base field for array has errors:\n    %s" % messages,
@@ -84,17 +91,20 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
         return "Array of %s" % self.base_field.description
 
     def db_type(self, connection):
-        return 'Array(%s)' % self.base_field.db_type(connection)
+        return "Array(%s)" % self.base_field.db_type(connection)
 
     def cast_db_type(self, connection):
-        return 'Array(%s)' % self.base_field.cast_db_type(connection)
+        return "Array(%s)" % self.base_field.cast_db_type(connection)
 
     def get_placeholder(self, value, compiler, connection):
         return "%s::{}".format(self.db_type(connection))
 
     def get_db_prep_value(self, value, connection, prepared=False):
         if is_iterable(value) and not isinstance(value, (str, bytes)):
-            return [self.base_field.get_db_prep_value(i, connection, prepared=prepared) for i in value]
+            return [
+                self.base_field.get_db_prep_value(i, connection, prepared=prepared)
+                for i in value
+            ]
         return value
 
     def get_db_prep_save(self, value, connection):
@@ -105,7 +115,9 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
         if path.startswith("clickhouse_backend.models.array"):
-            path = path.replace("clickhouse_backend.models.array", "clickhouse_backend.models")
+            path = path.replace(
+                "clickhouse_backend.models.array", "clickhouse_backend.models"
+            )
         kwargs["base_field"] = self.base_field.clone()
         if self.size:
             kwargs["size"] = self.size
@@ -225,7 +237,9 @@ class ArrayLookup(ArrayRHSMixin, lookups.FieldGetDbPrepValueMixin, lookups.Looku
     def as_clickhouse(self, compiler, connection):
         lhs, lhs_params = self.process_lhs(compiler, connection)
         rhs, rhs_params = self.process_rhs(compiler, connection)
-        sql = "%s(%s, %s)" % ((self.function, rhs, lhs) if self.swap_args else (self.function, lhs, rhs))
+        sql = "%s(%s, %s)" % (
+            (self.function, rhs, lhs) if self.swap_args else (self.function, lhs, rhs)
+        )
         params = tuple(lhs_params) + tuple(rhs_params)
         return sql, params
 
@@ -320,6 +334,7 @@ class SliceTransformFactory:
 
 class SizeTransform(lookups.Transform):
     """https://clickhouse.com/docs/en/sql-reference/data-types/array#array-size"""
+
     def __init__(self, dimension, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.dimension = dimension

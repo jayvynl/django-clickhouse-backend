@@ -5,6 +5,7 @@ from django.db.migrations.serializer import serializer_factory
 from django.test import SimpleTestCase
 
 from clickhouse_backend import compat
+
 from .models import EmptyManager, UnicodeModel
 
 
@@ -116,6 +117,7 @@ class OptimizerTests(SimpleTestCase):
         )
 
     if compat.dj_ge4:
+
         def test_create_alter_model_options(self):
             self.assertOptimizesTo(
                 [
@@ -132,6 +134,7 @@ class OptimizerTests(SimpleTestCase):
             )
 
     if compat.dj_ge41:
+
         def test_create_alter_model_managers(self):
             self.assertOptimizesTo(
                 [
@@ -735,6 +738,7 @@ class OptimizerTests(SimpleTestCase):
         )
 
     if compat.dj_ge4:
+
         def test_swapping_fields_names(self):
             self.assertDoesNotOptimize(
                 [
@@ -1120,6 +1124,7 @@ class OptimizerTests(SimpleTestCase):
         )
 
     if compat.dj_ge41:
+
         def test_rename_index(self):
             self.assertOptimizesTo(
                 [
@@ -1145,7 +1150,11 @@ class OptimizerTests(SimpleTestCase):
                         "Pony", new_name="new_name", old_name="mid_name"
                     ),
                 ],
-                [migrations.RenameIndex("Pony", new_name="new_name", old_name="old_name")],
+                [
+                    migrations.RenameIndex(
+                        "Pony", new_name="new_name", old_name="old_name"
+                    )
+                ],
             )
             self.assertDoesNotOptimize(
                 [

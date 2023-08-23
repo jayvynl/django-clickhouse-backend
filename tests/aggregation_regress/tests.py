@@ -26,16 +26,8 @@ from django.test import TestCase, skipUnlessAnyDBFeature, skipUnlessDBFeature
 from django.test.utils import Approximate
 
 from clickhouse_backend import compat
-from .models import (
-    Alfa,
-    Author,
-    Book,
-    Bravo,
-    Charlie,
-    HardbackBook,
-    Publisher,
-    Store,
-)
+
+from .models import Alfa, Author, Book, Bravo, Charlie, HardbackBook, Publisher, Store
 
 
 class AggregationTests(TestCase):
@@ -1458,10 +1450,13 @@ class AggregationTests(TestCase):
         )
 
     if compat.dj_ge41:
+
         def test_filter_aggregates_xor_connector(self):
             q1 = Q(price__gt=50)
             q2 = Q(authors__count__gt=1)
-            query = Book.objects.annotate(Count("authors")).filter(q1 ^ q2).order_by("pk")
+            query = (
+                Book.objects.annotate(Count("authors")).filter(q1 ^ q2).order_by("pk")
+            )
             self.assertQuerysetEqual(
                 query,
                 [self.b1.pk, self.b4.pk, self.b6.pk],
@@ -1472,7 +1467,9 @@ class AggregationTests(TestCase):
             q1 = Q(price__gt=50)
             q2 = Q(authors__count__gt=1)
             query = (
-                Book.objects.annotate(Count("authors")).filter(~(q1 ^ q2)).order_by("pk")
+                Book.objects.annotate(Count("authors"))
+                .filter(~(q1 ^ q2))
+                .order_by("pk")
             )
             self.assertQuerysetEqual(
                 query,

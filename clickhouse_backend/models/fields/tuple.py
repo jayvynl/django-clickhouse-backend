@@ -5,10 +5,8 @@ import json
 import warnings
 
 from django.contrib.postgres.utils import prefix_validation_error
-from django.core import checks
-from django.core import exceptions
-from django.db.models import Field, Func, Value
-from django.db.models import lookups
+from django.core import checks, exceptions
+from django.db.models import Field, Func, Value, lookups
 from django.utils.functional import cached_property
 from django.utils.itercompat import is_iterable
 from django.utils.translation import gettext_lazy as _
@@ -55,7 +53,11 @@ class TupleField(FieldMixin, Field):
                     name, field = field
                 except (TypeError, ValueError):
                     raise invalid_error
-                if not isinstance(name, str) or not name.isidentifier() or not isinstance(field, Field):
+                if (
+                    not isinstance(name, str)
+                    or not name.isidentifier()
+                    or not isinstance(field, Field)
+                ):
                     raise invalid_error
                 fields.append((name, field))
                 named_field_flags.append(True)
@@ -94,11 +96,12 @@ class TupleField(FieldMixin, Field):
         for index, field in enumerate(self._base_fields, 1):
             base_errors = field.check()
             if base_errors:
-                messages = "\n    ".join("%s (%s)" % (error.msg, error.id) for error in base_errors)
+                messages = "\n    ".join(
+                    "%s (%s)" % (error.msg, error.id) for error in base_errors
+                )
                 return [
                     checks.Error(
-                        "Field %ss has errors:\n    %s" % (index, messages),
-                        obj=self
+                        "Field %ss has errors:\n    %s" % (index, messages), obj=self
                     )
                 ]
 
@@ -112,7 +115,9 @@ class TupleField(FieldMixin, Field):
         try:
             return self.__dict__["model"]
         except KeyError:
-            raise AttributeError("'%s' object has no attribute 'model'" % self.__class__.__name__)
+            raise AttributeError(
+                "'%s' object has no attribute 'model'" % self.__class__.__name__
+            )
 
     @model.setter
     def model(self, model):
@@ -140,7 +145,9 @@ class TupleField(FieldMixin, Field):
                 name = name.capitalize()
             else:
                 name = "Tuple"
-            self.container_class = collections.namedtuple(name, (fn for fn, _ in self.base_fields))
+            self.container_class = collections.namedtuple(
+                name, (fn for fn, _ in self.base_fields)
+            )
         else:
             self.container_class = tuple
 
@@ -153,15 +160,14 @@ class TupleField(FieldMixin, Field):
 
     @property
     def description(self):
-        base_description = ", ".join(
-            field.description for field in self._base_fields
-        )
+        base_description = ", ".join(field.description for field in self._base_fields)
         return "Tuple of %s" % base_description
 
     def db_type(self, connection):
         base_type = ", ".join(
             "%s %s" % (field[0], field[1].db_type(connection))
-            if self.is_named_tuple else field.db_type(connection)
+            if self.is_named_tuple
+            else field.db_type(connection)
             for field in self.base_fields
         )
         return "Tuple(%s)" % base_type
@@ -169,7 +175,8 @@ class TupleField(FieldMixin, Field):
     def cast_db_type(self, connection):
         base_type = ", ".join(
             "%s %s" % (field[0], field[1].cast_db_type(connection))
-            if self.is_named_tuple else field.cast_db_type(connection)
+            if self.is_named_tuple
+            else field.cast_db_type(connection)
             for field in self.base_fields
         )
         return "Tuple(%s)" % base_type
@@ -189,28 +196,28 @@ class TupleField(FieldMixin, Field):
     def get_db_prep_value(self, value, connection, prepared=False):
         if is_iterable(value) and not isinstance(value, (str, bytes)):
             values = self.call_base_fields(
-                "get_db_prep_value",
-                value, connection, prepared=prepared
+                "get_db_prep_value", value, connection, prepared=prepared
             )
             return tuple(values)
         return value
 
     def get_db_prep_save(self, value, connection):
         if is_iterable(value) and not isinstance(value, (str, bytes)):
-            values = self.call_base_fields(
-                "get_db_prep_save",
-                value, connection
-            )
+            values = self.call_base_fields("get_db_prep_save", value, connection)
             return tuple(values)
         return value
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
         if path.startswith("clickhouse_backend.models.tuple"):
-            path = path.replace("clickhouse_backend.models.tuple", "clickhouse_backend.models")
-        kwargs.update({
-            "base_fields": copy.deepcopy(self.base_fields),
-        })
+            path = path.replace(
+                "clickhouse_backend.models.tuple", "clickhouse_backend.models"
+            )
+        kwargs.update(
+            {
+                "base_fields": copy.deepcopy(self.base_fields),
+            }
+        )
         return name, path, args, kwargs
 
     def to_python(self, value):
@@ -282,7 +289,7 @@ class TupleField(FieldMixin, Field):
         if len(values) != len(self.base_fields):
             raise exceptions.ValidationError(
                 code="value_length_mismatch",
-                message=self.error_messages["value_length_mismatch"]
+                message=self.error_messages["value_length_mismatch"],
             )
 
     def validate(self, value, model_instance):

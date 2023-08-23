@@ -43,7 +43,9 @@ class StringModel(models.ClickhouseModel):
 
 
 class FixedStringModel(models.ClickhouseModel):
-    fixed_string = models.FixedStringField(max_bytes=10, null=True, low_cardinality=True)
+    fixed_string = models.FixedStringField(
+        max_bytes=10, null=True, low_cardinality=True
+    )
 
 
 class UUIDModel(models.ClickhouseModel):
@@ -86,11 +88,7 @@ class ArrayModel(models.ClickhouseModel):
 
 class NestedArrayModel(models.ClickhouseModel):
     array = models.ArrayField(
-        base_field=models.ArrayField(
-            base_field=models.ArrayField(
-                models.UInt32Field()
-            )
-        )
+        base_field=models.ArrayField(base_field=models.ArrayField(models.UInt32Field()))
     )
 
 
@@ -99,23 +97,25 @@ class TupleModel(models.ClickhouseModel):
         base_fields=[
             models.Int8Field(),
             models.StringField(),
-            models.GenericIPAddressField(unpack_ipv4=True)
+            models.GenericIPAddressField(unpack_ipv4=True),
         ]
     )
 
 
 class NamedTupleModel(models.ClickhouseModel):
-    tuple = models.TupleField(base_fields=[
-        ("int", models.Int8Field()),
-        ("str", models.StringField()),
-        ("ip", models.GenericIPAddressField(unpack_ipv4=True))
-    ])
+    tuple = models.TupleField(
+        base_fields=[
+            ("int", models.Int8Field()),
+            ("str", models.StringField()),
+            ("ip", models.GenericIPAddressField(unpack_ipv4=True)),
+        ]
+    )
 
 
 class MapModel(models.ClickhouseModel):
     map = models.MapField(
         models.StringField(low_cardinality=True),
-        models.GenericIPAddressField(unpack_ipv4=True)
+        models.GenericIPAddressField(unpack_ipv4=True),
     )
 
 

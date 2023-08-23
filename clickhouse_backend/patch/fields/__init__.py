@@ -25,6 +25,7 @@ def patch_auto_field():
 
         cls.rel_db_type = rel_db_type
         return cls
+
     rel_db_type_decorator(models.AutoField)
     rel_db_type_decorator(models.SmallAutoField)
     rel_db_type_decorator(models.BigAutoField)

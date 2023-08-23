@@ -1,10 +1,7 @@
 from unittest import mock
 
 from django.core.exceptions import ImproperlyConfigured
-from django.db import (
-    DatabaseError,
-    connection,
-)
+from django.db import DatabaseError, connection
 from django.test import TestCase
 
 from clickhouse_backend.backend.base import DatabaseWrapper

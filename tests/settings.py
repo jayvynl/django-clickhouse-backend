@@ -21,7 +21,7 @@ DATABASES = {
                 "allow_suspicious_low_cardinality_types": 1,
                 "allow_experimental_object_type": 1,
             }
-        }
+        },
     },
     "other": {
         "ENGINE": "clickhouse_backend.backend",
@@ -32,8 +32,8 @@ DATABASES = {
                 "allow_suspicious_low_cardinality_types": 1,
                 "allow_experimental_object_type": 1,
             }
-        }
-    }
+        },
+    },
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MIGRATE = False

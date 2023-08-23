@@ -134,11 +134,13 @@ class DatabaseOperations(BaseDatabaseOperations):
     def unification_cast_sql(self, output_field):
         db_type = output_field.db_type(self.connection)
         # normal django fields does not have 'nullable_allowed' attribute
-        if (not hasattr(output_field, 'nullable_allowed')
-                or output_field.nullable_allowed
-                and not output_field.null):
-            db_type = 'Nullable(%s)' % db_type
-        return '%s::{}'.format(db_type)
+        if (
+            not hasattr(output_field, "nullable_allowed")
+            or output_field.nullable_allowed
+            and not output_field.null
+        ):
+            db_type = "Nullable(%s)" % db_type
+        return "%s::{}".format(db_type)
 
     def date_extract_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions/
@@ -210,8 +212,17 @@ class DatabaseOperations(BaseDatabaseOperations):
         lookup = "%s"
 
         # Cast text lookups to text to allow things like filter(x__contains=4)
-        if lookup_type in ("iexact", "contains", "icontains", "startswith",
-                           "istartswith", "endswith", "iendswith", "regex", "iregex"):
+        if lookup_type in (
+            "iexact",
+            "contains",
+            "icontains",
+            "startswith",
+            "istartswith",
+            "endswith",
+            "iendswith",
+            "regex",
+            "iregex",
+        ):
             if internal_type == "IPAddressField" or internal_type == "IPv4Field":
                 lookup = "IPv4NumToString(%s)"
             elif internal_type == "IPv6Field":
@@ -269,10 +280,8 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def sql_flush(self, style, tables, *, reset_sequences=False, allow_cascade=False):
         return [
-            '%s %s' % (
-                style.SQL_KEYWORD('TRUNCATE'),
-                style.SQL_FIELD(self.quote_name(table))
-            )
+            "%s %s"
+            % (style.SQL_KEYWORD("TRUNCATE"), style.SQL_FIELD(self.quote_name(table)))
             for table in tables
         ]
 
@@ -327,13 +336,15 @@ class DatabaseOperations(BaseDatabaseOperations):
                 raise ValueError(msg)
             suffix = "FORMAT %s" % normalized_format
         if unknown_settings:
-            raise ValueError("Unknown settings: %s" % ", ".join(sorted(unknown_settings)))
+            raise ValueError(
+                "Unknown settings: %s" % ", ".join(sorted(unknown_settings))
+            )
         if type:
             normalized_type = type.upper()
             if normalized_type not in self.explain_types:
                 msg = "%s is not a recognized type. Allowed types: %s." % (
                     normalized_type,
-                    ", ".join(sorted(self.explain_types))
+                    ", ".join(sorted(self.explain_types)),
                 )
                 raise ValueError(msg)
             prefix += " %s" % normalized_type
@@ -343,7 +354,11 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def last_insert_id(self, cursor, table_name, pk_name):
         query = "SELECT %s FROM %s ORDER BY %s DESC LIMIT 1"
-        params = (self.quote_name(pk_name), self.quote_name(table_name), self.quote_name(pk_name))
+        params = (
+            self.quote_name(pk_name),
+            self.quote_name(table_name),
+            self.quote_name(pk_name),
+        )
         cursor.execute(query % params)
         return cursor.fetchone()[0]
 
@@ -366,7 +381,8 @@ class DatabaseOperations(BaseDatabaseOperations):
             else:
                 unknown_settings.append(setting)
         if unknown_settings:
-            raise ValueError("Unknown settings: %s" %
-                             ", ".join(sorted(unknown_settings)))
+            raise ValueError(
+                "Unknown settings: %s" % ", ".join(sorted(unknown_settings))
+            )
         sql = "SETTINGS %s" % ", ".join(result)
         return sql, params

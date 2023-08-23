@@ -1,4 +1,5 @@
 from clickhouse_backend.patch import patch_all
+
 from .base import ClickhouseModel
 from .engines import *
 from .engines import __all__ as engines_all  # NOQA
@@ -10,7 +11,7 @@ from .indexes import *
 from .indexes import __all__ as indexes_all  # NOQA
 
 __all__ = [
-    'ClickhouseModel',
+    "ClickhouseModel",
     *engines_all,
     *fields_all,
     *fucntions_all,

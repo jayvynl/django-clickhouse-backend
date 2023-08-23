@@ -1,15 +1,14 @@
 import ipaddress
 from datetime import datetime
 
-from django.core import checks
-from django.core import exceptions
-from django.db.models import IntegerChoices
-from django.db.models import fields
+from django.core import checks, exceptions
+from django.db.models import IntegerChoices, fields
 from django.utils.functional import cached_property
 from django.utils.itercompat import is_iterable
 from django.utils.translation import gettext_lazy as _
 
 from clickhouse_backend.validators import MaxBytesValidator
+
 from .array import *
 from .base import FieldMixin
 from .integer import *
@@ -18,20 +17,39 @@ from .map import *
 from .tuple import *
 
 __all__ = [
-    "Int8Field", "UInt8Field",
-    "Int16Field", "UInt16Field",
-    "Int32Field", "UInt32Field",
-    "Int64Field", "UInt64Field",
-    "Int128Field", "UInt128Field",
-    "Int256Field", "UInt256Field",
-    "Float32Field", "Float64Field",
-    "DecimalField", "BoolField",
-    "StringField", "FixedStringField",
+    "Int8Field",
+    "UInt8Field",
+    "Int16Field",
+    "UInt16Field",
+    "Int32Field",
+    "UInt32Field",
+    "Int64Field",
+    "UInt64Field",
+    "Int128Field",
+    "UInt128Field",
+    "Int256Field",
+    "UInt256Field",
+    "Float32Field",
+    "Float64Field",
+    "DecimalField",
+    "BoolField",
+    "StringField",
+    "FixedStringField",
     "UUIDField",
-    "DateField", "Date32Field", "DateTimeField", "DateTime64Field",
-    "Enum8Field", "Enum16Field", "EnumField",
-    "IPv4Field", "IPv6Field", "GenericIPAddressField",
-    "ArrayField", "TupleField", "MapField", "JSONField",
+    "DateField",
+    "Date32Field",
+    "DateTimeField",
+    "DateTime64Field",
+    "Enum8Field",
+    "Enum16Field",
+    "EnumField",
+    "IPv4Field",
+    "IPv6Field",
+    "GenericIPAddressField",
+    "ArrayField",
+    "TupleField",
+    "MapField",
+    "JSONField",
 ]
 
 
@@ -106,8 +124,11 @@ class FixedStringField(FieldMixin, fields.TextField):
                     obj=self,
                 )
             ]
-        elif (not isinstance(self.max_bytes, int) or isinstance(self.max_bytes, bool) or
-                self.max_bytes <= 0):
+        elif (
+            not isinstance(self.max_bytes, int)
+            or isinstance(self.max_bytes, bool)
+            or self.max_bytes <= 0
+        ):
             return [
                 checks.Error(
                     "'max_bytes' must be a positive integer.",
@@ -151,6 +172,7 @@ class DateField(FieldMixin, fields.DateField):
     as integer and float are always treated as UTC timestamps,
     clickhouse store them as date in utc, which may not be what you want.
     """
+
     def __init__(self, *args, low_cardinality=False, **kwargs):
         self.low_cardinality = low_cardinality
         super().__init__(*args, **kwargs)
@@ -216,8 +238,12 @@ class DateTime64Field(DateTimeMixin, fields.DateTimeField):
         ]
 
     def _check_precision(self):
-        if (not isinstance(self.precision, int) or isinstance(self.precision, bool) or
-                self.precision < 0 or self.precision > 9):
+        if (
+            not isinstance(self.precision, int)
+            or isinstance(self.precision, bool)
+            or self.precision < 0
+            or self.precision > 9
+        ):
             return [
                 checks.Error(
                     "'precision' must be an integer, valid range: [ 0 : 9 ].",
@@ -253,8 +279,7 @@ class EnumField(FieldMixin, fields.Field):
 
         invalid_errors = [
             checks.Error(
-                "'choices' must be an iterable containing "
-                "(int, str) tuples.",
+                "'choices' must be an iterable containing " "(int, str) tuples.",
                 obj=self,
                 id="fields.E005",
             )
@@ -281,8 +306,8 @@ class EnumField(FieldMixin, fields.Field):
             if value < self.MIN_INT or value > self.MAX_INT:
                 return [
                     checks.Error(
-                        "'choices' must be in range: [ %s : %s ]." %
-                        (self.MIN_INT, self.MAX_INT),
+                        "'choices' must be in range: [ %s : %s ]."
+                        % (self.MIN_INT, self.MAX_INT),
                         obj=self,
                     )
                 ]
@@ -370,11 +395,7 @@ class IPv4Field(FieldMixin, fields.GenericIPAddressField):
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
-        for key in [
-            "unpack_ipv4",
-            "protocol",
-            "max_length"
-        ]:
+        for key in ["unpack_ipv4", "protocol", "max_length"]:
             try:
                 del kwargs[key]
             except KeyError:
@@ -394,12 +415,16 @@ class IPv4Field(FieldMixin, fields.GenericIPAddressField):
         if value is None or isinstance(value, ipaddress.IPv4Address):
             return value
         elif isinstance(value, ipaddress.IPv6Address):
-            raise exceptions.ValidationError(_("This is not a valid IPv4 address."), code="invalid")
+            raise exceptions.ValidationError(
+                _("This is not a valid IPv4 address."), code="invalid"
+            )
 
         try:
             return ipaddress.IPv4Address(value)
         except ValueError:
-            raise exceptions.ValidationError(_("This is not a valid IPv4 address."), code="invalid")
+            raise exceptions.ValidationError(
+                _("This is not a valid IPv4 address."), code="invalid"
+            )
 
 
 class IPv6Field(FieldMixin, fields.GenericIPAddressField):
@@ -414,11 +439,7 @@ class IPv6Field(FieldMixin, fields.GenericIPAddressField):
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
-        for key in [
-            "unpack_ipv4",
-            "protocol",
-            "max_length"
-        ]:
+        for key in ["unpack_ipv4", "protocol", "max_length"]:
             try:
                 del kwargs[key]
             except KeyError:
@@ -442,7 +463,9 @@ class IPv6Field(FieldMixin, fields.GenericIPAddressField):
             try:
                 value = ipaddress.ip_address(value)
             except ValueError:
-                raise exceptions.ValidationError(_("This is not a valid IP address."), code="invalid")
+                raise exceptions.ValidationError(
+                    _("This is not a valid IP address."), code="invalid"
+                )
 
         if isinstance(value, ipaddress.IPv4Address):
             value = ipaddress.IPv6Address("::ffff:%s" % value)
@@ -476,12 +499,18 @@ class GenericIPAddressField(FieldMixin, fields.GenericIPAddressField):
             try:
                 value = ipaddress.ip_address(value)
             except ValueError:
-                raise exceptions.ValidationError(_("This is not a valid IP address."), code="invalid")
+                raise exceptions.ValidationError(
+                    _("This is not a valid IP address."), code="invalid"
+                )
 
         if isinstance(value, ipaddress.IPv4Address) and self.protocol.lower() != "ipv4":
             value = ipaddress.IPv6Address("::ffff:%s" % value)
-        elif isinstance(value, ipaddress.IPv6Address) and self.protocol.lower() == "ipv4":
+        elif (
+            isinstance(value, ipaddress.IPv6Address) and self.protocol.lower() == "ipv4"
+        ):
             if value.ipv4_mapped is None:
-                raise exceptions.ValidationError(_("This is not a valid IPv4 address."), code="invalid")
+                raise exceptions.ValidationError(
+                    _("This is not a valid IPv4 address."), code="invalid"
+                )
             value = value.ipv4_mapped
         return value

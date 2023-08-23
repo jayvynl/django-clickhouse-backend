@@ -266,7 +266,16 @@ class OperationTestBase(MigrationTestBase):
         model_options = {
             "swappable": "TEST_SWAP_MODEL",
             # RemovedInDjango51Warning.
-            "indexes": [Index(fields=("weight", "pink"), name='weight_pink_idx', type=Set(100), granularity=10)] if index_together else [],
+            "indexes": [
+                Index(
+                    fields=("weight", "pink"),
+                    name="weight_pink_idx",
+                    type=Set(100),
+                    granularity=10,
+                )
+            ]
+            if index_together
+            else [],
             "unique_together": [["pink", "weight"]] if unique_together else [],
         }
         if options:
@@ -288,14 +297,24 @@ class OperationTestBase(MigrationTestBase):
             operations.append(
                 migrations.AddIndex(
                     "Pony",
-                    Index(fields=["pink"], name="pony_pink_idx", type=Set(100), granularity=10),
+                    Index(
+                        fields=["pink"],
+                        name="pony_pink_idx",
+                        type=Set(100),
+                        granularity=10,
+                    ),
                 )
             )
         if multicol_index:
             operations.append(
                 migrations.AddIndex(
                     "Pony",
-                    Index(fields=["pink", "weight"], name="pony_test_idx", type=Set(100), granularity=10),
+                    Index(
+                        fields=["pink", "weight"],
+                        name="pony_test_idx",
+                        type=Set(100),
+                        granularity=10,
+                    ),
                 )
             )
         if indexes:

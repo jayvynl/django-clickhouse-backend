@@ -28,6 +28,7 @@ from django.test import (
 )
 
 from clickhouse_backend import compat
+
 from .models import (
     Article,
     Object,
@@ -217,7 +218,6 @@ class SequenceResetTest(TestCase):
 # This test needs to run outside of a transaction, otherwise closing the
 # connection would implicitly rollback and cause problems during teardown.
 class ConnectionCreatedSignalTest(TransactionTestCase):
-
     available_apps = []
 
     # Unfortunately with sqlite3 the in-memory test database cannot be closed,
@@ -267,7 +267,6 @@ class EscapingChecksDebug(EscapingChecks):
 
 
 class BackendTestCase(TransactionTestCase):
-
     available_apps = ["backends"]
 
     def create_squares_with_executemany(self, args):
@@ -538,6 +537,7 @@ class BackendTestCase(TransactionTestCase):
             new_connection.close()
 
     if compat.dj_ge4:
+
         @mock.patch("django.db.backends.utils.logger")
         @override_settings(DEBUG=True)
         def test_queries_logger(self, mocked_logger):
@@ -570,7 +570,6 @@ class BackendTestCase(TransactionTestCase):
 # These tests aren't conditional because it would require differentiating
 # between MySQL+InnoDB and MySQL+MYISAM (something we currently can't do).
 class FkConstraintsTests(TransactionTestCase):
-
     available_apps = ["backends"]
 
     def setUp(self):
@@ -726,7 +725,6 @@ class FkConstraintsTests(TransactionTestCase):
 
 
 class ThreadTests(TransactionTestCase):
-
     available_apps = ["backends"]
 
     def test_default_connection_thread_local(self):
