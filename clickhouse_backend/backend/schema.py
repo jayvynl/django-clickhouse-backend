@@ -188,6 +188,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         return output
 
     def _get_expression(self, model, *expressions):
+        if not expressions:
+            return ""
         index_expressions = []
         for expression in expressions:
             index_expression = IndexExpression(expression)
@@ -197,15 +199,12 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
 
         query = Query(model, alias_cols=False)
         expression_list = ExpressionList(*index_expressions).resolve_expression(query)
-        compiler = query.get_compiler(
-            connection=self.connection,
-        )
+        compiler = query.get_compiler(connection=self.connection)
         return Expressions(
             model._meta.db_table, expression_list, compiler, self.quote_value
         )
 
     def _model_extra_sql(self, model, engine):
-        extra_parts = []
         from clickhouse_backend.models.engines import BaseMergeTree
 
         if isinstance(engine, BaseMergeTree):
@@ -213,27 +212,17 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             partition_by = engine.partition_by
             primary_key = engine.primary_key
 
-            if order_by:
-                if not isinstance(order_by, (list, tuple)):
-                    order_by = [order_by]
-                extra_parts.append(
-                    "ORDER BY (%s)" % self._get_expression(model, *order_by)
-                )
-            else:
-                extra_parts.append("ORDER BY tuple()")
+            if order_by is not None:
+                yield "ORDER BY (%s)" % self._get_expression(model, *order_by)
             if partition_by:
-                if not isinstance(partition_by, (list, tuple)):
-                    partition_by = [partition_by]
-                extra_parts.append(
-                    "PARTITION BY (%s)" % self._get_expression(model, *partition_by)
-                )
-            if primary_key:
-                if not isinstance(primary_key, (list, tuple)):
-                    primary_key = [primary_key]
-                extra_parts.append(
-                    "PRIMARY KEY (%s)" % self._get_expression(model, *primary_key)
-                )
-        return extra_parts
+                yield "PARTITION BY (%s)" % self._get_expression(model, *partition_by)
+            if primary_key is not None:
+                yield "PRIMARY KEY (%s)" % self._get_expression(model, *primary_key)
+            if engine.settings:
+                result = []
+                for setting, value in engine.settings.items():
+                    result.append(f"{setting}={self.quote_value(value)}")
+                yield "SETTINGS %s" % ", ".join(result)
 
     def add_field(self, model, field):
         """
