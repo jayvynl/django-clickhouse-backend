@@ -1,5 +1,6 @@
 ### 1.1.1
 - [Black](https://github.com/psf/black) code style.
+- Support [MergeTree settings](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree#settings) in creating table.
 
 ### 1.1.0
 - Change `AutoFiled` and `SmallAutoField` to clickhouse `Int64`, so that id worker can generate value for them.
