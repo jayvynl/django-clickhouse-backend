@@ -1,6 +1,6 @@
 from django.db import models
 
-from clickhouse_backend.models import ClickhouseModel, MergeTree
+from clickhouse_backend.models import ClickhouseModel
 
 
 class Square(ClickhouseModel):
@@ -142,13 +142,3 @@ class SQLKeywordsModel(ClickhouseModel):
 
     class Meta:
         db_table = "order"
-
-
-class EngineWithSettings(ClickhouseModel):
-    class Meta:
-        engine = MergeTree(
-            order_by=(),
-            index_granularity=1024,
-            index_granularity_bytes=1 << 20,
-            enable_mixed_granularity_parts=1,
-        )

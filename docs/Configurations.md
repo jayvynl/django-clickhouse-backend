@@ -45,10 +45,18 @@ Because [source code of DBAPI Connection](https://github.com/mymarilyn/clickhous
 
 Valid `TEST` keys:
 
-- 'fake_transaction' make clickhouse pretending to be transactional.
+- `cluster`: create test database [on this cluster](https://clickhouse.com/docs/en/sql-reference/statements/create/database#on-cluster).
+- `engine`: use this [database engine](https://clickhouse.com/docs/en/sql-reference/statements/create/database#engine).
+- `fake_transaction` make clickhouse pretending to be transactional.
   In the case of multiple databases, if another database supports transactions, use TransactionTestCase or inherited classes (including pytest_django) for testing, all test data (including various setup and pytest fixtures) for each database will be automatically flushed after each test case by calling django's flush command.
   In order to use transactions to isolate the postgresql data of each test case (speed up test), all databases need to support transactions. You can make clickhouse connections support fake transactions. By setting 'TEST' in the database: {'fake_transaction': True}.
   But this will have a side effect, that is, the clickhouse data of each test case will not be isolated. So in general it is not recommended to use this feature unless you know very well what is the impaction.
+
+
+### CLICKHOUSE_MIGRATION_ON_CLUSTER
+
+Set this to a [cluster](https://clickhouse.com/docs/en/engines/table-engines/special/distributed#distributed-clusters) defined in your clickhouse server configuration file.
+Migration table will be created on this cluster with [Distributed Engine](https://clickhouse.com/docs/en/engines/table-engines/special/distributed).
 
 
 ### Auto Field
@@ -62,7 +70,7 @@ There is [no unique constraint](https://github.com/ClickHouse/ClickHouse/issues/
 
 By default, django will add a field named `id` as auto increasing primary key.
 
-Django `AutoField`, `SmallAutoField` and `BigAutoField` ar mapped to clickhouse Int64 data type. If primary key is not specified when insert data, then `clickhouse_driver.idworker.id_worker` is used to generate this unique id.
+Django `AutoField`, `SmallAutoField` and `BigAutoField` are mapped to clickhouse Int64 data type. If primary key is not specified when insert data, then `clickhouse_driver.idworker.id_worker` is used to generate this unique id.
 
 Default `id_worker` is an instance of `clickhouse.idworker.snowflake.SnowflakeIDWorker` which implement [twitter snowflake id](https://en.wikipedia.org/wiki/Snowflake_ID).
 If data insertions happen on multiple datacenter, server, process or thread, you should ensure uniqueness of (CLICKHOUSE_WORKER_ID, CLICKHOUSE_DATACENTER_ID) environment variable.

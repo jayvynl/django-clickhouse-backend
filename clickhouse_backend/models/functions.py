@@ -5,6 +5,7 @@ __all__ = [
     "toYYYYMM",
     "toYYYYMMDD",
     "toYYYYMMDDhhmmss",
+    "currentDatabase",
 ]
 
 
@@ -34,3 +35,8 @@ class toYYYYMMDD(toYYYYMM):
 
 class toYYYYMMDDhhmmss(toYYYYMM):
     function = "toYYYYMMDDhhmmss"
+
+
+class currentDatabase(Func):
+    function = "currentDatabase"
+    arity = 0

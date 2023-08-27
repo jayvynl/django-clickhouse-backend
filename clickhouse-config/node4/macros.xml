@@ -1,0 +1,8 @@
+<clickhouse>
+  <macros>
+    <shard>2</shard>
+    <replica>2</replica>
+  </macros>
+  <default_replica_path>/clickhouse/tables/{uuid}/{shard}</default_replica_path>
+  <default_replica_name>{replica}</default_replica_name>
+</clickhouse>
