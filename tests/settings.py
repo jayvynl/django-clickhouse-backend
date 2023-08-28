@@ -20,8 +20,10 @@ DATABASES = {
                 "mutations_sync": 1,
                 "allow_suspicious_low_cardinality_types": 1,
                 "allow_experimental_object_type": 1,
+                "insert_distributed_sync": 1,
             }
         },
+        "TEST": {"cluster": "cluster"},
     },
     "other": {
         "ENGINE": "clickhouse_backend.backend",
@@ -31,8 +33,10 @@ DATABASES = {
                 "mutations_sync": 1,
                 "allow_suspicious_low_cardinality_types": 1,
                 "allow_experimental_object_type": 1,
+                "insert_distributed_sync": 1,
             }
         },
+        "TEST": {"cluster": "cluster"},
     },
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

@@ -78,3 +78,6 @@ volumes:
     name: clickhouse-node3
   node4:
     name: clickhouse-node4
+networks:
+  default:
+    name: clickhouse-net

@@ -305,5 +305,5 @@ class Distributed(Engine):
                 value_if_string(expressions[4]),
             )
         else:
-            expressions = (*map(value_if_string, expressions[:3]), expressions[3])
+            expressions = (*map(value_if_string, expressions[:3]), *expressions[3:])
         super().__init__(*expressions, **settings)

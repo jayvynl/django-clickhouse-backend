@@ -6,6 +6,7 @@ __all__ = [
     "toYYYYMMDD",
     "toYYYYMMDDhhmmss",
     "currentDatabase",
+    "Rand",
 ]
 
 
@@ -39,4 +40,9 @@ class toYYYYMMDDhhmmss(toYYYYMM):
 
 class currentDatabase(Func):
     function = "currentDatabase"
+    arity = 0
+
+
+class Rand(Func):
+    function = "rand"
     arity = 0

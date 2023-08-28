@@ -17,7 +17,6 @@ def patch_migrations():
 
 
 def patch_migration_recorder():
-    @cached_property
     def Migration(self):
         """
         Lazy load to avoid AppRegistryNotReady if installed apps import
@@ -144,7 +143,9 @@ def patch_migration_recorder():
         else:
             self.migration_qs.all().delete()
 
-    MigrationRecorder.Migration = Migration
+    cachedMigration = cached_property(Migration)
+    cachedMigration.__set_name__(MigrationRecorder, "Migration")
+    MigrationRecorder.Migration = cachedMigration
     MigrationRecorder.ensure_schema = ensure_schema
     MigrationRecorder.record_applied = record_applied
     MigrationRecorder.record_unapplied = record_unapplied

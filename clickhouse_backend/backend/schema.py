@@ -39,12 +39,12 @@ class ChColumns(Columns):
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     sql_create_table = "CREATE TABLE %(table)s %(on_cluster)s (%(definition)s) ENGINE = %(engine)s %(extra)s"
     sql_rename_table = "RENAME TABLE %(old_table)s TO %(new_table)s %(on_cluster)s"
-    sql_delete_table = "DROP TABLE %(table)s %(on_cluster)"
+    sql_delete_table = "DROP TABLE %(table)s %(on_cluster)s"
 
     sql_create_column = (
-        "ALTER TABLE %(table)s %(on_cluster) ADD COLUMN %(column)s %(definition)s"
+        "ALTER TABLE %(table)s %(on_cluster)s ADD COLUMN %(column)s %(definition)s"
     )
-    sql_alter_column = "ALTER TABLE %(table)s %(on_cluster) %(changes)s"
+    sql_alter_column = "ALTER TABLE %(table)s %(on_cluster)s %(changes)s"
     sql_alter_column_type = "MODIFY COLUMN %(column)s %(type)s"
     sql_alter_column_null = "MODIFY COLUMN %(column)s Nullable(%(type)s)"
     sql_alter_column_not_null = sql_alter_column_type
