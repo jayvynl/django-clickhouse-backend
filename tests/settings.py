@@ -16,12 +16,13 @@ DATABASES = {
     "default": {
         "ENGINE": "clickhouse_backend.backend",
         "OPTIONS": {
+            "connections_min": 1,
             "settings": {
                 "mutations_sync": 1,
                 "allow_suspicious_low_cardinality_types": 1,
                 "allow_experimental_object_type": 1,
                 "insert_distributed_sync": 1,
-            }
+            },
         },
         "TEST": {"cluster": "cluster"},
     },
@@ -29,12 +30,41 @@ DATABASES = {
         "ENGINE": "clickhouse_backend.backend",
         "NAME": "other",
         "OPTIONS": {
+            "connections_min": 1,
             "settings": {
                 "mutations_sync": 1,
                 "allow_suspicious_low_cardinality_types": 1,
                 "allow_experimental_object_type": 1,
                 "insert_distributed_sync": 1,
-            }
+            },
+        },
+        "TEST": {"cluster": "cluster"},
+    },
+    "s1r2": {
+        "ENGINE": "clickhouse_backend.backend",
+        "PORT": 9001,
+        "OPTIONS": {
+            "connections_min": 1,
+            "settings": {
+                "mutations_sync": 1,
+                "allow_suspicious_low_cardinality_types": 1,
+                "allow_experimental_object_type": 1,
+                "insert_distributed_sync": 1,
+            },
+        },
+        "TEST": {"cluster": "cluster"},
+    },
+    "s2r1": {
+        "ENGINE": "clickhouse_backend.backend",
+        "PORT": 9002,
+        "OPTIONS": {
+            "connections_min": 1,
+            "settings": {
+                "mutations_sync": 1,
+                "allow_suspicious_low_cardinality_types": 1,
+                "allow_experimental_object_type": 1,
+                "insert_distributed_sync": 1,
+            },
         },
         "TEST": {"cluster": "cluster"},
     },

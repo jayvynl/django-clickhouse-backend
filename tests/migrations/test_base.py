@@ -254,7 +254,6 @@ class OperationTestBase(MigrationTestBase):
         mti_model=False,
         proxy_model=False,
         manager_model=False,
-        unique_together=False,
         options=False,
         db_table=None,
         index_together=False,  # RemovedInDjango51Warning.
@@ -276,7 +275,6 @@ class OperationTestBase(MigrationTestBase):
             ]
             if index_together
             else [],
-            "unique_together": [["pink", "weight"]] if unique_together else [],
         }
         if options:
             model_options["permissions"] = [("can_groom", "Can groom")]

@@ -27,6 +27,8 @@ services:
     volumes:
       - "node2:/var/lib/clickhouse/"
       - "./clickhouse-config/node2/:/etc/clickhouse-server/config.d/"
+    ports:
+      - "127.0.0.1:9001:9000"
     ulimits:
       nofile:
         soft: 262144
@@ -44,6 +46,8 @@ services:
     volumes:
       - "node3:/var/lib/clickhouse/"
       - "./clickhouse-config/node3/:/etc/clickhouse-server/config.d/"
+    ports:
+      - "127.0.0.1:9002:9000"
     ulimits:
       nofile:
         soft: 262144
@@ -61,6 +65,8 @@ services:
     volumes:
       - "node4:/var/lib/clickhouse/"
       - "./clickhouse-config/node4/:/etc/clickhouse-server/config.d/"
+    ports:
+      - "127.0.0.1:9003:9000"
     ulimits:
       nofile:
         soft: 262144
