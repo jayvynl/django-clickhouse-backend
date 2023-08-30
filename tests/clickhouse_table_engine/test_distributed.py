@@ -1,5 +1,6 @@
 from django.core.exceptions import FieldDoesNotExist
 from django.db import OperationalError, connection, migrations
+from django.db import models as django_models
 from django.db.migrations.operations.fields import FieldOperation
 from django.db.migrations.state import ModelState, ProjectState
 from django.db.models.functions import Abs
@@ -101,15 +102,12 @@ class OperationTests(OperationTestBase):
         # Test initial state and database
         self.assertIn(("test_rnmo", "pony"), project_state.models)
         self.assertNotIn(("test_rnmo", "horse"), project_state.models)
-        self.assertTableExists("test_rnmo_pony")
-        self.assertTableNotExists("test_rnmo_horse")
+        self.assertTableExistsCluster("test_rnmo_pony")
+        self.assertTableNotExistsCluster("test_rnmo_horse")
 
         # Migrate forwards
         new_state = project_state.clone()
-        atomic_rename = connection.features.supports_atomic_references_rename
-        new_state = self.apply_operations(
-            "test_rnmo", new_state, [operation], atomic=atomic_rename
-        )
+        new_state = self.apply_operations("test_rnmo", new_state, [operation])
         # Test new state and database
         self.assertNotIn(("test_rnmo", "pony"), new_state.models)
         self.assertIn(("test_rnmo", "horse"), new_state.models)
@@ -118,29 +116,74 @@ class OperationTests(OperationTestBase):
             new_state.models["test_rnmo", "rider"].fields["pony"].remote_field.model,
             "test_rnmo.Horse",
         )
-        self.assertTableNotExists("test_rnmo_pony")
-        self.assertTableExists("test_rnmo_horse")
+        self.assertTableNotExistsCluster("test_rnmo_pony")
+        self.assertTableExistsCluster("test_rnmo_horse")
 
         # Migrate backwards
-        original_state = self.unapply_operations(
-            "test_rnmo", project_state, [operation], atomic=atomic_rename
-        )
+        project_state = self.unapply_operations("test_rnmo", project_state, [operation])
         # Test original state and database
-        self.assertIn(("test_rnmo", "pony"), original_state.models)
-        self.assertNotIn(("test_rnmo", "horse"), original_state.models)
+        self.assertIn(("test_rnmo", "pony"), project_state.models)
+        self.assertNotIn(("test_rnmo", "horse"), project_state.models)
         self.assertEqual(
-            original_state.models["test_rnmo", "rider"]
+            project_state.models["test_rnmo", "rider"]
             .fields["pony"]
             .remote_field.model,
             "Pony",
         )
-        self.assertTableExists("test_rnmo_pony")
-        self.assertTableNotExists("test_rnmo_horse")
+        self.assertTableExistsCluster("test_rnmo_pony")
+        self.assertTableNotExistsCluster("test_rnmo_horse")
+
+        # Test the state alteration
+        operation = migrations.RenameModel("PonyDistributed", "HorseDistributed")
+        self.assertEqual(
+            operation.describe(), "Rename model PonyDistributed to HorseDistributed"
+        )
+        self.assertEqual(
+            operation.migration_name_fragment, "rename_pony_horsedistributed"
+        )
+        # Test initial state and database
+        self.assertIn(("test_rnmo", "ponydistributed"), project_state.models)
+        self.assertNotIn(("test_rnmo", "horsedistributed"), project_state.models)
+        self.assertTableExistsCluster("test_rnmo_ponydistributed")
+        self.assertTableNotExistsCluster("test_rnmo_horsedistributed")
+
+        # Migrate forwards
+        new_state = project_state.clone()
+        new_state = self.apply_operations("test_rnmo", new_state, [operation])
+        # Test new state and database
+        self.assertNotIn(("test_rnmo", "ponydistributed"), new_state.models)
+        self.assertIn(("test_rnmo", "horsedistributed"), new_state.models)
+        # RenameModel also repoints all incoming FKs and M2Ms
+        self.assertEqual(
+            new_state.models["test_rnmo", "riderdistributed"]
+            .fields["pony"]
+            .remote_field.model,
+            "test_rnmo.HorseDistributed",
+        )
+        self.assertTableNotExistsCluster("test_rnmo_ponydistributed")
+        self.assertTableExistsCluster("test_rnmo_horsedistributed")
+
+        # Migrate backwards
+        original_state = self.unapply_operations(
+            "test_rnmo", project_state, [operation]
+        )
+        # Test original state and database
+        self.assertIn(("test_rnmo", "ponydistributed"), original_state.models)
+        self.assertNotIn(("test_rnmo", "horsedistributed"), original_state.models)
+        self.assertEqual(
+            original_state.models["test_rnmo", "riderdistributed"]
+            .fields["pony"]
+            .remote_field.model,
+            "PonyDistributed",
+        )
+        self.assertTableExistsCluster("test_rnmo_ponydistributed")
+        self.assertTableNotExistsCluster("test_rnmo_horsedistributed")
 
     def set_up_distributed_model(
         self,
         app_label,
         index=False,
+        related_model=False,
         multicol_index=False,
         index_together=False,
         constraints=None,
@@ -164,7 +207,7 @@ class OperationTests(OperationTestBase):
             migrations.CreateModel(
                 "Pony",
                 [
-                    ("id", models.Int64Field(primary_key=True)),
+                    ("id", django_models.BigAutoField(primary_key=True)),
                     ("pink", models.Int32Field(default=3)),
                     ("weight", models.Float64Field()),
                 ],
@@ -177,7 +220,7 @@ class OperationTests(OperationTestBase):
             migrations.CreateModel(
                 "PonyDistributed",
                 [
-                    ("id", models.Int64Field(primary_key=True)),
+                    ("id", django_models.BigAutoField(primary_key=True)),
                     ("pink", models.Int32Field(default=3)),
                     ("weight", models.Float64Field()),
                 ],
@@ -222,6 +265,55 @@ class OperationTests(OperationTestBase):
             if constraints:
                 for constraint in constraints:
                     operations.append(migrations.AddConstraint(name, constraint))
+        if related_model:
+            operations.append(
+                migrations.CreateModel(
+                    "Rider",
+                    [
+                        ("id", django_models.BigAutoField(primary_key=True)),
+                        (
+                            "pony",
+                            django_models.ForeignKey("Pony", django_models.CASCADE),
+                        ),
+                        (
+                            "friend",
+                            django_models.ForeignKey(
+                                "self", django_models.CASCADE, null=True
+                            ),
+                        ),
+                    ],
+                    options={
+                        "engine": models.ReplacingMergeTree(),
+                        "cluster": "cluster",
+                    },
+                )
+            )
+            operations.append(
+                migrations.CreateModel(
+                    "RiderDistributed",
+                    [
+                        ("id", django_models.BigAutoField(primary_key=True)),
+                        (
+                            "pony",
+                            django_models.ForeignKey(
+                                "PonyDistributed", django_models.CASCADE
+                            ),
+                        ),
+                        (
+                            "friend",
+                            django_models.ForeignKey(
+                                "self", django_models.CASCADE, null=True
+                            ),
+                        ),
+                    ],
+                    options={
+                        "engine": models.Distributed(
+                            "cluster", models.currentDatabase(), f"{app_label}_rider"
+                        ),
+                        "cluster": "cluster",
+                    },
+                )
+            )
 
         return self.apply_operations(app_label, ProjectState(), operations)
 
