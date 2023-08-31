@@ -1,20 +1,15 @@
-from django.core.exceptions import FieldDoesNotExist
-from django.db import OperationalError, connection, migrations
-from django.db import models as django_models
-from django.db.migrations.operations.fields import FieldOperation
-from django.db.migrations.state import ModelState, ProjectState
-from django.db.models.functions import Abs
-from django.db.transaction import atomic
-from django.test import SimpleTestCase, TestCase, override_settings, skipUnlessDBFeature
-from django.test.utils import CaptureQueriesContext
+from django.db import connection, migrations
+from django.db.migrations.state import ProjectState
+from django.test import TestCase
 
 from clickhouse_backend import models
-
-from ..migrations.test_base import OperationTestBase
 from .models import DistributedStudent, Student
+from .test_base import OperationTestBase
 
 
 class TestDistributed(TestCase):
+    databases = {"default", "s1r2", "s2r1", "other"}
+
     def test(self):
         Student.objects.create(name="Jack", score=90)
         assert Student.objects.using("s1r2").filter(name="Jack", score=90).exists()
@@ -45,7 +40,7 @@ class OperationTests(OperationTestBase):
                 ("pink", models.Int32Field(default=1)),
             ],
             options={
-                "engine": models.ReplacingMergeTree(),
+                "engine": models.ReplacingMergeTree(order_by='id'),
                 "cluster": "cluster",
             },
         )
@@ -178,149 +173,3 @@ class OperationTests(OperationTestBase):
         )
         self.assertTableExistsCluster("test_rnmo_ponydistributed")
         self.assertTableNotExistsCluster("test_rnmo_horsedistributed")
-
-    def set_up_distributed_model(
-        self,
-        app_label,
-        index=False,
-        related_model=False,
-        multicol_index=False,
-        index_together=False,
-        constraints=None,
-        indexes=None,
-    ):
-        """Creates a test model state and database table."""
-        meta_indexes = (
-            [
-                models.Index(
-                    fields=("weight", "pink"),
-                    name="weight_pink_idx",
-                    type=models.Set(100),
-                    granularity=10,
-                )
-            ]
-            if index_together
-            else []
-        )
-
-        operations = [
-            migrations.CreateModel(
-                "Pony",
-                [
-                    ("id", django_models.BigAutoField(primary_key=True)),
-                    ("pink", models.Int32Field(default=3)),
-                    ("weight", models.Float64Field()),
-                ],
-                options={
-                    "indexes": meta_indexes,
-                    "engine": models.ReplacingMergeTree(),
-                    "cluster": "cluster",
-                },
-            ),
-            migrations.CreateModel(
-                "PonyDistributed",
-                [
-                    ("id", django_models.BigAutoField(primary_key=True)),
-                    ("pink", models.Int32Field(default=3)),
-                    ("weight", models.Float64Field()),
-                ],
-                options={
-                    "indexes": meta_indexes,
-                    "engine": models.Distributed(
-                        "cluster", models.currentDatabase(), f"{app_label}_pony"
-                    ),
-                    "cluster": "cluster",
-                },
-            ),
-        ]
-
-        for name in ["pony", "ponydistributed"]:
-            if index:
-                operations.append(
-                    migrations.AddIndex(
-                        name,
-                        models.Index(
-                            fields=["pink"],
-                            name=f"{name}_pink_idx",
-                            type=models.Set(100),
-                            granularity=10,
-                        ),
-                    )
-                )
-            if multicol_index:
-                operations.append(
-                    migrations.AddIndex(
-                        name,
-                        models.Index(
-                            fields=["pink", "weight"],
-                            name=f"{name}_test_idx",
-                            type=models.Set(100),
-                            granularity=10,
-                        ),
-                    )
-                )
-            if indexes:
-                for index in indexes:
-                    operations.append(migrations.AddIndex(name, index))
-            if constraints:
-                for constraint in constraints:
-                    operations.append(migrations.AddConstraint(name, constraint))
-        if related_model:
-            operations.append(
-                migrations.CreateModel(
-                    "Rider",
-                    [
-                        ("id", django_models.BigAutoField(primary_key=True)),
-                        (
-                            "pony",
-                            django_models.ForeignKey("Pony", django_models.CASCADE),
-                        ),
-                        (
-                            "friend",
-                            django_models.ForeignKey(
-                                "self", django_models.CASCADE, null=True
-                            ),
-                        ),
-                    ],
-                    options={
-                        "engine": models.ReplacingMergeTree(),
-                        "cluster": "cluster",
-                    },
-                )
-            )
-            operations.append(
-                migrations.CreateModel(
-                    "RiderDistributed",
-                    [
-                        ("id", django_models.BigAutoField(primary_key=True)),
-                        (
-                            "pony",
-                            django_models.ForeignKey(
-                                "PonyDistributed", django_models.CASCADE
-                            ),
-                        ),
-                        (
-                            "friend",
-                            django_models.ForeignKey(
-                                "self", django_models.CASCADE, null=True
-                            ),
-                        ),
-                    ],
-                    options={
-                        "engine": models.Distributed(
-                            "cluster", models.currentDatabase(), f"{app_label}_rider"
-                        ),
-                        "cluster": "cluster",
-                    },
-                )
-            )
-
-        return self.apply_operations(app_label, ProjectState(), operations)
-
-    def assertTableNotExistsCluster(self, table, dbs=("default", "s1r2", "s2r1")):
-        for db in dbs:
-            self.assertTableNotExists(table, db)
-
-    def assertTableExistsCluster(self, table, dbs=("default", "s1r2", "s2r1")):
-        for db in dbs:
-            self.assertTableExists(table, db)
