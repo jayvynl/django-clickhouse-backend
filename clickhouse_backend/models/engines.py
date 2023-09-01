@@ -229,6 +229,8 @@ class ReplicatedMixin:
 
 
 class ReplicatedMergeTree(MergeTree):
+    arity = None
+
     def __init__(self, *expressions, **extra):
         # https://github.com/ClickHouse/ClickHouse/issues/8675
         # https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replication#creating-replicated-tables
@@ -298,6 +300,8 @@ class Distributed(Engine):
                 "'%s' takes at most 5 arguments (cluster, database, table[, sharding_key[, policy_name]])"
                 % self.__class__.__name__
             )
+
+        self.cluster, self.database, self.table = expressions[:3]
         if len(expressions) == 5:
             expressions = (
                 *map(value_if_string, expressions[:3]),

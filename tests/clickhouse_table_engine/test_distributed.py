@@ -3,6 +3,7 @@ from django.db.migrations.state import ProjectState
 from django.test import TestCase
 
 from clickhouse_backend import models
+
 from .models import DistributedStudent, Student
 from .test_base import OperationTestBase
 
@@ -10,19 +11,21 @@ from .test_base import OperationTestBase
 class TestDistributed(TestCase):
     databases = {"default", "s1r2", "s2r1", "other"}
 
-    def test(self):
+    def test_distributed_can_see_underlying_table(self):
         Student.objects.create(name="Jack", score=90)
-        assert Student.objects.using("s1r2").filter(name="Jack", score=90).exists()
         assert DistributedStudent.objects.filter(name="Jack", score=90).exists()
+
+    def test_write_distributed(self):
         for i in range(10):
             DistributedStudent.objects.create(name=f"Student{i}", score=i * 10)
-        assert DistributedStudent.objects.count() == 11
-        assert DistributedStudent.objects.using("s1r2").count() == 11
-        assert DistributedStudent.objects.using("s2r1").count() == 11
+        assert DistributedStudent.objects.count() == 10
+        assert DistributedStudent.objects.using("s1r2").count() == 10
+        assert DistributedStudent.objects.using("s2r1").count() == 10
+        assert Student.objects.count() == Student.objects.using("s1r2").count()
         assert (
             Student.objects.using("s1r2").count()
             + Student.objects.using("s2r1").count()
-            == 11
+            == 10
         )
 
 
@@ -40,7 +43,7 @@ class OperationTests(OperationTestBase):
                 ("pink", models.Int32Field(default=1)),
             ],
             options={
-                "engine": models.ReplacingMergeTree(order_by='id'),
+                "engine": models.ReplacingMergeTree(order_by="id"),
                 "cluster": "cluster",
             },
         )
@@ -59,37 +62,36 @@ class OperationTests(OperationTestBase):
         )
 
         # Test the state alteration
-        project_state = ProjectState()
-        new_state = project_state.clone()
-        create_replicated.state_forwards("test_crmo", new_state)
+        state0 = ProjectState()
+        state1 = state0.clone()
+        create_replicated.state_forwards("test_crmo", state1)
 
         # Test create replicated.
         self.assertTableNotExistsCluster("test_crmo_pony")
         with connection.schema_editor() as editor:
-            create_replicated.database_forwards(
-                "test_crmo", editor, project_state, new_state
-            )
+            create_replicated.database_forwards("test_crmo", editor, state0, state1)
         self.assertTableExistsCluster("test_crmo_pony")
         # Test create distributed.
+        state2 = state1.clone()
+        create_distributed.state_forwards("test_crmo", state2)
         self.assertTableNotExistsCluster("test_crmo_ponydistributed")
         with connection.schema_editor() as editor:
-            create_distributed.database_forwards(
-                "test_crmo", editor, project_state, new_state
-            )
+            create_distributed.database_forwards("test_crmo", editor, state1, state2)
         self.assertTableExistsCluster("test_crmo_ponydistributed")
         # And test reversal
         with connection.schema_editor() as editor:
-            create_distributed.database_backwards(
-                "test_crmo", editor, new_state, project_state
-            )
-        self.assertTableNotExistsCluster("test_crmo_pony")
-        self.assertTableNotExistsCluster("test_crmo_ponydistributed")
+            create_distributed.database_backwards("test_crmo", editor, state2, state1)
+            self.assertTableExistsCluster("test_crmo_pony")
+            self.assertTableNotExistsCluster("test_crmo_ponydistributed")
+            create_replicated.database_backwards("test_crmo", editor, state1, state0)
+            self.assertTableNotExistsCluster("test_crmo_pony")
+            self.assertTableNotExistsCluster("test_crmo_ponydistributed")
 
     def test_rename_model(self):
         """
         Tests the RenameModel operation.
         """
-        project_state = self.set_up_distributed_model("test_rnmo")
+        project_state = self.set_up_distributed_model("test_rnmo", related_model=True)
         # Test the state alteration
         operation = migrations.RenameModel("Pony", "Horse")
         self.assertEqual(operation.describe(), "Rename model Pony to Horse")
@@ -134,7 +136,7 @@ class OperationTests(OperationTestBase):
             operation.describe(), "Rename model PonyDistributed to HorseDistributed"
         )
         self.assertEqual(
-            operation.migration_name_fragment, "rename_pony_horsedistributed"
+            operation.migration_name_fragment, "rename_ponydistributed_horsedistributed"
         )
         # Test initial state and database
         self.assertIn(("test_rnmo", "ponydistributed"), project_state.models)

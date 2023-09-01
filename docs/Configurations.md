@@ -45,6 +45,7 @@ Because [source code of DBAPI Connection](https://github.com/mymarilyn/clickhous
 
 Valid `TEST` keys:
 
+- `managed`: whether create(`True`) test database or not(`False`), default `True`.
 - `cluster`: create test database [on this cluster](https://clickhouse.com/docs/en/sql-reference/statements/create/database#on-cluster).
 - `engine`: use this [database engine](https://clickhouse.com/docs/en/sql-reference/statements/create/database#engine).
 - `fake_transaction` make clickhouse pretending to be transactional.

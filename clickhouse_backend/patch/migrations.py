@@ -39,6 +39,7 @@ def patch_migration_recorder():
                                 settings.CLICKHOUSE_MIGRATION_ON_CLUSTER,
                                 models.currentDatabase(),
                                 "django_migrations_local",
+                                models.Rand(),
                             )
                             cluster = settings.CLICKHOUSE_MIGRATION_ON_CLUSTER
 
@@ -101,6 +102,7 @@ def patch_migration_recorder():
                             engine = models.ReplicatedMergeTree(
                                 "/clickhouse/tables/{shard}/{database}/{table}",
                                 "{replica}",
+                                order_by="id",
                             )
                             cluster = settings.CLICKHOUSE_MIGRATION_ON_CLUSTER
 

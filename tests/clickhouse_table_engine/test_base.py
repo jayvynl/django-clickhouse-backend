@@ -5,7 +5,8 @@ from contextlib import contextmanager
 from importlib import import_module
 
 from django.apps import apps
-from django.db import connection, connections, migrations, models
+from django.db import connection, connections, migrations
+from django.db import models
 from django.db import models as django_models
 from django.db.migrations.migration import Migration
 from django.db.migrations.recorder import MigrationRecorder
@@ -216,7 +217,10 @@ class OperationTestBase(MigrationTestBase):
             with connection.constraint_checks_disabled():
                 with connection.cursor() as cursor:
                     for table_name in table_names:
-                        cursor.execute("SELECT COUNT(*) > 1 FROM cluster('cluster', system.tables) where name=%s", [])
+                        cursor.execute(
+                            "SELECT COUNT(*) > 1 FROM cluster('cluster', system.tables) where name=%s",
+                            [table_name],
+                        )
                         row = cursor.fetchone()
                         is_on_cluster = row and row[0]
                         if is_on_cluster:
@@ -287,7 +291,7 @@ class OperationTestBase(MigrationTestBase):
                 ],
                 options={
                     "indexes": meta_indexes,
-                    "engine": models.ReplicatedMergeTree(order_by='id'),
+                    "engine": models.ReplicatedMergeTree(order_by="id"),
                     "cluster": "cluster",
                 },
             ),
@@ -357,7 +361,7 @@ class OperationTestBase(MigrationTestBase):
                         ),
                     ],
                     options={
-                        "engine": models.ReplicatedMergeTree(order_by='id'),
+                        "engine": models.ReplicatedMergeTree(order_by="id"),
                         "cluster": "cluster",
                     },
                 )

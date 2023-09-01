@@ -3,6 +3,7 @@ from django.db.models.sql import compiler
 
 from clickhouse_backend import compat
 from clickhouse_backend.idworker import id_worker
+from clickhouse_backend.models import engines
 
 if compat.dj_ge42:
     from django.core.exceptions import FullResultSet
@@ -117,7 +118,13 @@ class SQLDeleteCompiler(ClickhouseMixin, compiler.SQLDeleteCompiler):
         "table"."column" in WHERE clause.
         """
         table = self.quote_name_unless_alias(query.base_table)
-        delete = "ALTER TABLE %s DELETE" % table
+        engine = getattr(query.model._meta, "engine", None)
+        if isinstance(engine, engines.Distributed):
+            cluster = self.quote_name_unless_alias(engine.cluster)
+            local_table = self.quote_name_unless_alias(engine.table)
+            delete = f"ALTER TABLE {local_table} ON CLUSTER {cluster} DELETE"
+        else:
+            delete = f"ALTER TABLE {table} DELETE"
         where, params = self._compile_where(table)
         return f"{delete} WHERE {where}", tuple(params)
 
@@ -185,11 +192,16 @@ class SQLUpdateCompiler(ClickhouseMixin, compiler.SQLUpdateCompiler):
                 values.append("%s = NULL" % qn(name))
 
         # Replace "table"."field" to "field", clickhouse does not support that.
+        result = []
         table = qn(self.query.base_table)
-        result = [
-            "ALTER TABLE %s UPDATE" % table,
-            ", ".join(values).replace(table + ".", ""),
-        ]
+        engine = getattr(self.query.model._meta, "engine", None)
+        if isinstance(engine, engines.Distributed):
+            cluster = qn(engine.cluster)
+            local_table = qn(engine.table)
+            result.append(f"ALTER TABLE {local_table} ON CLUSTER {cluster} UPDATE")
+        else:
+            result.append(f"ALTER TABLE {table} UPDATE")
+        result.append(", ".join(values).replace(table + ".", ""))
         where, params = self._compile_where(table)
         result.append(f"WHERE {where}")
         params = (*update_params, *params)

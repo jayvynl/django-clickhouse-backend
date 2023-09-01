@@ -52,7 +52,7 @@ DATABASES = {
                 "insert_distributed_sync": 1,
             },
         },
-        "TEST": {"cluster": "cluster"},
+        "TEST": {"cluster": "cluster", "managed": False},
     },
     "s2r1": {
         "ENGINE": "clickhouse_backend.backend",
@@ -66,8 +66,9 @@ DATABASES = {
                 "insert_distributed_sync": 1,
             },
         },
-        "TEST": {"cluster": "cluster"},
+        "TEST": {"cluster": "cluster", "managed": False},
     },
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MIGRATE = False
+CLICKHOUSE_MIGRATION_ON_CLUSTER = "cluster"

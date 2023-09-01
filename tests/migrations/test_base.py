@@ -215,7 +215,10 @@ class OperationTestBase(MigrationTestBase):
             with connection.constraint_checks_disabled():
                 with connection.cursor() as cursor:
                     for table_name in table_names:
-                        cursor.execute("SELECT COUNT(*) > 1 FROM cluster('cluster', system.tables) where name=%s", [])
+                        cursor.execute(
+                            "SELECT COUNT(*) > 1 FROM cluster('cluster', system.tables) where name=%s",
+                            [],
+                        )
                         row = cursor.fetchone()
                         is_on_cluster = row and row[0]
                         if is_on_cluster:

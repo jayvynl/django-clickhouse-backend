@@ -1,6 +1,7 @@
 import sys
 
 from clickhouse_driver.errors import ErrorCodes
+from django.conf import settings
 from django.db.backends.base.creation import BaseDatabaseCreation
 from django.db.backends.utils import strip_quotes
 
@@ -38,8 +39,15 @@ class DatabaseCreation(BaseDatabaseCreation):
     def create_test_db(
         self, verbosity=1, autoclobber=False, serialize=True, keepdb=False
     ):
-        super().create_test_db(verbosity, autoclobber, serialize, keepdb)
         test_settings = self.connection.settings_dict["TEST"]
+        if test_settings.get("managed", True):
+            super().create_test_db(verbosity, autoclobber, serialize, keepdb)
+        else:
+            test_database_name = self._get_test_db_name()
+            self.connection.close()
+            settings.DATABASES[self.connection.alias]["NAME"] = test_database_name
+            self.connection.settings_dict["NAME"] = test_database_name
+            self.connection.ensure_connection()
         if "fake_transaction" in test_settings:
             self.connection.fake_transaction = test_settings["fake_transaction"]
 
@@ -115,6 +123,9 @@ class DatabaseCreation(BaseDatabaseCreation):
                 raise
 
     def _destroy_test_db(self, test_database_name, verbosity):
+        test_settings = self.connection.settings_dict["TEST"]
+        if not test_settings.get("managed", True):
+            return
         sql = "DROP DATABASE %s" % self.connection.ops.quote_name(test_database_name)
         on_cluster = self._get_on_cluster()
         if on_cluster:
