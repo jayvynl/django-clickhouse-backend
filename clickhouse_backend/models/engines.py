@@ -1,6 +1,6 @@
 from itertools import zip_longest
 
-from django.db.models.expressions import Func, Value
+from django.db.models import Func, Value
 from django.utils.itercompat import is_iterable
 
 __all__ = [

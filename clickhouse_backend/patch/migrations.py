@@ -1,19 +1,19 @@
 from django.apps.registry import Apps
-from django.conf import settings
 from django.db import DatabaseError
 from django.db import models as django_models
+from django.db.migrations import Migration
 from django.db.migrations.exceptions import MigrationSchemaMissing
 from django.db.migrations.recorder import MigrationRecorder
-from django.utils.functional import cached_property
 from django.utils.timezone import now
 
 from clickhouse_backend import models
 
-__all__ = ["patch_migrations", "patch_migration_recorder"]
+__all__ = ["patch_migrations", "patch_migration_recorder", "patch_migration"]
 
 
 def patch_migrations():
     patch_migration_recorder()
+    patch_migration()
 
 
 def patch_migration_recorder():
@@ -24,9 +24,10 @@ def patch_migration_recorder():
         """
         if self._migration_class is None:
             if self.connection.vendor == "clickhouse":
-                if getattr(settings, "CLICKHOUSE_MIGRATION_ON_CLUSTER", None):
+                if self.connection.settings_dict.get("migration_on_cluster"):
 
                     class Migration(models.ClickhouseModel):
+                        host = models.StringField(max_length=255)
                         app = models.StringField(max_length=255)
                         name = models.StringField(max_length=255)
                         applied = models.DateTime64Field(default=now)
@@ -35,13 +36,10 @@ def patch_migration_recorder():
                             apps = Apps()
                             app_label = "migrations"
                             db_table = "django_migrations"
-                            engine = models.Distributed(
-                                settings.CLICKHOUSE_MIGRATION_ON_CLUSTER,
-                                models.currentDatabase(),
-                                "django_migrations_local",
-                                models.Rand(),
-                            )
-                            cluster = settings.CLICKHOUSE_MIGRATION_ON_CLUSTER
+                            engine = models.MergeTree(order_by=("app", "name"))
+                            cluster = self.connection.settings_dict[
+                                "migration_on_cluster"
+                            ]
 
                         def __str__(self):
                             return "Migration %s for %s" % (self.name, self.app)
@@ -57,7 +55,7 @@ def patch_migration_recorder():
                             apps = Apps()
                             app_label = "migrations"
                             db_table = "django_migrations"
-                            engine = models.MergeTree(order_by=("id",))
+                            engine = models.MergeTree(order_by=("app", "name"))
 
                         def __str__(self):
                             return "Migration %s for %s" % (self.name, self.app)
@@ -80,37 +78,46 @@ def patch_migration_recorder():
             self._migration_class = Migration
         return self._migration_class
 
+    def MigrationDistributed(self):
+        if not hasattr(self, "_migration_distributed_class"):
+            if (
+                self.connection.vendor == "clickhouse"
+                and self.connection.settings_dict.get("migration_on_cluster")
+            ):
+
+                class MigrationDistributed(models.ClickhouseModel):
+                    host = models.StringField(max_length=255)
+                    app = models.StringField(max_length=255)
+                    name = models.StringField(max_length=255)
+                    applied = models.DateTime64Field(default=now)
+
+                    class Meta:
+                        apps = Apps()
+                        app_label = "migrations"
+                        db_table = "django_migrations_distributed"
+                        engine = models.Distributed(
+                            self.connection.settings_dict["migration_on_cluster"],
+                            models.currentDatabase(),
+                            "django_migrations",
+                        )
+                        cluster = self.connection.settings_dict["migration_on_cluster"]
+
+                    def __str__(self):
+                        return "Migration %s for %s" % (self.name, self.app)
+
+                self._migration_distributed_class = MigrationDistributed
+            else:
+                self._migration_distributed_class = None
+        return self._migration_distributed_class
+
     def ensure_schema(self):
         if self.has_table():
             return
         try:
             with self.connection.schema_editor() as editor:
-                if self.connection.vendor == "clickhouse" and getattr(
-                    settings, "CLICKHOUSE_MIGRATION_ON_CLUSTER", None
-                ):
-                    from clickhouse_backend import models
-
-                    class LocalMigration(models.ClickhouseModel):
-                        app = models.StringField(max_length=255)
-                        name = models.StringField(max_length=255)
-                        applied = models.DateTime64Field(default=now)
-
-                        class Meta:
-                            apps = Apps()
-                            app_label = "migrations"
-                            db_table = "django_migrations_local"
-                            engine = models.ReplicatedMergeTree(
-                                "/clickhouse/tables/{shard}/{database}/{table}",
-                                "{replica}",
-                                order_by="id",
-                            )
-                            cluster = settings.CLICKHOUSE_MIGRATION_ON_CLUSTER
-
-                        def __str__(self):
-                            return "Migration %s for %s" % (self.name, self.app)
-
-                    editor.create_model(LocalMigration)
                 editor.create_model(self.Migration)
+                if self.MigrationDistributed is not None:
+                    editor.create_model(self.MigrationDistributed)
         except DatabaseError as exc:
             raise MigrationSchemaMissing(
                 "Unable to create the django_migrations table (%s)" % exc
@@ -119,12 +126,8 @@ def patch_migration_recorder():
     def record_applied(self, app, name):
         """Record that a migration was applied."""
         self.ensure_schema()
-        if self.connection.vendor == "clickhouse" and getattr(
-            settings, "CLICKHOUSE_MIGRATION_ON_CLUSTER", None
-        ):
-            self.migration_qs.settings(insert_distributed_sync=1).create(
-                app=app, name=name
-            )
+        if self.MigrationDistributed is not None:
+            self.migration_qs.create(host=models.hostName(), app=app, name=name)
         else:
             self.migration_qs.create(app=app, name=name)
 
@@ -145,10 +148,13 @@ def patch_migration_recorder():
         else:
             self.migration_qs.all().delete()
 
-    cachedMigration = cached_property(Migration)
-    cachedMigration.__set_name__(MigrationRecorder, "Migration")
-    MigrationRecorder.Migration = cachedMigration
+    MigrationRecorder.Migration = property(Migration)
+    MigrationRecorder.MigrationDistributed = property(MigrationDistributed)
     MigrationRecorder.ensure_schema = ensure_schema
     MigrationRecorder.record_applied = record_applied
     MigrationRecorder.record_unapplied = record_unapplied
     MigrationRecorder.flush = flush
+
+
+def patch_migration():
+    Migration.apply

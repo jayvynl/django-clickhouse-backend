@@ -16,6 +16,7 @@ DATABASES = {
     "default": {
         "ENGINE": "clickhouse_backend.backend",
         "OPTIONS": {
+            "migration_on_cluster": "cluster",
             "connections_min": 1,
             "settings": {
                 "mutations_sync": 1,
@@ -38,12 +39,12 @@ DATABASES = {
                 "insert_distributed_sync": 1,
             },
         },
-        "TEST": {"cluster": "cluster"},
     },
     "s1r2": {
         "ENGINE": "clickhouse_backend.backend",
         "PORT": 9001,
         "OPTIONS": {
+            "migration_on_cluster": "cluster",
             "connections_min": 1,
             "settings": {
                 "mutations_sync": 1,
@@ -58,6 +59,7 @@ DATABASES = {
         "ENGINE": "clickhouse_backend.backend",
         "PORT": 9002,
         "OPTIONS": {
+            "migration_on_cluster": "cluster",
             "connections_min": 1,
             "settings": {
                 "mutations_sync": 1,
@@ -71,4 +73,3 @@ DATABASES = {
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MIGRATE = False
-CLICKHOUSE_MIGRATION_ON_CLUSTER = "cluster"
