@@ -2,7 +2,7 @@ from django.apps.registry import Apps
 from django.db import DatabaseError
 from django.db import models as django_models
 from django.db.migrations import Migration
-from django.db.migrations.exceptions import MigrationSchemaMissing
+from django.db.migrations.exceptions import IrreversibleError, MigrationSchemaMissing
 from django.db.migrations.operations.fields import FieldOperation
 from django.db.migrations.operations.models import (
     DeleteModel,
@@ -31,7 +31,7 @@ def patch_migration_recorder():
         """
         if self._migration_class is None:
             if self.connection.vendor == "clickhouse":
-                if self.connection.settings_dict.get("migration_on_cluster"):
+                if self.connection.migration_cluster:
 
                     class Migration(models.ClickhouseModel):
                         host = models.StringField(max_length=255)
@@ -49,9 +49,7 @@ def patch_migration_recorder():
                                 "{replica}",
                                 order_by=("app", "name"),
                             )
-                            cluster = self.connection.settings_dict[
-                                "migration_on_cluster"
-                            ]
+                            cluster = self.connection.migration_cluster
 
                         def __str__(self):
                             return "Migration %s for %s" % (self.name, self.app)
@@ -94,7 +92,7 @@ def patch_migration_recorder():
         if not hasattr(self, "_migration_distributed_class"):
             if (
                 self.connection.vendor == "clickhouse"
-                and self.connection.settings_dict.get("migration_on_cluster")
+                and self.connection.migration_cluster
             ):
 
                 class MigrationDistributed(models.ClickhouseModel):
@@ -109,11 +107,11 @@ def patch_migration_recorder():
                         app_label = "migrations"
                         db_table = "django_migrations_distributed"
                         engine = models.Distributed(
-                            self.connection.settings_dict["migration_on_cluster"],
+                            self.connection.migration_cluster,
                             models.currentDatabase(),
                             "django_migrations",
                         )
-                        cluster = self.connection.settings_dict["migration_on_cluster"]
+                        cluster = self.connection.migration_cluster
 
                     def __str__(self):
                         return "Migration %s for %s" % (self.name, self.app)
@@ -152,11 +150,9 @@ def patch_migration_recorder():
                 .filter(host=models.hostName(), app=app, name=name)
                 .exists()
             ):
-                self.Migration.objects.using(self.connection.alias).settings(
-                    mutations_sync=1
-                ).filter(host=models.hostName(), app=app, name=name).update(
-                    deleted=False
-                )
+                self.Migration.objects.using(self.connection.alias).filter(
+                    host=models.hostName(), app=app, name=name
+                ).settings(mutations_sync=1).update(deleted=False)
             else:
                 self.migration_qs.create(host=models.hostName(), app=app, name=name)
         else:
@@ -167,12 +163,12 @@ def patch_migration_recorder():
         self.ensure_schema()
         if self.connection.vendor == "clickhouse":
             if self.MigrationDistributed is not None:
-                self.migration_qs.settings(mutations_sync=1).filter(
-                    app=app, name=name
+                self.migration_qs.filter(app=app, name=name).settings(
+                    mutations_sync=1
                 ).update(deleted=True)
             else:
-                self.migration_qs.settings(mutations_sync=1).filter(
-                    app=app, name=name
+                self.migration_qs.filter(app=app, name=name).settings(
+                    mutations_sync=1
                 ).delete()
         else:
             self.migration_qs.filter(app=app, name=name).delete()
@@ -203,6 +199,12 @@ def patch_migration():
         Return the resulting project state for efficient reuse by following
         Migrations.
         """
+        applied_on_remote = False
+        if schema_editor.connection.migration_cluster:
+            recorder = MigrationRecorder(schema_editor.connection)
+            applied_on_remote = recorder.MigrationDistributed.objects.filter(
+                app=self.app_label, name=self.name, deleted=False
+            ).exists()
         for operation in self.operations:
             # If this operation cannot be represented as SQL, place a comment
             # there instead
@@ -221,7 +223,7 @@ def patch_migration():
             operation.state_forwards(self.app_label, project_state)
 
             # Run the operation
-            # ensure queries on cluster are only executed once.
+            # Ensure queries on cluster are only executed once.
             model_name = None
             skip_database_forwards = False
             if isinstance(operation, (IndexOperation, FieldOperation)):
@@ -233,17 +235,85 @@ def patch_migration():
                     model_state = old_state.models[self.app_label, model_name]
                 else:
                     model_state = project_state.models[self.app_label, model_name]
-                if model_state.options.get(
-                    "cluster"
-                ) and schema_editor.connection.settings_dict.get(
-                    "migration_on_cluster"
-                ):
-                    recorder = MigrationRecorder(schema_editor.connection)
-            operation.database_forwards(
-                self.app_label, schema_editor, old_state, project_state
-            )
+                if model_state.options.get("cluster") and applied_on_remote:
+                    skip_database_forwards = True
+            if not skip_database_forwards:
+                operation.database_forwards(
+                    self.app_label, schema_editor, old_state, project_state
+                )
             if collect_sql and collected_sql_before == len(schema_editor.collected_sql):
                 schema_editor.collected_sql.append("-- (no-op)")
         return project_state
 
-    Migration.apply
+    def unapply(self, project_state, schema_editor, collect_sql=False):
+        """
+        Take a project_state representing all migrations prior to this one
+        and a schema_editor for a live database and apply the migration
+        in a reverse order.
+
+        The backwards migration process consists of two phases:
+
+        1. The intermediate states from right before the first until right
+           after the last operation inside this migration are preserved.
+        2. The operations are applied in reverse order using the states
+           recorded in step 1.
+        """
+        unapplied_on_remote = False
+        if schema_editor.connection.migration_cluster:
+            recorder = MigrationRecorder(schema_editor.connection)
+            unapplied_on_remote = recorder.MigrationDistributed.objects.filter(
+                app=self.app_label, name=self.name, deleted=True
+            ).exists()
+        # Construct all the intermediate states we need for a reverse migration
+        to_run = []
+        new_state = project_state
+        # Phase 1
+        for operation in self.operations:
+            # If it's irreversible, error out
+            if not operation.reversible:
+                raise IrreversibleError(
+                    "Operation %s in %s is not reversible" % (operation, self)
+                )
+            # Preserve new state from previous run to not tamper the same state
+            # over all operations
+            new_state = new_state.clone()
+            old_state = new_state.clone()
+            operation.state_forwards(self.app_label, new_state)
+            to_run.insert(0, (operation, old_state, new_state))
+
+        # Phase 2
+        for operation, to_state, from_state in to_run:
+            if collect_sql:
+                schema_editor.collected_sql.append("--")
+                schema_editor.collected_sql.append("-- %s" % operation.describe())
+                schema_editor.collected_sql.append("--")
+                if not operation.reduces_to_sql:
+                    schema_editor.collected_sql.append(
+                        "-- THIS OPERATION CANNOT BE WRITTEN AS SQL"
+                    )
+                    continue
+                collected_sql_before = len(schema_editor.collected_sql)
+            # Ensure queries on cluster are only executed once.
+            model_name = None
+            skip_database_backwards = False
+            if isinstance(operation, (IndexOperation, FieldOperation)):
+                model_name = operation.model_name_lower
+            elif isinstance(operation, ModelOperation):
+                model_name = operation.name_lower
+            if model_name:
+                if isinstance(operation, (RenameModel, DeleteModel)):
+                    model_state = to_state.models[self.app_label, model_name]
+                else:
+                    model_state = from_state.models[self.app_label, model_name]
+                if model_state.options.get("cluster") and unapplied_on_remote:
+                    skip_database_backwards = True
+            if not skip_database_backwards:
+                operation.database_backwards(
+                    self.app_label, schema_editor, from_state, to_state
+                )
+            if collect_sql and collected_sql_before == len(schema_editor.collected_sql):
+                schema_editor.collected_sql.append("-- (no-op)")
+        return project_state
+
+    Migration.apply = apply
+    Migration.unapply = unapply

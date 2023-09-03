@@ -39,15 +39,8 @@ class DatabaseCreation(BaseDatabaseCreation):
     def create_test_db(
         self, verbosity=1, autoclobber=False, serialize=True, keepdb=False
     ):
+        super().create_test_db(verbosity, autoclobber, serialize, keepdb)
         test_settings = self.connection.settings_dict["TEST"]
-        if test_settings.get("managed", True):
-            super().create_test_db(verbosity, autoclobber, serialize, keepdb)
-        else:
-            test_database_name = self._get_test_db_name()
-            self.connection.close()
-            settings.DATABASES[self.connection.alias]["NAME"] = test_database_name
-            self.connection.settings_dict["NAME"] = test_database_name
-            self.connection.ensure_connection()
         if "fake_transaction" in test_settings:
             self.connection.fake_transaction = test_settings["fake_transaction"]
 
@@ -55,6 +48,8 @@ class DatabaseCreation(BaseDatabaseCreation):
         """
         Internal implementation - create the test db tables.
         """
+        if not self.connection.settings_dict["TEST"].get("managed", True):
+            return
         test_database_name = self._get_test_db_name()
         test_db_params = {
             "dbname": self.connection.ops.quote_name(test_database_name),

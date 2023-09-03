@@ -9,12 +9,6 @@ from clickhouse_backend.utils import get_timezone
 
 
 class DatabaseOperations(BaseDatabaseOperations):
-    # Use this class attribute control whether using fake transaction.
-    # Fake transaction is used in test, prevent other database such as postgresql
-    # from flush at the end of each testcase. Only use this feature when you are
-    # aware of the effect in TransactionTestCase.
-    fake_transaction = False
-
     compiler_module = "clickhouse_backend.models.sql.compiler"
     cast_char_field_without_max_length = "String"
     integer_field_ranges = {

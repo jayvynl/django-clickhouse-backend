@@ -16,7 +16,7 @@ DATABASES = {
     "default": {
         "ENGINE": "clickhouse_backend.backend",
         "OPTIONS": {
-            "migration_on_cluster": "cluster",
+            "migration_cluster": "cluster",
             "connections_min": 1,
             "settings": {
                 "mutations_sync": 1,
@@ -44,7 +44,7 @@ DATABASES = {
         "ENGINE": "clickhouse_backend.backend",
         "PORT": 9001,
         "OPTIONS": {
-            "migration_on_cluster": "cluster",
+            "migration_cluster": "cluster",
             "connections_min": 1,
             "settings": {
                 "mutations_sync": 1,
@@ -59,7 +59,7 @@ DATABASES = {
         "ENGINE": "clickhouse_backend.backend",
         "PORT": 9002,
         "OPTIONS": {
-            "migration_on_cluster": "cluster",
+            "migration_cluster": "cluster",
             "connections_min": 1,
             "settings": {
                 "mutations_sync": 1,
