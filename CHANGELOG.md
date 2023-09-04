@@ -2,6 +2,8 @@
 - [Black](https://github.com/psf/black) code style.
 - Support [MergeTree settings](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree#settings) in creating table.
 - Support [distributed DDL](https://clickhouse.com/docs/en/sql-reference/distributed-ddl) and [distributed table](https://clickhouse.com/docs/en/engines/table-engines/special/distributed).
+- Support create migration table and run migrating on cluster.
+- Fix bug: exception is raised when insert data with expression values.
 
 ### 1.1.0
 - Change `AutoFiled` and `SmallAutoField` to clickhouse `Int64`, so that id worker can generate value for them.

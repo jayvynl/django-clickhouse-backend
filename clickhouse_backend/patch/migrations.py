@@ -121,10 +121,17 @@ def patch_migration_recorder():
                 self._migration_distributed_class = None
         return self._migration_distributed_class
 
+    def hostName(self):
+        if not hasattr(self, "_hostName"):
+            with self.connection.cursor() as cursor:
+                cursor.execute("SELECT hostName()")
+                (self._hostName,) = cursor.fetchone()
+        return self._hostName
+
     def migration_qs(self):
         if self.MigrationDistributed is not None:
             return self.Migration.objects.using(self.connection.alias).filter(
-                host=models.hostName(), deleted=False
+                host=self.hostName(), deleted=False
             )
         return self.Migration.objects.using(self.connection.alias)
 
@@ -147,14 +154,14 @@ def patch_migration_recorder():
         if self.MigrationDistributed is not None:
             if (
                 self.Migration.objects.using(self.connection.alias)
-                .filter(host=models.hostName(), app=app, name=name)
+                .filter(host=self.hostName(), app=app, name=name)
                 .exists()
             ):
                 self.Migration.objects.using(self.connection.alias).filter(
-                    host=models.hostName(), app=app, name=name
+                    host=self.hostName(), app=app, name=name
                 ).settings(mutations_sync=1).update(deleted=False)
             else:
-                self.migration_qs.create(host=models.hostName(), app=app, name=name)
+                self.migration_qs.create(host=self.hostName(), app=app, name=name)
         else:
             self.migration_qs.create(app=app, name=name)
 
@@ -187,6 +194,7 @@ def patch_migration_recorder():
     MigrationRecorder.record_applied = record_applied
     MigrationRecorder.record_unapplied = record_unapplied
     MigrationRecorder.flush = flush
+    MigrationRecorder.hostName = hostName
 
 
 def patch_migration():

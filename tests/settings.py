@@ -39,6 +39,7 @@ DATABASES = {
                 "insert_distributed_sync": 1,
             },
         },
+        "TEST": {"cluster": "cluster"},
     },
     "s1r2": {
         "ENGINE": "clickhouse_backend.backend",

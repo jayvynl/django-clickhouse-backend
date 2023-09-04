@@ -1,3 +1,5 @@
+import itertools
+
 from django.db.models.fields import AutoFieldMixin
 from django.db.models.sql import compiler
 
@@ -7,6 +9,9 @@ from clickhouse_backend.models import engines
 
 if compat.dj_ge42:
     from django.core.exceptions import FullResultSet
+
+# Max rows you can insert using expression as value.
+MAX_ROWS_INSERT_USE_EXPRESSION = 1000
 
 
 class ClickhouseMixin:
@@ -89,7 +94,6 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
             for obj in self.query.objs
         ]
 
-        placeholder_rows, param_rows = self.assemble_as_sql(fields, value_rows)
         # https://clickhouse.com/docs/en/sql-reference/statements/insert-into
         # If you want to specify SETTINGS for INSERT query then you have to do it before FORMAT clause
         # since everything after FORMAT format_name is treated as data.
@@ -100,8 +104,22 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
             qv = self.connection.schema_editor().quote_value
             result.append((setting_sql % map(qv, setting_params)) % ())
 
-        result.append(self.connection.ops.bulk_insert_sql(fields, placeholder_rows))
-        return [(" ".join(result), param_rows)]
+        # If value rows count exceed limitation, raw data is asserted.
+        # Refer https://clickhouse-driver.readthedocs.io/en/latest/quickstart.html#inserting-data
+        if len(value_rows) >= MAX_ROWS_INSERT_USE_EXPRESSION:
+            result.append("VALUES")
+            params = value_rows
+        else:
+            placeholder_rows, param_rows = self.assemble_as_sql(fields, value_rows)
+            if any(i != "%s" for i in itertools.chain.from_iterable(placeholder_rows)):
+                placeholder_rows_sql = (", ".join(row) for row in placeholder_rows)
+                values_sql = ", ".join("(%s)" % sql for sql in placeholder_rows_sql)
+                result.append("VALUES " + values_sql)
+                params = tuple(itertools.chain.from_iterable(param_rows))
+            else:
+                result.append("VALUES")
+                params = param_rows
+        return [(" ".join(result), params)]
 
     def execute_sql(self, returning_fields=None):
         as_sql = self.as_sql()
