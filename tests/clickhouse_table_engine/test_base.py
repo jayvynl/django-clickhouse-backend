@@ -40,21 +40,39 @@ class MigrationTestBase(TransactionTestCase):
         with connections[using].cursor() as cursor:
             self.assertIn(table, connections[using].introspection.table_names(cursor))
 
+    def assertTableExistsCluster(self, table, dbs=("default", "s1r2", "s2r1")):
+        for db in dbs:
+            self.assertTableExists(table, db)
+
     def assertTableNotExists(self, table, using="default"):
         with connections[using].cursor() as cursor:
             self.assertNotIn(
                 table, connections[using].introspection.table_names(cursor)
             )
 
+    def assertTableNotExistsCluster(self, table, dbs=("default", "s1r2", "s2r1")):
+        for db in dbs:
+            self.assertTableNotExists(table, db)
+
     def assertColumnExists(self, table, column, using="default"):
         self.assertIn(
             column, [c.name for c in self.get_table_description(table, using=using)]
         )
 
+    def assertColumnExistsCluster(self, table, column, dbs=("default", "s1r2", "s2r1")):
+        for db in dbs:
+            self.assertColumnExists(table, column, db)
+
     def assertColumnNotExists(self, table, column, using="default"):
         self.assertNotIn(
             column, [c.name for c in self.get_table_description(table, using=using)]
         )
+
+    def assertColumnNotExistsCluster(
+        self, table, column, dbs=("default", "s1r2", "s2r1")
+    ):
+        for db in dbs:
+            self.assertColumnNotExists(table, column, db)
 
     def _get_column_allows_null(self, table, column, using):
         return [
@@ -66,8 +84,18 @@ class MigrationTestBase(TransactionTestCase):
     def assertColumnNull(self, table, column, using="default"):
         self.assertTrue(self._get_column_allows_null(table, column, using))
 
+    def assertColumnNullCluster(self, table, column, dbs=("default", "s1r2", "s2r1")):
+        for db in dbs:
+            self.assertColumnNull(table, column, db)
+
     def assertColumnNotNull(self, table, column, using="default"):
         self.assertFalse(self._get_column_allows_null(table, column, using))
+
+    def assertColumnNotNullCluster(
+        self, table, column, dbs=("default", "s1r2", "s2r1")
+    ):
+        for db in dbs:
+            self.assertColumnNotNull(table, column, db)
 
     def _get_column_collation(self, table, column, using):
         return next(
@@ -108,12 +136,24 @@ class MigrationTestBase(TransactionTestCase):
                 connection.introspection.get_constraints(cursor, table),
             )
 
+    def assertIndexNameExistsCluster(
+        self, table, index, dbs=("default", "s1r2", "s2r1")
+    ):
+        for db in dbs:
+            self.assertIndexNameExists(table, index, db)
+
     def assertIndexNameNotExists(self, table, index, using="default"):
         with connections[using].cursor() as cursor:
             self.assertNotIn(
                 index,
                 connection.introspection.get_constraints(cursor, table),
             )
+
+    def assertIndexNameNotExistsCluster(
+        self, table, index, dbs=("default", "s1r2", "s2r1")
+    ):
+        for db in dbs:
+            self.assertIndexNameNotExists(table, index, db)
 
     def assertConstraintExists(self, table, name, value=True, using="default"):
         with connections[using].cursor() as cursor:
@@ -303,7 +343,6 @@ class OperationTestBase(MigrationTestBase):
                     ("weight", models.Float64Field()),
                 ],
                 options={
-                    "indexes": meta_indexes,
                     "engine": models.Distributed(
                         "cluster", models.currentDatabase(), f"{app_label}_pony"
                     ),
@@ -312,37 +351,36 @@ class OperationTestBase(MigrationTestBase):
             ),
         ]
 
-        for name in ["pony", "ponydistributed"]:
-            if index:
-                operations.append(
-                    migrations.AddIndex(
-                        name,
-                        models.Index(
-                            fields=["pink"],
-                            name=f"{name}_pink_idx",
-                            type=models.Set(100),
-                            granularity=10,
-                        ),
-                    )
+        if index:
+            operations.append(
+                migrations.AddIndex(
+                    "pony",
+                    models.Index(
+                        fields=["pink"],
+                        name=f"pony_pink_idx",
+                        type=models.Set(100),
+                        granularity=10,
+                    ),
                 )
-            if multicol_index:
-                operations.append(
-                    migrations.AddIndex(
-                        name,
-                        models.Index(
-                            fields=["pink", "weight"],
-                            name=f"{name}_test_idx",
-                            type=models.Set(100),
-                            granularity=10,
-                        ),
-                    )
+            )
+        if multicol_index:
+            operations.append(
+                migrations.AddIndex(
+                    "pony",
+                    models.Index(
+                        fields=["pink", "weight"],
+                        name=f"pony_test_idx",
+                        type=models.Set(100),
+                        granularity=10,
+                    ),
                 )
-            if indexes:
-                for index in indexes:
-                    operations.append(migrations.AddIndex(name, index))
-            if constraints:
-                for constraint in constraints:
-                    operations.append(migrations.AddConstraint(name, constraint))
+            )
+        if indexes:
+            for index in indexes:
+                operations.append(migrations.AddIndex("pony", index))
+        if constraints:
+            for constraint in constraints:
+                operations.append(migrations.AddConstraint("pony", constraint))
         if related_model:
             operations.append(
                 migrations.CreateModel(
@@ -394,11 +432,3 @@ class OperationTestBase(MigrationTestBase):
             )
 
         return self.apply_operations(app_label, ProjectState(), operations)
-
-    def assertTableNotExistsCluster(self, table, dbs=("default", "s1r2", "s2r1")):
-        for db in dbs:
-            self.assertTableNotExists(table, db)
-
-    def assertTableExistsCluster(self, table, dbs=("default", "s1r2", "s2r1")):
-        for db in dbs:
-            self.assertTableExists(table, db)

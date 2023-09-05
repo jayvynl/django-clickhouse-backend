@@ -46,7 +46,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     )
     sql_alter_column = "ALTER TABLE %(table)s %(on_cluster)s %(changes)s"
     sql_alter_column_type = "MODIFY COLUMN %(column)s %(type)s"
-    sql_alter_column_null = "MODIFY COLUMN %(column)s Nullable(%(type)s)"
+    sql_alter_column_null = sql_alter_column_type
     sql_alter_column_not_null = sql_alter_column_type
     sql_alter_column_default = "MODIFY COLUMN %(column)s DEFAULT %(default)s"
     sql_alter_column_no_default = "MODIFY COLUMN %(column)s REMOVE DEFAULT"
@@ -305,16 +305,19 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 "ALTER TABLE %(table)s %(on_cluster)s UPDATE %(column)s = %(default)s "
                 "WHERE 1 SETTINGS mutations_sync=1"
             )
-            self.execute(
-                sql_update_default
-                % {
-                    "table": self.quote_name(model._meta.db_table),
-                    "column": self.quote_name(field.column),
-                    "default": "%s",
-                    "on_cluster": self._get_on_cluster(model),
-                },
-                [self.effective_default(field)],
-            )
+            from clickhouse_backend import models
+
+            if not isinstance(self._get_engine(model), models.Distributed):
+                self.execute(
+                    sql_update_default
+                    % {
+                        "table": self.quote_name(model._meta.db_table),
+                        "column": self.quote_name(field.column),
+                        "default": "%s",
+                        "on_cluster": self._get_on_cluster(model),
+                    },
+                    [self.effective_default(field)],
+                )
 
     def remove_field(self, model, field):
         """
@@ -438,6 +441,26 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         else:
             return super()._alter_column_type_sql(model, old_field, new_field, new_type)
 
+    def _alter_column_null_sql(self, model, old_field, new_field):
+        """
+        Hook to specialize column null alteration.
+
+        Return a (sql, params) fragment to set a column to null or non-null
+        as required by new_field, or None if no changes are required.
+        """
+        # Compatible for django fields.
+        new_type = new_field.db_parameters(connection=self.connection)["type"]
+        if new_field.null and "Nullable" not in new_type:
+            new_type = f"Nullable({new_type})"
+        return (
+            self.sql_alter_column_type
+            % {
+                "column": self.quote_name(new_field.column),
+                "type": new_type,
+            },
+            [],
+        )
+
     def _alter_field(
         self,
         model,
@@ -535,17 +558,20 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                     params,
                 )
             if four_way_default_alteration:
-                # Update existing rows with default value
-                self.execute(
-                    self.sql_update_with_default
-                    % {
-                        "table": self.quote_name(model._meta.db_table),
-                        "column": self.quote_name(new_field.column),
-                        "default": "%s",
-                        "on_cluster": self._get_on_cluster(model),
-                    },
-                    [new_default],
-                )
+                from clickhouse_backend.models import Distributed
+
+                if not isinstance(self._get_engine(model), Distributed):
+                    # Update existing rows with default value
+                    self.execute(
+                        self.sql_update_with_default
+                        % {
+                            "table": self.quote_name(model._meta.db_table),
+                            "column": self.quote_name(new_field.column),
+                            "default": "%s",
+                            "on_cluster": self._get_on_cluster(model),
+                        },
+                        [new_default],
+                    )
                 # Since we didn't run a NOT NULL change before we need to do it
                 # now
                 for sql, params in null_actions:
@@ -725,3 +751,25 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             name=self.quote_name(name),
             on_cluster=self._get_on_cluster(model),
         )
+
+    def add_constraint(self, model, constraint):
+        """Add a constraint to a model."""
+        from clickhouse_backend import models
+
+        if isinstance(self._get_engine(model), models.Distributed):
+            raise TypeError("Distributed table engine does not support constraints.")
+        sql = constraint.create_sql(model, self)
+        if sql:
+            # Constraint.create_sql returns interpolated SQL which makes
+            # params=None a necessity to avoid escaping attempts on execution.
+            self.execute(sql, params=None)
+
+    def remove_constraint(self, model, constraint):
+        """Remove a constraint from a model."""
+        from clickhouse_backend import models
+
+        if isinstance(self._get_engine(model), models.Distributed):
+            raise TypeError("Distributed table engine does not support constraints.")
+        sql = constraint.remove_sql(model, self)
+        if sql:
+            self.execute(sql)

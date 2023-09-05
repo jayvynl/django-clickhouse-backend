@@ -2,6 +2,8 @@ from django.db.models.expressions import ExpressionList, F, Func
 from django.db.models.indexes import IndexExpression, names_digest, split_identifier
 from django.db.models.sql import Query
 
+from clickhouse_backend.models.engines import BaseMergeTree
+
 __all__ = [
     "Index",
     "MinMax",
@@ -67,6 +69,11 @@ class Index:
         return self.create_sql(model, schema_editor, inline=True)
 
     def create_sql(self, model, schema_editor, **kwargs):
+        engine = getattr(model._meta, "engine", None)
+        if engine and not isinstance(engine, BaseMergeTree):
+            raise TypeError(
+                "Only MergeTree family support indexes. Refer https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree#table_engine-mergetree-data_skipping-indexes"
+            )
         if self.expressions:
             index_expressions = []
             for expression in self.expressions:
@@ -97,6 +104,11 @@ class Index:
         )
 
     def remove_sql(self, model, schema_editor, **kwargs):
+        engine = getattr(model._meta, "engine", None)
+        if engine and not isinstance(engine, BaseMergeTree):
+            raise TypeError(
+                "Only MergeTree family support indexes. Refer https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree#table_engine-mergetree-data_skipping-indexes"
+            )
         return schema_editor._delete_index_sql(model, self.name, **kwargs)
 
     def deconstruct(self):
