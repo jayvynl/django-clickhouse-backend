@@ -62,6 +62,27 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
 
 
 class SQLInsertCompiler(compiler.SQLInsertCompiler):
+    def field_as_sql(self, field, val):
+        """
+        Take a field and a value intended to be saved on that field, and
+        return placeholder SQL and accompanying params. Check for raw values,
+        expressions, and fields with get_placeholder() defined in that order.
+
+        When field is None, consider the value raw and use it as the
+        placeholder, with no corresponding parameters returned.
+        """
+        if field is None:
+            # A field value of None means the value is raw.
+            sql, params = val, []
+        elif hasattr(val, "as_sql"):
+            # This is an expression, let's compile it.
+            sql, params = self.compile(val)
+        else:
+            # Return the common case for the placeholder
+            sql, params = "%s", [val]
+
+        return sql, params
+
     def as_sql(self):
         # We don't need quote_name_unless_alias() here, since these are all
         # going to be column names (so we can avoid the extra overhead).

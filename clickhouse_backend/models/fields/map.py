@@ -169,9 +169,6 @@ class MapField(FieldMixin, CheckFieldDefaultMixin, Field):
             self.value_field.cast_db_type(connection),
         )
 
-    def get_placeholder(self, value, compiler, connection):
-        return "%s::{}".format(self.db_type(connection))
-
     def get_db_prep_value(self, value, connection, prepared=False):
         if isinstance(value, collections.abc.Mapping):
             return {

@@ -213,25 +213,14 @@ class OperationTestBase(MigrationTestBase):
         )
         with connection.schema_editor() as editor:
             with connection.constraint_checks_disabled():
-                with connection.cursor() as cursor:
-                    for table_name in table_names:
-                        cursor.execute(
-                            "SELECT COUNT(*) > 1 FROM cluster('cluster', system.tables) where name=%s",
-                            [],
-                        )
-                        row = cursor.fetchone()
-                        is_on_cluster = row and row[0]
-                        if is_on_cluster:
-                            on_cluster = "ON CLUSTER cluster SYNC"
-                        else:
-                            on_cluster = ""
-                        editor.execute(
-                            editor.sql_delete_table
-                            % {
-                                "table": editor.quote_name(table_name),
-                                "on_cluster": on_cluster,
-                            }
-                        )
+                for table_name in table_names:
+                    editor.execute(
+                        editor.sql_delete_table
+                        % {
+                            "table": editor.quote_name(table_name),
+                            "on_cluster": "",
+                        }
+                    )
 
     def apply_operations(self, app_label, project_state, operations, atomic=True):
         migration = Migration("name", app_label)

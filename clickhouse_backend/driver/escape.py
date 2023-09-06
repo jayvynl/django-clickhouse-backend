@@ -1,6 +1,7 @@
 from datetime import date, datetime, time, timezone
 from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
+from itertools import chain
 from typing import Dict, Sequence, Union
 from uuid import UUID
 
@@ -58,13 +59,19 @@ def escape_param(item, context, for_server=False):
         return "'%s'" % "".join(escape.escape_chars_map.get(c, c) for c in item)
 
     elif isinstance(item, list):
-        return "[%s]" % ", ".join(
+        return "[%s]" % ",".join(
             str(escape_param(x, context, for_server=for_server)) for x in item
         )
 
     elif isinstance(item, tuple):
-        return "tuple(%s)" % ", ".join(
+        return "tuple(%s)" % ",".join(
             str(escape_param(x, context, for_server=for_server)) for x in item
+        )
+
+    elif isinstance(item, dict):
+        return "map(%s)" % ",".join(
+            str(escape_param(x, context, for_server=for_server))
+            for x in chain.from_iterable(item.items())
         )
 
     elif isinstance(item, Enum):

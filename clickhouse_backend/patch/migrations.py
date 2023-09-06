@@ -31,7 +31,7 @@ def patch_migration_recorder():
         """
         if self._migration_class is None:
             if self.connection.vendor == "clickhouse":
-                if self.connection.migration_cluster:
+                if getattr(self.connection, "migration_cluster", None):
 
                     class Migration(models.ClickhouseModel):
                         host = models.StringField(max_length=255)
@@ -90,9 +90,8 @@ def patch_migration_recorder():
 
     def MigrationDistributed(self):
         if not hasattr(self, "_migration_distributed_class"):
-            if (
-                self.connection.vendor == "clickhouse"
-                and self.connection.migration_cluster
+            if self.connection.vendor == "clickhouse" and getattr(
+                self.connection, "migration_cluster", None
             ):
 
                 class MigrationDistributed(models.ClickhouseModel):
@@ -208,7 +207,7 @@ def patch_migration():
         Migrations.
         """
         applied_on_remote = False
-        if schema_editor.connection.migration_cluster:
+        if getattr(schema_editor.connection, "migration_cluster", None):
             recorder = MigrationRecorder(schema_editor.connection)
             applied_on_remote = recorder.MigrationDistributed.objects.filter(
                 app=self.app_label, name=self.name, deleted=False
@@ -267,7 +266,7 @@ def patch_migration():
            recorded in step 1.
         """
         unapplied_on_remote = False
-        if schema_editor.connection.migration_cluster:
+        if getattr(schema_editor.connection, "migration_cluster", None):
             recorder = MigrationRecorder(schema_editor.connection)
             unapplied_on_remote = recorder.MigrationDistributed.objects.filter(
                 app=self.app_label, name=self.name, deleted=True
