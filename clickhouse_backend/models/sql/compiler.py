@@ -1,11 +1,17 @@
+import itertools
+
 from django.db.models.fields import AutoFieldMixin
 from django.db.models.sql import compiler
 
 from clickhouse_backend import compat
 from clickhouse_backend.idworker import id_worker
+from clickhouse_backend.models import engines
 
 if compat.dj_ge42:
     from django.core.exceptions import FullResultSet
+
+# Max rows you can insert using expression as value.
+MAX_ROWS_INSERT_USE_EXPRESSION = 1000
 
 
 class ClickhouseMixin:
@@ -56,6 +62,27 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
 
 
 class SQLInsertCompiler(compiler.SQLInsertCompiler):
+    def field_as_sql(self, field, val):
+        """
+        Take a field and a value intended to be saved on that field, and
+        return placeholder SQL and accompanying params. Check for raw values,
+        expressions, and fields with get_placeholder() defined in that order.
+
+        When field is None, consider the value raw and use it as the
+        placeholder, with no corresponding parameters returned.
+        """
+        if field is None:
+            # A field value of None means the value is raw.
+            sql, params = val, []
+        elif hasattr(val, "as_sql"):
+            # This is an expression, let's compile it.
+            sql, params = self.compile(val)
+        else:
+            # Return the common case for the placeholder
+            sql, params = "%s", [val]
+
+        return sql, params
+
     def as_sql(self):
         # We don't need quote_name_unless_alias() here, since these are all
         # going to be column names (so we can avoid the extra overhead).
@@ -88,7 +115,6 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
             for obj in self.query.objs
         ]
 
-        placeholder_rows, param_rows = self.assemble_as_sql(fields, value_rows)
         # https://clickhouse.com/docs/en/sql-reference/statements/insert-into
         # If you want to specify SETTINGS for INSERT query then you have to do it before FORMAT clause
         # since everything after FORMAT format_name is treated as data.
@@ -99,8 +125,22 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
             qv = self.connection.schema_editor().quote_value
             result.append((setting_sql % map(qv, setting_params)) % ())
 
-        result.append(self.connection.ops.bulk_insert_sql(fields, placeholder_rows))
-        return [(" ".join(result), param_rows)]
+        # If value rows count exceed limitation, raw data is asserted.
+        # Refer https://clickhouse-driver.readthedocs.io/en/latest/quickstart.html#inserting-data
+        if len(value_rows) >= MAX_ROWS_INSERT_USE_EXPRESSION:
+            result.append("VALUES")
+            params = value_rows
+        else:
+            placeholder_rows, param_rows = self.assemble_as_sql(fields, value_rows)
+            if any(i != "%s" for i in itertools.chain.from_iterable(placeholder_rows)):
+                placeholder_rows_sql = (", ".join(row) for row in placeholder_rows)
+                values_sql = ", ".join("(%s)" % sql for sql in placeholder_rows_sql)
+                result.append("VALUES " + values_sql)
+                params = tuple(itertools.chain.from_iterable(param_rows))
+            else:
+                result.append("VALUES")
+                params = param_rows
+        return [(" ".join(result), params)]
 
     def execute_sql(self, returning_fields=None):
         as_sql = self.as_sql()
@@ -117,7 +157,13 @@ class SQLDeleteCompiler(ClickhouseMixin, compiler.SQLDeleteCompiler):
         "table"."column" in WHERE clause.
         """
         table = self.quote_name_unless_alias(query.base_table)
-        delete = "ALTER TABLE %s DELETE" % table
+        engine = getattr(query.model._meta, "engine", None)
+        if isinstance(engine, engines.Distributed):
+            cluster = self.quote_name_unless_alias(engine.cluster)
+            local_table = self.quote_name_unless_alias(engine.table)
+            delete = f"ALTER TABLE {local_table} ON CLUSTER {cluster} DELETE"
+        else:
+            delete = f"ALTER TABLE {table} DELETE"
         where, params = self._compile_where(table)
         return f"{delete} WHERE {where}", tuple(params)
 
@@ -185,11 +231,16 @@ class SQLUpdateCompiler(ClickhouseMixin, compiler.SQLUpdateCompiler):
                 values.append("%s = NULL" % qn(name))
 
         # Replace "table"."field" to "field", clickhouse does not support that.
+        result = []
         table = qn(self.query.base_table)
-        result = [
-            "ALTER TABLE %s UPDATE" % table,
-            ", ".join(values).replace(table + ".", ""),
-        ]
+        engine = getattr(self.query.model._meta, "engine", None)
+        if isinstance(engine, engines.Distributed):
+            cluster = qn(engine.cluster)
+            local_table = qn(engine.table)
+            result.append(f"ALTER TABLE {local_table} ON CLUSTER {cluster} UPDATE")
+        else:
+            result.append(f"ALTER TABLE {table} UPDATE")
+        result.append(", ".join(values).replace(table + ".", ""))
         where, params = self._compile_where(table)
         result.append(f"WHERE {where}")
         params = (*update_params, *params)

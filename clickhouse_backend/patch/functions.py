@@ -1,12 +1,12 @@
 from django.db.models import functions
 
 __all__ = [
-    "patch_all_functions",
+    "patch_functions",
     "patch_random",
 ]
 
 
-def patch_all_functions():
+def patch_functions():
     patch_random()
 
 

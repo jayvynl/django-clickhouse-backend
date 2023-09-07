@@ -9,6 +9,7 @@ options.DEFAULT_NAMES = (
     *options.DEFAULT_NAMES,
     # Clickhouse features
     "engine",
+    "cluster",
 )
 # Also monkey patch state.DEFAULT_NAMES, this makes new option names contained in migrations.
 state.DEFAULT_NAMES = options.DEFAULT_NAMES

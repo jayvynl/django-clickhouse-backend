@@ -467,14 +467,18 @@ class ExecutorTests(MigrationTestBase):
         # table should cause detect_soft_applied() to return False.
         with connection.schema_editor() as editor:
             for table in tables[2:]:
-                editor.execute(editor.sql_delete_table % {"table": table})
+                editor.execute(
+                    editor.sql_delete_table % {"table": table, "on_cluster": ""}
+                )
         migration = executor.loader.get_migration("migrations", "0001_initial")
         self.assertIs(executor.detect_soft_applied(None, migration)[0], False)
 
         # Cleanup by removing the remaining tables.
         with connection.schema_editor() as editor:
             for table in tables[:2]:
-                editor.execute(editor.sql_delete_table % {"table": table})
+                editor.execute(
+                    editor.sql_delete_table % {"table": table, "on_cluster": ""}
+                )
         for table in tables:
             self.assertTableNotExists(table)
 
@@ -692,8 +696,14 @@ class ExecutorTests(MigrationTestBase):
             # We can't simply unapply the migrations here because there is no
             # implicit cast from VARCHAR to INT on the database level.
             with connection.schema_editor() as editor:
-                editor.execute(editor.sql_delete_table % {"table": "book_app_book"})
-                editor.execute(editor.sql_delete_table % {"table": "author_app_author"})
+                editor.execute(
+                    editor.sql_delete_table
+                    % {"table": "book_app_book", "on_cluster": ""}
+                )
+                editor.execute(
+                    editor.sql_delete_table
+                    % {"table": "author_app_author", "on_cluster": ""}
+                )
             self.assertTableNotExists("author_app_author")
             self.assertTableNotExists("book_app_book")
             executor.migrate([("author_app", None)], fake=True)

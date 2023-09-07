@@ -96,9 +96,6 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
     def cast_db_type(self, connection):
         return "Array(%s)" % self.base_field.cast_db_type(connection)
 
-    def get_placeholder(self, value, compiler, connection):
-        return "%s::{}".format(self.db_type(connection))
-
     def get_db_prep_value(self, value, connection, prepared=False):
         if is_iterable(value) and not isinstance(value, (str, bytes)):
             return [

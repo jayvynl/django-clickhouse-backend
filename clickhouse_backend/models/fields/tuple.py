@@ -181,9 +181,6 @@ class TupleField(FieldMixin, Field):
         )
         return "Tuple(%s)" % base_type
 
-    def get_placeholder(self, value, compiler, connection):
-        return "%s::{}".format(self.db_type(connection))
-
     def call_base_fields(self, func_name, value, *args, **kwargs):
         if value is None:
             return value

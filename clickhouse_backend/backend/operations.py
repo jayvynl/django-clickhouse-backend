@@ -1,4 +1,6 @@
+from django.apps import apps
 from django.db.backends.base.operations import BaseDatabaseOperations
+from django.utils.functional import cached_property
 
 from clickhouse_backend import compat
 from clickhouse_backend.driver import JSON
@@ -7,12 +9,6 @@ from clickhouse_backend.utils import get_timezone
 
 
 class DatabaseOperations(BaseDatabaseOperations):
-    # Use this class attribute control whether using fake transaction.
-    # Fake transaction is used in test, prevent other database such as postgresql
-    # from flush at the end of each testcase. Only use this feature when you are
-    # aware of the effect in TransactionTestCase.
-    fake_transaction = False
-
     compiler_module = "clickhouse_backend.models.sql.compiler"
     cast_char_field_without_max_length = "String"
     integer_field_ranges = {
@@ -278,10 +274,29 @@ class DatabaseOperations(BaseDatabaseOperations):
         else:
             return "match(%s, concat('(?i)', %s))"
 
+    @cached_property
+    def table_model_dict(self):
+        return {model._meta.db_table: model for model in apps.get_models()}
+
+    def _get_on_cluster(self, style, table, sync=False):
+        if table in self.table_model_dict:
+            cluster = getattr(self.table_model_dict[table], "cluster", None)
+            if cluster:
+                if sync:
+                    return (
+                        f"ON CLUSTER {style.SQL_FIELD(self.quote_name(cluster))} SYNC"
+                    )
+                return f"ON CLUSTER {style.SQL_FIELD(self.quote_name(cluster))}"
+        return ""
+
     def sql_flush(self, style, tables, *, reset_sequences=False, allow_cascade=False):
         return [
-            "%s %s"
-            % (style.SQL_KEYWORD("TRUNCATE"), style.SQL_FIELD(self.quote_name(table)))
+            "%s %s %s"
+            % (
+                style.SQL_KEYWORD("TRUNCATE"),
+                style.SQL_FIELD(self.quote_name(table)),
+                self._get_on_cluster(style, table),
+            )
             for table in tables
         ]
 

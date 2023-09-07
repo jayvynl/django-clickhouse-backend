@@ -2,8 +2,8 @@ Django ClickHouse Database Backend
 ===
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-Django clickhouse backend is a [django database backend](https://docs.djangoproject.com/en/4.1/ref/databases/) for 
-[clickhouse](https://clickhouse.com/docs/en/home/) database. This project allows using django ORM to interact with 
+Django clickhouse backend is a [django database backend](https://docs.djangoproject.com/en/4.1/ref/databases/) for
+[clickhouse](https://clickhouse.com/docs/en/home/) database. This project allows using django ORM to interact with
 clickhouse, the goal of the project is to operate clickhouse like operating mysql, postgresql in django.
 
 Thanks to [clickhouse driver](https://github.com/mymarilyn/clickhouse-driver), django clickhouse backend use it as [DBAPI](https://peps.python.org/pep-0249/).
@@ -26,11 +26,12 @@ Read [Documentation](https://github.com/jayvynl/django-clickhouse-backend/blob/m
 
 - Not tested upon all versions of clickhouse-server, clickhouse-server 22.x.y.z or over is suggested.
 - Aggregation functions result in 0 or nan (Not NULL) when data set is empty. max/min/sum/count is 0, avg/STDDEV_POP/VAR_POP is nan.
-- In outer join, clickhouse will set missing columns to empty values (0 for number, empty string for text, unix epoch for date/datatime) instead of NULL. 
+- In outer join, clickhouse will set missing columns to empty values (0 for number, empty string for text, unix epoch for date/datatime) instead of NULL.
   So Count("book") resolve to 1 in a missing LEFT OUTER JOIN match, not 0.
   In aggregation expression Avg("book__rating", default=2.5), default=2.5 have no effect in a missing match.
 - Clickhouse does not support unique constraint and foreignkey constraint. `ForeignKey`, `ManyToManyField` and `OneToOneField` can be used with clickhouse backend, but no database level constraints will be added, so there could be some consistency problems.
 - Clickhouse does not support transaction. If any exception occurs during migrating, then your clickhouse database will be in an untracked state. Any migration should be full tested in test environment before deployed to production environment.
+- This project does not support migrations of changing table engine and settings yet.
 
 **Requirements:**
 
@@ -75,27 +76,28 @@ Here I give an example setting for clickhouse and postgresql.
 
 ```python
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'HOST': 'localhost',
-        'USER': 'postgres',
-        'PASSWORD': '123456',
-        'NAME': 'postgres',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": "localhost",
+        "USER": "postgres",
+        "PASSWORD": "123456",
+        "NAME": "postgres",
     },
-    'clickhouse': {
-        'ENGINE': 'clickhouse_backend.backend',
-        'NAME': 'default',
-        'HOST': 'localhost',
-        'USER': 'DB_USER',
-        'PASSWORD': 'DB_PASSWORD',
+    "clickhouse": {
+        "ENGINE": "clickhouse_backend.backend",
+        "NAME": "default",
+        "HOST": "localhost",
+        "USER": "DB_USER",
+        "PASSWORD": "DB_PASSWORD",
     }
 }
-DATABASE_ROUTERS = ['dbrouters.ClickHouseRouter']
+DATABASE_ROUTERS = ["dbrouters.ClickHouseRouter"]
 ```
 
 ```python
 # dbrouters.py
 from clickhouse_backend.models import ClickhouseModel
+
 
 def get_subclasses(class_):
     classes = class_.__subclasses__()
@@ -118,21 +120,21 @@ class ClickHouseRouter:
 
     def db_for_read(self, model, **hints):
         if (model._meta.label_lower in self.route_model_names
-                or hints.get('clickhouse')):
-            return 'clickhouse'
+                or hints.get("clickhouse")):
+            return "clickhouse"
         return None
 
     def db_for_write(self, model, **hints):
         if (model._meta.label_lower in self.route_model_names
-                or hints.get('clickhouse')):
-            return 'clickhouse'
+                or hints.get("clickhouse")):
+            return "clickhouse"
         return None
 
     def allow_migrate(self, db, app_label, model_name=None, **hints):
-        if (f'{app_label}.{model_name}' in self.route_model_names
-                or hints.get('clickhouse')):
-            return db == 'clickhouse'
-        elif db == 'clickhouse':
+        if (f"{app_label}.{model_name}" in self.route_model_names
+                or hints.get("clickhouse")):
+            return db == "clickhouse"
+        elif db == "clickhouse":
             return False
         return None
 ```
@@ -159,7 +161,7 @@ Notices about model definition:
 - need to specify the engine for clickhouse, specify the order_by for clickhouse order and the partition_by argument
 
 ```python
-from django.db.models import CheckConstraint, Func, Q, IntegerChoices
+from django.db.models import CheckConstraint, Func, IntegerChoices, Q
 from django.utils import timezone
 
 from clickhouse_backend import models
@@ -170,23 +172,23 @@ class Event(models.ClickhouseModel):
         PASS = 1
         DROP = 2
         ALERT = 3
-    ip = models.GenericIPAddressField(default='::')
-    ipv4 = models.GenericIPAddressField(default='127.0.0.1')
+    ip = models.GenericIPAddressField(default="::")
+    ipv4 = models.GenericIPAddressField(default="127.0.0.1")
     ip_nullable = models.GenericIPAddressField(null=True)
     port = models.UInt16Field(default=0)
-    protocol = models.StringField(default='', low_cardinality=True)
-    content = models.StringField(default='')
+    protocol = models.StringField(default="", low_cardinality=True)
+    content = models.StringField(default="")
     timestamp = models.DateTime64Field(default=timezone.now)
     created_at = models.DateTime64Field(auto_now_add=True)
     action = models.EnumField(choices=Action.choices, default=Action.PASS)
 
     class Meta:
-        verbose_name = 'Network event'
-        ordering = ['-id']
-        db_table = 'event'
+        verbose_name = "Network event"
+        ordering = ["-id"]
+        db_table = "event"
         engine = models.ReplacingMergeTree(
-            order_by=['id'],
-            partition_by=Func('timestamp', function='toYYYYMMDD'),
+            order_by=["id"],
+            partition_by=Func("timestamp", function="toYYYYMMDD"),
             index_granularity=1024,
             index_granularity_bytes=1 << 20,
             enable_mixed_granularity_parts=1,
@@ -194,7 +196,7 @@ class Event(models.ClickhouseModel):
         indexes = [
             models.Index(
                 fields=["ip"],
-                name='ip_set_idx',
+                name="ip_set_idx",
                 type=models.Set(1000),
                 granularity=4
             ),
@@ -207,7 +209,7 @@ class Event(models.ClickhouseModel):
         ]
         constraints = (
             CheckConstraint(
-                name='port_range',
+                name="port_range",
                 check=Q(port__gte=0, port__lte=65535),
             ),
         )
@@ -289,7 +291,7 @@ create
 ```python
 for i in range(10):
     Event.objects.create(ip_nullable=None, port=i,
-                         protocol="HTTP", content="test", 
+                         protocol="HTTP", content="test",
                          action=Event.Action.PASS.value)
 assert Event.objects.count() == 10
 ```
@@ -332,11 +334,11 @@ There are 2 ways to do that:
 - Config database engine as follows, this sets [`mutations_sync=1`](https://clickhouse.com/docs/en/operations/settings/settings#mutations_sync) at session scope.
   ```python
   DATABASES = {
-      'default': {
-          'ENGINE': 'clickhouse_backend.backend',
-          'OPTIONS': {
-              'settings': {
-                  'mutations_sync': 1,
+      "default": {
+          "ENGINE": "clickhouse_backend.backend",
+          "OPTIONS": {
+              "settings": {
+                  "mutations_sync": 1,
               }
           }
       }
@@ -344,7 +346,7 @@ There are 2 ways to do that:
   ```
 - Use [SETTINGS in SELECT Query](https://clickhouse.com/docs/en/sql-reference/statements/select/#settings-in-select-query).
   ```python
-  Event.objects.filter(protocol='UDP').settings(mutations_sync=1).delete()
+  Event.objects.filter(protocol="UDP").settings(mutations_sync=1).delete()
   ```
 
 Sample test case.
@@ -352,9 +354,183 @@ Sample test case.
 ```python
 from django.test import TestCase
 
+
 class TestEvent(TestCase):
     def test_spam(self):
         assert Event.objects.count() == 0
+```
+
+Distributed table
+---
+
+This backend support [distributed DDL queries (ON CLUSTER clause)](https://clickhouse.com/docs/en/sql-reference/distributed-ddl)
+and [distributed table engine](https://clickhouse.com/docs/en/engines/table-engines/special/distributed).
+
+The following example assumes that a cluster defined by [docker compose in this repository](https://github.com/jayvynl/django-clickhouse-backend/blob/main/compose.yaml) is used.
+This cluster name is `cluster`, it has 2 shards, every shard has 2 replica.
+
+### Configuration
+
+```python
+DATABASES = {
+    "default": {
+        "ENGINE": "clickhouse_backend.backend",
+        "OPTIONS": {
+            "migration_cluster": "cluster",
+            "settings": {
+                "mutations_sync": 1,
+                "insert_distributed_sync": 1,
+            },
+        },
+        "TEST": {"cluster": "cluster"},
+    },
+    "s1r2": {
+        "ENGINE": "clickhouse_backend.backend",
+        "PORT": 9001,
+        "OPTIONS": {
+            "migration_cluster": "cluster",
+            "settings": {
+                "mutations_sync": 1,
+                "insert_distributed_sync": 1,
+            },
+        },
+        "TEST": {"cluster": "cluster", "managed": False},
+    },
+    "s2r1": {
+        "ENGINE": "clickhouse_backend.backend",
+        "PORT": 9002,
+        "OPTIONS": {
+            "migration_cluster": "cluster",
+            "settings": {
+                "mutations_sync": 1,
+                "insert_distributed_sync": 1,
+            },
+        },
+        "TEST": {"cluster": "cluster", "managed": False},
+    },
+    "s2r2": {
+        "ENGINE": "clickhouse_backend.backend",
+        "PORT": 9003,
+        "OPTIONS": {
+            "migration_cluster": "cluster",
+            "settings": {
+                "mutations_sync": 1,
+                "insert_distributed_sync": 1,
+            },
+        },
+        "TEST": {"cluster": "cluster", "managed": False},
+    },
+}
+```
+
+Extra settings explanation:
+
+- `"migration_cluster": "cluster"`
+  Migration table will be created on this cluster if this setting is specified, otherwise only local migration table is created.
+- `"mutations_sync": 1`
+  This is suggested if you want to test [data mutations](https://clickhouse.com/docs/en/guides/developer/mutations).
+- `"insert_distributed_sync": 1`
+  This is suggested if you want to test inserting data into distributed table.
+- `"TEST": {"cluster": "cluster", "managed": False}`
+  Test database will be created on this cluster.
+  If you have multiple database connections to the same cluster and want to run tests over all these connections,
+  then only one connection should set `"managed": True`(the default value), other connections should set `"managed": False`.
+  So that test database will not be created multiple times.
+
+  Do not hardcode database name when you define replicated table or distributed table.
+  Because test database name is different from deployed database name.
+
+### Model
+
+`cluster` in `Meta` class will make models being created on cluster.
+
+```python
+from clickhouse_backend import models
+
+
+class Student(models.ClickhouseModel):
+    name = models.StringField()
+    address = models.StringField()
+    score = models.Int8Field()
+
+    class Meta:
+        engine = models.ReplicatedMergeTree(
+            "/clickhouse/tables/{uuid}/{shard}",
+            # Or if you want to use database name or table name, you should also use macro instead of hardcoded name.
+            # "/clickhouse/tables/{database}/{table}/{shard}",
+            "{replica}",
+            order_by="id"
+        )
+        cluster = "cluster"
+
+
+class DistributedStudent(models.ClickhouseModel):
+    name = models.StringField()
+    score = models.Int8Field()
+
+    class Meta:
+        engine = models.Distributed(
+            "cluster", models.currentDatabase(), Student._meta.db_table, models.Rand()
+        )
+        cluster = "cluster"
+```
+
+### CRUD
+
+Just like normal table, you can do whatever you like to distributed table.
+
+```python
+students = DistributedStudent.objects.bulk_create([DistributedStudent(name=f"Student{i}", score=i * 10) for i in range(10)])
+assert DistributedStudent.objects.count() == 10
+DistributedStudent.objects.filter(id__in=[s.id for s in students[5:]]).update(name="lol")
+DistributedStudent.objects.filter(id__in=[s.id for s in students[:5]]).delete()
+```
+
+### Migrate
+
+If `migration_cluster` is not specified in database configuration. You should always run migrating on one specific cluster node.
+Because other nodes do not know whether migrations have been applied by any other node.
+
+If `migration_cluster` is specified. Then migration table(named `django_migrations`) will be created on the specified cluster.
+When applied, [migration options](https://docs.djangoproject.com/en/4.2/ref/migration-operations/) of model with cluster defined in `Meta` class
+will be executed on cluster, other migration options will be executed locally.
+This means distributed table will be created on all nodes as long as any node has applied the migrations.
+Other local table will only be created on node which has applied the migrations.
+
+If you want to use local table in all nodes, you should apply migrations multiple times on all nodes.
+But remember, these local tables store data separately, currently this backend do not provide means to query data from other nodes.
+
+```shell
+python manage.py migrate
+python manage.py migrate --database s1r2
+python manage.py migrate --database s2r1
+python manage.py migrate --database s2r2
+```
+
+### Update
+
+When updated from django clickhouse backend 1.1.0 or lower, you should not add cluster related settings to your
+existing project. Because:
+
+- Migration table schema won't be changed if you add or remove `migration_on_cluster`. And `python mange.py migrate` will work abnormally.
+- If you add cluster to your existing model's `Meta` class, no schema changes will occur, this project does not support this yet.
+
+If you really want to use cluster feature with existing project, you should manage schema changes yourself.
+These steps should be tested carefully in test environment.
+[Clickhouse docs](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replication#converting-from-mergetree-to-replicatedmergetree) may be helpful.
+
+1. Apply all your existing migrations.
+2. Change your settings and model.
+3. Generate new migrations.
+4. Log into your clickhouse database and change table schemas to reflect your models.
+5. Apply migrations with fake flag.
+
+```shell
+python manage.py migrate
+# Change your settings and model
+python manage.py makemigrations
+# Log into your clickhouse database and change table schemas to reflect your models.
+python manage.py migrate --fake
 ```
 
 

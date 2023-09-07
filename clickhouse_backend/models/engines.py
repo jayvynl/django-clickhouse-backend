@@ -1,9 +1,10 @@
 from itertools import zip_longest
 
-from django.db.models.expressions import Func, Value
+from django.db.models import Func, Value
 from django.utils.itercompat import is_iterable
 
 __all__ = [
+    "Distributed",
     "Engine",
     "BaseMergeTree",
     "MergeTree",
@@ -47,7 +48,39 @@ def _check_str(value, name):
     return value
 
 
+def value_if_string(value):
+    if isinstance(value, str):
+        return Value(value)
+    return value
+
+
 class Engine(Func):
+    max_arity = None  # The max number of arguments the function accepts.
+    setting_types = {}
+
+    def __init__(self, *expressions, **settings):
+        if self.max_arity is not None and len(expressions) > self.max_arity:
+            raise TypeError(
+                "'%s' takes at most %s %s (%s given)"
+                % (
+                    self.__class__.__name__,
+                    self.max_arity,
+                    "argument" if self.max_arity == 1 else "arguments",
+                    len(expressions),
+                )
+            )
+
+        normalized_settings = {}
+        for setting, value in settings.items():
+            for validate, keys in self.setting_types.items():
+                if setting in keys:
+                    normalized_settings[setting] = validate(value, setting)
+                    break
+            else:
+                raise TypeError(f"{setting} is not a valid setting.")
+        self.settings = normalized_settings
+        super().__init__(*expressions)
+
     @property
     def function(self):
         return self.__class__.__name__
@@ -62,7 +95,6 @@ class Engine(Func):
 
 
 class BaseMergeTree(Engine):
-    max_arity = None  # The max number of arguments the function accepts.
     # https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree#settings
     setting_types = {
         _check_positive: [
@@ -99,17 +131,6 @@ class BaseMergeTree(Engine):
         primary_key=None,
         **settings,
     ):
-        if self.max_arity is not None and len(expressions) > self.max_arity:
-            raise TypeError(
-                "'%s' takes at most %s %s (%s given)"
-                % (
-                    self.__class__.__name__,
-                    self.max_arity,
-                    "argument" if self.max_arity == 1 else "arguments",
-                    len(expressions),
-                )
-            )
-
         assert (
             order_by is not None or primary_key is not None
         ), "order_by or primary_key is missing."
@@ -138,16 +159,7 @@ class BaseMergeTree(Engine):
                 if p != o:
                     raise ValueError("primary_key must be a prefix of order_by")
 
-        normalized_settings = {}
-        for setting, value in settings.items():
-            for validate, keys in self.setting_types.items():
-                if setting in keys:
-                    normalized_settings[setting] = validate(value, setting)
-                    break
-            else:
-                raise TypeError(f"{setting} is not a valid setting.")
-        self.settings = normalized_settings
-        super().__init__(*expressions)
+        super().__init__(*expressions, **settings)
 
 
 class MergeTree(BaseMergeTree):
@@ -179,7 +191,7 @@ class GraphiteMergeTree(BaseMergeTree):
 
     def __init__(self, *expressions, **extra):
         if expressions:
-            expressions = (Value(expressions[0]), *expressions[1:])
+            expressions = (value_if_string(expressions[0]), *expressions[1:])
         super().__init__(*expressions, **extra)
 
 
@@ -211,12 +223,14 @@ class ReplicatedMixin:
                     len(expressions),
                 )
             )
-        replicated_params = map(Value, self.expressions[:2])
+        replicated_params = map(value_if_string, self.expressions[:2])
         super().__init__(*expressions[2:], **extra)
         self.expressions = (*replicated_params, *self.expressions)
 
 
 class ReplicatedMergeTree(MergeTree):
+    arity = None
+
     def __init__(self, *expressions, **extra):
         # https://github.com/ClickHouse/ClickHouse/issues/8675
         # https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replication#creating-replicated-tables
@@ -228,7 +242,7 @@ class ReplicatedMergeTree(MergeTree):
                     "'ReplicatedMergeTree' takes at 0 or 2 arguments (%s given)"
                     % len(expressions)
                 )
-            expressions = map(Value, expressions)
+            expressions = map(value_if_string, expressions)
         super().__init__(*expressions, **extra)
 
 
@@ -256,3 +270,44 @@ class ReplicatedVersionedCollapsingMergeTree(
 
 class ReplicatedGraphiteMergeTree(ReplicatedMixin, GraphiteMergeTree):
     pass
+
+
+class Distributed(Engine):
+    # https://clickhouse.com/docs/en/engines/table-engines/special/distributed#distributed-settings
+    setting_types = {
+        _check_positive: ["monitor_sleep_time_ms", "monitor_max_sleep_time_ms"],
+        _check_not_negative: [
+            "bytes_to_throw_insert",
+            "bytes_to_delay_insert",
+            "max_delay_to_insert",
+        ],
+        _check_bool: [
+            "fsync_after_insert",
+            "fsync_directories",
+            "monitor_batch_inserts",
+            "monitor_split_batch_on_failure",
+        ],
+    }
+
+    def __init__(self, *expressions, **settings):
+        if len(expressions) < 3:
+            raise TypeError(
+                "'%s' takes at least 3 arguments (cluster, database, table)"
+                % self.__class__.__name__
+            )
+        if len(expressions) > 5:
+            raise TypeError(
+                "'%s' takes at most 5 arguments (cluster, database, table[, sharding_key[, policy_name]])"
+                % self.__class__.__name__
+            )
+
+        self.cluster, self.database, self.table = expressions[:3]
+        if len(expressions) == 5:
+            expressions = (
+                *map(value_if_string, expressions[:3]),
+                expressions[3],
+                value_if_string(expressions[4]),
+            )
+        else:
+            expressions = (*map(value_if_string, expressions[:3]), *expressions[3:])
+        super().__init__(*expressions, **settings)

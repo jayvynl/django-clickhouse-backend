@@ -154,7 +154,10 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         # Fake transaction is used in test, prevent other database such as postgresql
         # from flush at the end of each testcase. Only use this feature when you are
         # aware of the effect in TransactionTestCase.
-        self.fake_transaction = settings_dict.get("fake_transaction", False)
+        self._fake_transaction = False
+        self.migration_cluster = self.settings_dict["OPTIONS"].pop(
+            "migration_cluster", None
+        )
         if not self.settings_dict["NAME"]:
             self.settings_dict["NAME"] = "default"
 
@@ -166,7 +169,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def fake_transaction(self, value):
         self._fake_transaction = value
         self.features.fake_transaction = self._fake_transaction
-        self.ops.fake_transaction = self._fake_transaction
 
     def get_connection_params(self):
         settings_dict = self.settings_dict

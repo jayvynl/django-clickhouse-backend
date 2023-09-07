@@ -1,6 +1,7 @@
 import sys
 
 from clickhouse_driver.errors import ErrorCodes
+from django.conf import settings
 from django.db.backends.base.creation import BaseDatabaseCreation
 from django.db.backends.utils import strip_quotes
 
@@ -11,9 +12,21 @@ class DatabaseCreation(BaseDatabaseCreation):
 
     def sql_table_creation_suffix(self):
         test_settings = self.connection.settings_dict["TEST"]
-        engine = test_settings.get("ENGINE")
+        cluster = test_settings.get("cluster")
+        engine = test_settings.get("engine")
+
+        parts = []
+        if cluster:
+            parts.append(f"ON CLUSTER {self.connection.ops.quote_name(cluster)}")
         if engine:
-            return "ENGINE = %s" % engine
+            parts.append(f"ENGINE = {engine}")
+        return " ".join(parts)
+
+    def _get_on_cluster(self):
+        test_settings = self.connection.settings_dict["TEST"]
+        cluster = test_settings.get("cluster")
+        if cluster:
+            return f"ON CLUSTER {self.connection.ops.quote_name(cluster)}"
         return ""
 
     def _database_exists(self, cursor, database_name):
@@ -30,6 +43,59 @@ class DatabaseCreation(BaseDatabaseCreation):
         test_settings = self.connection.settings_dict["TEST"]
         if "fake_transaction" in test_settings:
             self.connection.fake_transaction = test_settings["fake_transaction"]
+
+    def _create_test_db(self, verbosity, autoclobber, keepdb=False):
+        """
+        Internal implementation - create the test db tables.
+        """
+        if not self.connection.settings_dict["TEST"].get("managed", True):
+            return
+        test_database_name = self._get_test_db_name()
+        test_db_params = {
+            "dbname": self.connection.ops.quote_name(test_database_name),
+            "suffix": self.sql_table_creation_suffix(),
+        }
+        # Create the test database and connect to it.
+        with self._nodb_cursor() as cursor:
+            try:
+                self._execute_create_test_db(cursor, test_db_params, keepdb)
+            except Exception as e:
+                # if we want to keep the db, then no need to do any of the below,
+                # just return and skip it all.
+                if keepdb:
+                    return test_database_name
+
+                self.log("Got an error creating the test database: %s" % e)
+                if not autoclobber:
+                    confirm = input(
+                        "Type 'yes' if you would like to try deleting the test "
+                        "database '%s', or 'no' to cancel: " % test_database_name
+                    )
+                if autoclobber or confirm == "yes":
+                    try:
+                        if verbosity >= 1:
+                            self.log(
+                                "Destroying old test database for alias %s..."
+                                % (
+                                    self._get_database_display_str(
+                                        verbosity, test_database_name
+                                    ),
+                                )
+                            )
+                        sql = "DROP DATABASE %(dbname)s" % test_db_params
+                        on_cluster = self._get_on_cluster()
+                        if on_cluster:
+                            sql = f"{sql} {on_cluster} SYNC"
+                        cursor.execute(sql)
+                        self._execute_create_test_db(cursor, test_db_params, keepdb)
+                    except Exception as e:
+                        self.log("Got an error recreating the test database: %s" % e)
+                        sys.exit(2)
+                else:
+                    self.log("Tests cancelled.")
+                    sys.exit(1)
+
+        return test_database_name
 
     def _execute_create_test_db(self, cursor, parameters, keepdb=False):
         try:
@@ -50,3 +116,14 @@ class DatabaseCreation(BaseDatabaseCreation):
                 # If the database should be kept, ignore "database already
                 # exists".
                 raise
+
+    def _destroy_test_db(self, test_database_name, verbosity):
+        test_settings = self.connection.settings_dict["TEST"]
+        if not test_settings.get("managed", True):
+            return
+        sql = "DROP DATABASE %s" % self.connection.ops.quote_name(test_database_name)
+        on_cluster = self._get_on_cluster()
+        if on_cluster:
+            sql = f"{sql} {on_cluster} SYNC"
+        with self._nodb_cursor() as cursor:
+            cursor.execute(sql)

@@ -3,13 +3,13 @@ from django.db import models
 from .json import patch_jsonfield
 
 __all__ = [
-    "patch_all_fields",
+    "patch_fields",
     "patch_auto_field",
     "patch_jsonfield",
 ]
 
 
-def patch_all_fields():
+def patch_fields():
     patch_auto_field()
     patch_jsonfield()
 

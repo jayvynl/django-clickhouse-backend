@@ -37,28 +37,59 @@ class ChColumns(Columns):
 
 
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
-    sql_create_table = (
-        "CREATE TABLE %(table)s (%(definition)s) ENGINE = %(engine)s %(extra)s"
+    sql_create_table = "CREATE TABLE %(table)s %(on_cluster)s (%(definition)s) ENGINE = %(engine)s %(extra)s"
+    sql_rename_table = "RENAME TABLE %(old_table)s TO %(new_table)s %(on_cluster)s"
+    sql_delete_table = "DROP TABLE %(table)s %(on_cluster)s"
+
+    sql_create_column = (
+        "ALTER TABLE %(table)s %(on_cluster)s ADD COLUMN %(column)s %(definition)s"
     )
-    sql_rename_table = "RENAME TABLE %(old_table)s TO %(new_table)s"
-    sql_delete_table = "DROP TABLE %(table)s"
+    sql_alter_column = "ALTER TABLE %(table)s %(on_cluster)s %(changes)s"
     sql_alter_column_type = "MODIFY COLUMN %(column)s %(type)s"
-    sql_alter_column_null = "MODIFY COLUMN %(column)s Nullable(%(type)s)"
+    sql_alter_column_null = sql_alter_column_type
     sql_alter_column_not_null = sql_alter_column_type
     sql_alter_column_default = "MODIFY COLUMN %(column)s DEFAULT %(default)s"
     sql_alter_column_no_default = "MODIFY COLUMN %(column)s REMOVE DEFAULT"
     sql_alter_column_no_default_null = sql_alter_column_no_default
-    sql_delete_column = "ALTER TABLE %(table)s DROP COLUMN %(column)s"
+    sql_delete_column = "ALTER TABLE %(table)s %(on_cluster)s DROP COLUMN %(column)s"
+    sql_rename_column = "ALTER TABLE %(table)s %(on_cluster)s RENAME COLUMN %(old_column)s TO %(new_column)s"
     sql_update_with_default = (
-        "ALTER TABLE %(table)s UPDATE %(column)s = %(default)s "
+        "ALTER TABLE %(table)s %(on_cluster)s UPDATE %(column)s = %(default)s "
         "WHERE %(column)s IS NULL SETTINGS mutations_sync=1"
     )
 
-    sql_index = "INDEX %(name)s (%(columns)s) TYPE %(type)s GRANULARITY %(granularity)s"
-    sql_create_index = "ALTER TABLE %(table)s ADD " + sql_index
-    sql_delete_index = "ALTER TABLE %(table)s DROP INDEX %(name)s"
+    sql_create_check = (
+        "ALTER TABLE %(table)s %(on_cluster)s ADD CONSTRAINT %(name)s CHECK (%(check)s)"
+    )
+    sql_delete_check = "ALTER TABLE %(table)s %(on_cluster)s DROP CONSTRAINT %(name)s"
 
-    sql_create_constraint = "ALTER TABLE %(table)s ADD %(constraint)s"
+    sql_index = "INDEX %(name)s (%(columns)s) TYPE %(type)s GRANULARITY %(granularity)s"
+    sql_create_index = "ALTER TABLE %(table)s %(on_cluster)s ADD " + sql_index
+    sql_delete_index = "ALTER TABLE %(table)s %(on_cluster)s DROP INDEX %(name)s"
+
+    sql_create_constraint = "ALTER TABLE %(table)s %(on_cluster)s ADD %(constraint)s"
+
+    def delete_model(self, model):
+        """Delete a model from the database."""
+        # Handle auto-created intermediary models
+        for field in model._meta.local_many_to_many:
+            if field.remote_field.through._meta.auto_created:
+                self.delete_model(field.remote_field.through)
+
+        # Delete the table
+        self.execute(
+            self.sql_delete_table
+            % {
+                "table": self.quote_name(model._meta.db_table),
+                "on_cluster": self._get_on_cluster(model),
+            }
+        )
+        # Remove all deferred statements referencing the deleted table.
+        for sql in list(self.deferred_sql):
+            if isinstance(sql, Statement) and sql.references_table(
+                model._meta.db_table
+            ):
+                self.deferred_sql.remove(sql)
 
     def _column_check_name(self, field):
         return "_check_%s" % field.column
@@ -103,6 +134,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         extra_parts = self._model_extra_sql(model, engine)
         sql = self.sql_create_table % {
             "table": self.quote_name(model._meta.db_table),
+            "on_cluster": self._get_on_cluster(model),
             "definition": ", ".join(
                 str(constraint)
                 for constraint in (*column_sqls, *constraints)
@@ -113,8 +145,16 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         }
         return sql, params
 
+    def _get_on_cluster(self, model, sync=False):
+        cluster = getattr(model._meta, "cluster", None)
+        if cluster:
+            if sync:
+                return f"ON CLUSTER {self.quote_name(cluster)} SYNC"
+            return f"ON CLUSTER {self.quote_name(cluster)}"
+        return ""
+
     def _get_engine(self, model):
-        from clickhouse_backend.models.engines import MergeTree
+        from clickhouse_backend.models import MergeTree
 
         return getattr(
             model._meta, "engine", MergeTree(order_by=model._meta.pk.attname)
@@ -218,11 +258,11 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 yield "PARTITION BY (%s)" % self._get_expression(model, *partition_by)
             if primary_key is not None:
                 yield "PRIMARY KEY (%s)" % self._get_expression(model, *primary_key)
-            if engine.settings:
-                result = []
-                for setting, value in engine.settings.items():
-                    result.append(f"{setting}={self.quote_value(value)}")
-                yield "SETTINGS %s" % ", ".join(result)
+        if engine.settings:
+            result = []
+            for setting, value in engine.settings.items():
+                result.append(f"{setting}={self.quote_value(value)}")
+            yield "SETTINGS %s" % ", ".join(result)
 
     def add_field(self, model, field):
         """
@@ -245,6 +285,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 % {
                     "table": self.quote_name(model._meta.db_table),
                     "constraint": check_sql,
+                    "on_cluster": self._get_on_cluster(model),
                 }
             )
 
@@ -253,6 +294,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             "table": self.quote_name(model._meta.db_table),
             "column": self.quote_name(field.column),
             "definition": definition,
+            "on_cluster": self._get_on_cluster(model),
         }
         self.execute(sql, params)
         # Drop the default if we need to
@@ -260,18 +302,22 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if self.effective_default(field) is not None:
             # Update existing rows with default value
             sql_update_default = (
-                "ALTER TABLE %(table)s UPDATE %(column)s = %(default)s "
+                "ALTER TABLE %(table)s %(on_cluster)s UPDATE %(column)s = %(default)s "
                 "WHERE 1 SETTINGS mutations_sync=1"
             )
-            self.execute(
-                sql_update_default
-                % {
-                    "table": self.quote_name(model._meta.db_table),
-                    "column": self.quote_name(field.column),
-                    "default": "%s",
-                },
-                [self.effective_default(field)],
-            )
+            from clickhouse_backend import models
+
+            if not isinstance(self._get_engine(model), models.Distributed):
+                self.execute(
+                    sql_update_default
+                    % {
+                        "table": self.quote_name(model._meta.db_table),
+                        "column": self.quote_name(field.column),
+                        "default": "%s",
+                        "on_cluster": self._get_on_cluster(model),
+                    },
+                    [self.effective_default(field)],
+                )
 
     def remove_field(self, model, field):
         """
@@ -289,6 +335,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         sql = self.sql_delete_column % {
             "table": self.quote_name(model._meta.db_table),
             "column": self.quote_name(field.column),
+            "on_cluster": self._get_on_cluster(model),
         }
         self.execute(sql)
         if db_params["check"]:
@@ -394,6 +441,26 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         else:
             return super()._alter_column_type_sql(model, old_field, new_field, new_type)
 
+    def _alter_column_null_sql(self, model, old_field, new_field):
+        """
+        Hook to specialize column null alteration.
+
+        Return a (sql, params) fragment to set a column to null or non-null
+        as required by new_field, or None if no changes are required.
+        """
+        # Compatible for django fields.
+        new_type = new_field.db_parameters(connection=self.connection)["type"]
+        if new_field.null and "Nullable" not in new_type:
+            new_type = f"Nullable({new_type})"
+        return (
+            self.sql_alter_column_type
+            % {
+                "column": self.quote_name(new_field.column),
+                "type": new_type,
+            },
+            [],
+        )
+
     def _alter_field(
         self,
         model,
@@ -415,9 +482,14 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # Have they renamed the column?
         if old_field.column != new_field.column:
             self.execute(
-                self._rename_field_sql(
-                    model._meta.db_table, old_field, new_field, new_type
-                )
+                self.sql_rename_column
+                % {
+                    "table": self.quote_name(model._meta.db_table),
+                    "old_column": self.quote_name(old_field.column),
+                    "new_column": self.quote_name(new_field.column),
+                    "type": new_type,
+                    "on_cluster": self._get_on_cluster(model),
+                }
             )
             # Rename all references to the renamed column.
             for sql in self.deferred_sql:
@@ -481,20 +553,25 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                     % {
                         "table": self.quote_name(model._meta.db_table),
                         "changes": sql,
+                        "on_cluster": self._get_on_cluster(model),
                     },
                     params,
                 )
             if four_way_default_alteration:
-                # Update existing rows with default value
-                self.execute(
-                    self.sql_update_with_default
-                    % {
-                        "table": self.quote_name(model._meta.db_table),
-                        "column": self.quote_name(new_field.column),
-                        "default": "%s",
-                    },
-                    [new_default],
-                )
+                from clickhouse_backend.models import Distributed
+
+                if not isinstance(self._get_engine(model), Distributed):
+                    # Update existing rows with default value
+                    self.execute(
+                        self.sql_update_with_default
+                        % {
+                            "table": self.quote_name(model._meta.db_table),
+                            "column": self.quote_name(new_field.column),
+                            "default": "%s",
+                            "on_cluster": self._get_on_cluster(model),
+                        },
+                        [new_default],
+                    )
                 # Since we didn't run a NOT NULL change before we need to do it
                 # now
                 for sql, params in null_actions:
@@ -503,6 +580,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                         % {
                             "table": self.quote_name(model._meta.db_table),
                             "changes": sql,
+                            "on_cluster": self._get_on_cluster(model),
                         },
                         params,
                     )
@@ -537,6 +615,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 % {
                     "table": self.quote_name(new_rel.related_model._meta.db_table),
                     "changes": fragment[0],
+                    "on_cluster": self._get_on_cluster(model),
                 },
                 fragment[1],
             )
@@ -554,6 +633,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                     % {
                         "table": self.quote_name(model._meta.db_table),
                         "constraint": check_sql,
+                        "on_cluster": self._get_on_cluster(model),
                     }
                 )
         # Drop the default if we need to
@@ -565,6 +645,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             sql = self.sql_alter_column % {
                 "table": self.quote_name(model._meta.db_table),
                 "changes": changes_sql,
+                "on_cluster": self._get_on_cluster(model),
             }
             self.execute(sql, params)
         # Reset connection if required
@@ -610,6 +691,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         return Statement(
             sql_create_index,
             table=Table(table, self.quote_name),
+            on_cluster=self._get_on_cluster(model),
             name=IndexName(table, columns, suffix, create_index_name),
             columns=(
                 Columns(table, columns, self.quote_name, col_suffixes)
@@ -620,7 +702,74 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             granularity=granularity,
         )
 
+    def _delete_index_sql(self, model, name, sql=None):
+        return Statement(
+            sql or self.sql_delete_index,
+            table=Table(model._meta.db_table, self.quote_name),
+            name=self.quote_name(name),
+            on_cluster=self._get_on_cluster(model),
+        )
+
     def alter_unique_together(self, model, old_unique_together, new_unique_together):
         """for django or other third party app, ignore unique constraint.
         User defined app should never use UniqueConstraint"""
         pass
+
+    def alter_db_table(self, model, old_db_table, new_db_table):
+        """Rename the table a model points to."""
+        if old_db_table == new_db_table:
+            return
+        self.execute(
+            self.sql_rename_table
+            % {
+                "old_table": self.quote_name(old_db_table),
+                "new_table": self.quote_name(new_db_table),
+                "on_cluster": self._get_on_cluster(model),
+            }
+        )
+        # Rename all references to the old table name.
+        for sql in self.deferred_sql:
+            if isinstance(sql, Statement):
+                sql.rename_table_references(old_db_table, new_db_table)
+
+    def _create_check_sql(self, model, name, check):
+        return Statement(
+            self.sql_create_check,
+            table=Table(model._meta.db_table, self.quote_name),
+            name=self.quote_name(name),
+            check=check,
+            on_cluster=self._get_on_cluster(model),
+        )
+
+    def _delete_check_sql(self, model, name):
+        return self._delete_constraint_sql(self.sql_delete_check, model, name)
+
+    def _delete_constraint_sql(self, template, model, name):
+        return Statement(
+            template,
+            table=Table(model._meta.db_table, self.quote_name),
+            name=self.quote_name(name),
+            on_cluster=self._get_on_cluster(model),
+        )
+
+    def add_constraint(self, model, constraint):
+        """Add a constraint to a model."""
+        from clickhouse_backend import models
+
+        if isinstance(self._get_engine(model), models.Distributed):
+            raise TypeError("Distributed table engine does not support constraints.")
+        sql = constraint.create_sql(model, self)
+        if sql:
+            # Constraint.create_sql returns interpolated SQL which makes
+            # params=None a necessity to avoid escaping attempts on execution.
+            self.execute(sql, params=None)
+
+    def remove_constraint(self, model, constraint):
+        """Remove a constraint from a model."""
+        from clickhouse_backend import models
+
+        if isinstance(self._get_engine(model), models.Distributed):
+            raise TypeError("Distributed table engine does not support constraints.")
+        sql = constraint.remove_sql(model, self)
+        if sql:
+            self.execute(sql)

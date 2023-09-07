@@ -10,7 +10,8 @@ from .escape import escape_params
 from .pool import ClickhousePool
 
 update_pattern = re.compile(
-    r"\s*alter\s+table\s+(.+)\s+update.+?where\s+(.+)", flags=re.IGNORECASE
+    r"^\s*alter\s+table\s+(\S+)\s+.*?update.+?where\s+(.+?)(?:settings\s+.+)?$",
+    flags=re.IGNORECASE,
 )
 
 

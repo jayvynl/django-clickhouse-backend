@@ -5,7 +5,9 @@ from contextlib import contextmanager
 from importlib import import_module
 
 from django.apps import apps
-from django.db import connection, connections, migrations, models
+from django.db import connection, connections, migrations
+from django.db import models
+from django.db import models as django_models
 from django.db.migrations.migration import Migration
 from django.db.migrations.recorder import MigrationRecorder
 from django.db.migrations.state import ProjectState
@@ -13,7 +15,7 @@ from django.test import TransactionTestCase
 from django.test.utils import extend_sys_path
 from django.utils.module_loading import module_dir
 
-from clickhouse_backend.models.indexes import Index, Set
+from clickhouse_backend import models
 
 
 class MigrationTestBase(TransactionTestCase):
@@ -22,7 +24,7 @@ class MigrationTestBase(TransactionTestCase):
     """
 
     available_apps = ["migrations"]
-    databases = {"default", "other"}
+    databases = {"default", "s1r2", "s2r1", "other"}
 
     def tearDown(self):
         # Reset applied-migrations state.
@@ -38,21 +40,39 @@ class MigrationTestBase(TransactionTestCase):
         with connections[using].cursor() as cursor:
             self.assertIn(table, connections[using].introspection.table_names(cursor))
 
+    def assertTableExistsCluster(self, table, dbs=("default", "s1r2", "s2r1")):
+        for db in dbs:
+            self.assertTableExists(table, db)
+
     def assertTableNotExists(self, table, using="default"):
         with connections[using].cursor() as cursor:
             self.assertNotIn(
                 table, connections[using].introspection.table_names(cursor)
             )
 
+    def assertTableNotExistsCluster(self, table, dbs=("default", "s1r2", "s2r1")):
+        for db in dbs:
+            self.assertTableNotExists(table, db)
+
     def assertColumnExists(self, table, column, using="default"):
         self.assertIn(
             column, [c.name for c in self.get_table_description(table, using=using)]
         )
 
+    def assertColumnExistsCluster(self, table, column, dbs=("default", "s1r2", "s2r1")):
+        for db in dbs:
+            self.assertColumnExists(table, column, db)
+
     def assertColumnNotExists(self, table, column, using="default"):
         self.assertNotIn(
             column, [c.name for c in self.get_table_description(table, using=using)]
         )
+
+    def assertColumnNotExistsCluster(
+        self, table, column, dbs=("default", "s1r2", "s2r1")
+    ):
+        for db in dbs:
+            self.assertColumnNotExists(table, column, db)
 
     def _get_column_allows_null(self, table, column, using):
         return [
@@ -64,8 +84,18 @@ class MigrationTestBase(TransactionTestCase):
     def assertColumnNull(self, table, column, using="default"):
         self.assertTrue(self._get_column_allows_null(table, column, using))
 
+    def assertColumnNullCluster(self, table, column, dbs=("default", "s1r2", "s2r1")):
+        for db in dbs:
+            self.assertColumnNull(table, column, db)
+
     def assertColumnNotNull(self, table, column, using="default"):
         self.assertFalse(self._get_column_allows_null(table, column, using))
+
+    def assertColumnNotNullCluster(
+        self, table, column, dbs=("default", "s1r2", "s2r1")
+    ):
+        for db in dbs:
+            self.assertColumnNotNull(table, column, db)
 
     def _get_column_collation(self, table, column, using):
         return next(
@@ -106,12 +136,24 @@ class MigrationTestBase(TransactionTestCase):
                 connection.introspection.get_constraints(cursor, table),
             )
 
+    def assertIndexNameExistsCluster(
+        self, table, index, dbs=("default", "s1r2", "s2r1")
+    ):
+        for db in dbs:
+            self.assertIndexNameExists(table, index, db)
+
     def assertIndexNameNotExists(self, table, index, using="default"):
         with connections[using].cursor() as cursor:
             self.assertNotIn(
                 index,
                 connection.introspection.get_constraints(cursor, table),
             )
+
+    def assertIndexNameNotExistsCluster(
+        self, table, index, dbs=("default", "s1r2", "s2r1")
+    ):
+        for db in dbs:
+            self.assertIndexNameNotExists(table, index, db)
 
     def assertConstraintExists(self, table, name, value=True, using="default"):
         with connections[using].cursor() as cursor:
@@ -213,14 +255,25 @@ class OperationTestBase(MigrationTestBase):
         )
         with connection.schema_editor() as editor:
             with connection.constraint_checks_disabled():
-                for table_name in table_names:
-                    editor.execute(
-                        editor.sql_delete_table
-                        % {
-                            "table": editor.quote_name(table_name),
-                            "on_cluster": "",
-                        }
-                    )
+                with connection.cursor() as cursor:
+                    for table_name in table_names:
+                        cursor.execute(
+                            "SELECT COUNT(*) > 1 FROM cluster('cluster', system.tables) where name=%s",
+                            [table_name],
+                        )
+                        row = cursor.fetchone()
+                        is_on_cluster = row and row[0]
+                        if is_on_cluster:
+                            on_cluster = "ON CLUSTER cluster SYNC"
+                        else:
+                            on_cluster = ""
+                        editor.execute(
+                            editor.sql_delete_table
+                            % {
+                                "table": editor.quote_name(table_name),
+                                "on_cluster": on_cluster,
+                            }
+                        )
 
     def apply_operations(self, app_label, project_state, operations, atomic=True):
         migration = Migration("name", app_label)
@@ -239,67 +292,73 @@ class OperationTestBase(MigrationTestBase):
         Makes a test state using set_up_test_model and returns the
         original state and the state after the migration is applied.
         """
-        project_state = self.set_up_test_model(app_label, **kwargs)
+        project_state = self.set_up_distributed_model(app_label, **kwargs)
         new_state = project_state.clone()
         operation.state_forwards(app_label, new_state)
         return project_state, new_state
 
-    def set_up_test_model(
+    def set_up_distributed_model(
         self,
         app_label,
-        second_model=False,
-        third_model=False,
         index=False,
-        multicol_index=False,
         related_model=False,
-        mti_model=False,
-        proxy_model=False,
-        manager_model=False,
-        options=False,
-        db_table=None,
-        index_together=False,  # RemovedInDjango51Warning.
+        multicol_index=False,
+        index_together=False,
         constraints=None,
         indexes=None,
     ):
         """Creates a test model state and database table."""
-        # Make the "current" state.
-        model_options = {
-            "swappable": "TEST_SWAP_MODEL",
-            # RemovedInDjango51Warning.
-            "indexes": [
-                Index(
+        meta_indexes = (
+            [
+                models.Index(
                     fields=("weight", "pink"),
                     name="weight_pink_idx",
-                    type=Set(100),
+                    type=models.Set(100),
                     granularity=10,
                 )
             ]
             if index_together
-            else [],
-        }
-        if options:
-            model_options["permissions"] = [("can_groom", "Can groom")]
-        if db_table:
-            model_options["db_table"] = db_table
+            else []
+        )
+
         operations = [
             migrations.CreateModel(
                 "Pony",
                 [
-                    ("id", models.BigAutoField(primary_key=True)),
-                    ("pink", models.IntegerField(default=3)),
-                    ("weight", models.FloatField()),
+                    ("id", django_models.BigAutoField(primary_key=True)),
+                    ("pink", models.Int32Field(default=3)),
+                    ("weight", models.Float64Field()),
                 ],
-                options=model_options,
-            )
+                options={
+                    "indexes": meta_indexes,
+                    "engine": models.ReplicatedMergeTree(order_by="id"),
+                    "cluster": "cluster",
+                },
+            ),
+            migrations.CreateModel(
+                "PonyDistributed",
+                [
+                    ("id", django_models.BigAutoField(primary_key=True)),
+                    ("pink", models.Int32Field(default=3)),
+                    ("weight", models.Float64Field()),
+                ],
+                options={
+                    "engine": models.Distributed(
+                        "cluster", models.currentDatabase(), f"{app_label}_pony"
+                    ),
+                    "cluster": "cluster",
+                },
+            ),
         ]
+
         if index:
             operations.append(
                 migrations.AddIndex(
-                    "Pony",
-                    Index(
+                    "pony",
+                    models.Index(
                         fields=["pink"],
-                        name="pony_pink_idx",
-                        type=Set(100),
+                        name=f"pony_pink_idx",
+                        type=models.Set(100),
                         granularity=10,
                     ),
                 )
@@ -307,98 +366,69 @@ class OperationTestBase(MigrationTestBase):
         if multicol_index:
             operations.append(
                 migrations.AddIndex(
-                    "Pony",
-                    Index(
+                    "pony",
+                    models.Index(
                         fields=["pink", "weight"],
-                        name="pony_test_idx",
-                        type=Set(100),
+                        name=f"pony_test_idx",
+                        type=models.Set(100),
                         granularity=10,
                     ),
                 )
             )
         if indexes:
             for index in indexes:
-                operations.append(migrations.AddIndex("Pony", index))
+                operations.append(migrations.AddIndex("pony", index))
         if constraints:
             for constraint in constraints:
-                operations.append(migrations.AddConstraint("Pony", constraint))
-        if second_model:
-            operations.append(
-                migrations.CreateModel(
-                    "Stable",
-                    [
-                        ("id", models.BigAutoField(primary_key=True)),
-                    ],
-                )
-            )
-        if third_model:
-            operations.append(
-                migrations.CreateModel(
-                    "Van",
-                    [
-                        ("id", models.BigAutoField(primary_key=True)),
-                    ],
-                )
-            )
+                operations.append(migrations.AddConstraint("pony", constraint))
         if related_model:
             operations.append(
                 migrations.CreateModel(
                     "Rider",
                     [
-                        ("id", models.BigAutoField(primary_key=True)),
-                        ("pony", models.ForeignKey("Pony", models.CASCADE)),
+                        ("id", django_models.BigAutoField(primary_key=True)),
+                        (
+                            "pony",
+                            django_models.ForeignKey("Pony", django_models.CASCADE),
+                        ),
                         (
                             "friend",
-                            models.ForeignKey("self", models.CASCADE, null=True),
-                        ),
-                    ],
-                )
-            )
-        if mti_model:
-            operations.append(
-                migrations.CreateModel(
-                    "ShetlandPony",
-                    fields=[
-                        (
-                            "pony_ptr",
-                            models.OneToOneField(
-                                "Pony",
-                                models.CASCADE,
-                                auto_created=True,
-                                parent_link=True,
-                                primary_key=True,
-                                to_field="id",
-                                serialize=False,
+                            django_models.ForeignKey(
+                                "self", django_models.CASCADE, null=True
                             ),
                         ),
-                        ("cuteness", models.IntegerField(default=1)),
                     ],
-                    bases=["%s.Pony" % app_label],
+                    options={
+                        "engine": models.ReplicatedMergeTree(order_by="id"),
+                        "cluster": "cluster",
+                    },
                 )
             )
-        if proxy_model:
             operations.append(
                 migrations.CreateModel(
-                    "ProxyPony",
-                    fields=[],
-                    options={"proxy": True},
-                    bases=["%s.Pony" % app_label],
+                    "RiderDistributed",
+                    [
+                        ("id", django_models.BigAutoField(primary_key=True)),
+                        (
+                            "pony",
+                            django_models.ForeignKey(
+                                "PonyDistributed", django_models.CASCADE
+                            ),
+                        ),
+                        (
+                            "friend",
+                            django_models.ForeignKey(
+                                "self", django_models.CASCADE, null=True
+                            ),
+                        ),
+                    ],
+                    options={
+                        "engine": models.Distributed(
+                            "cluster", models.currentDatabase(), f"{app_label}_rider"
+                        ),
+                        "cluster": "cluster",
+                    },
                 )
             )
-        if manager_model:
-            from .models import FoodManager, FoodQuerySet
 
-            operations.append(
-                migrations.CreateModel(
-                    "Food",
-                    fields=[
-                        ("id", models.BigAutoField(primary_key=True)),
-                    ],
-                    managers=[
-                        ("food_qs", FoodQuerySet.as_manager()),
-                        ("food_mgr", FoodManager("a", "b")),
-                        ("food_mgr_kwargs", FoodManager("x", "y", 3, 4)),
-                    ],
-                )
-            )
         return self.apply_operations(app_label, ProjectState(), operations)
