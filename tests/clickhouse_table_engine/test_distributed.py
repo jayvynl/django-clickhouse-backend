@@ -17,8 +17,9 @@ class TestDistributed(TestCase):
         assert DistributedStudent.objects.filter(name="Jack", score=90).exists()
 
     def test_write_distributed(self):
-        for i in range(10):
-            DistributedStudent.objects.create(name=f"Student{i}", score=i * 10)
+        students = DistributedStudent.objects.bulk_create(
+            [DistributedStudent(name=f"Student{i}", score=i * 10) for i in range(10)]
+        )
         assert DistributedStudent.objects.count() == 10
         assert DistributedStudent.objects.using("s1r2").count() == 10
         assert DistributedStudent.objects.using("s2r1").count() == 10
@@ -27,6 +28,20 @@ class TestDistributed(TestCase):
             Student.objects.using("s1r2").count()
             + Student.objects.using("s2r1").count()
             == 10
+        )
+        DistributedStudent.objects.filter(id__in=[s.id for s in students[5:]]).update(
+            name="lol"
+        )
+        assert DistributedStudent.objects.filter(name="lol").count() == 5
+        DistributedStudent.objects.filter(id__in=[s.id for s in students[:5]]).delete()
+        assert DistributedStudent.objects.count() == 5
+        assert DistributedStudent.objects.using("s1r2").count() == 5
+        assert DistributedStudent.objects.using("s2r1").count() == 5
+        assert Student.objects.count() == Student.objects.using("s1r2").count()
+        assert (
+            Student.objects.using("s1r2").count()
+            + Student.objects.using("s2r1").count()
+            == 5
         )
 
 
