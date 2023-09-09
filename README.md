@@ -1,5 +1,6 @@
 Django ClickHouse Database Backend
 ===
+[![GitHub Action: Test](https://github.com/jayvynl/django-clickhouse-backend/actions/workflows/test.yml/badge.svg)](https://github.com/jayvynl/django-clickhouse-backend/actions/workflows/test.yml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 Django clickhouse backend is a [django database backend](https://docs.djangoproject.com/en/4.1/ref/databases/) for
