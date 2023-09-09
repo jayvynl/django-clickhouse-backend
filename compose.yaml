@@ -1,3 +1,10 @@
+x-healthcheck: &healthcheck
+#  test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
+  test: ["CMD", "clickhouse-client", "-q", "SELECT 1"]
+  interval: 30s
+  timeout: 5s
+  retries: 3
+
 services:
   node1:
     image: clickhouse/clickhouse-server:23.6.2.18
@@ -15,9 +22,7 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
-      interval: 30s
-      timeout: 5s
+      <<: *healthcheck
   node2:
     image: clickhouse/clickhouse-server:23.6.2.18
     container_name: clickhouse-node2
@@ -34,9 +39,7 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
-      interval: 30s
-      timeout: 5s
+      <<: *healthcheck
   node3:
     image: clickhouse/clickhouse-server:23.6.2.18
     container_name: clickhouse-node3
@@ -53,9 +56,7 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
-      interval: 30s
-      timeout: 5s
+      <<: *healthcheck
   node4:
     image: clickhouse/clickhouse-server:23.6.2.18
     container_name: clickhouse-node4
@@ -72,9 +73,7 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
-      interval: 30s
-      timeout: 5s
+      <<: *healthcheck
 volumes:
   node1:
     name: clickhouse-node1

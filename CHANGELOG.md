@@ -1,5 +1,6 @@
 ### 1.1.2
 - Use [flake8](https://flake8.pycqa.org/) to lint code.
+- Add GitHub action which runs tests.
 
 ### 1.1.1
 - [Black](https://github.com/psf/black) code style.
