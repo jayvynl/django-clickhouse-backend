@@ -5,13 +5,13 @@ from unittest import mock
 from django.apps import apps
 from django.conf import settings
 from django.core.validators import RegexValidator, validate_slug
-from django.db import connection, migrations, models
+from django.db import connection, models
 from django.db.migrations.autodetector import MigrationAutodetector
 from django.db.migrations.graph import MigrationGraph
 from django.db.migrations.loader import MigrationLoader
 from django.db.migrations.questioner import MigrationQuestioner
 from django.db.migrations.state import ModelState, ProjectState
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import TestCase, override_settings
 from django.test.utils import isolate_lru_cache
 
 from clickhouse_backend import compat

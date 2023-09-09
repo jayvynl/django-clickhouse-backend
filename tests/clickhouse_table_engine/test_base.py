@@ -6,7 +6,6 @@ from importlib import import_module
 
 from django.apps import apps
 from django.db import connection, connections, migrations
-from django.db import models
 from django.db import models as django_models
 from django.db.migrations.migration import Migration
 from django.db.migrations.recorder import MigrationRecorder
@@ -357,7 +356,7 @@ class OperationTestBase(MigrationTestBase):
                     "pony",
                     models.Index(
                         fields=["pink"],
-                        name=f"pony_pink_idx",
+                        name="pony_pink_idx",
                         type=models.Set(100),
                         granularity=10,
                     ),
@@ -369,7 +368,7 @@ class OperationTestBase(MigrationTestBase):
                     "pony",
                     models.Index(
                         fields=["pink", "weight"],
-                        name=f"pony_test_idx",
+                        name="pony_test_idx",
                         type=models.Set(100),
                         granularity=10,
                     ),

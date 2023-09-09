@@ -1,7 +1,6 @@
 import sys
 
 from clickhouse_driver.errors import ErrorCodes
-from django.conf import settings
 from django.db.backends.base.creation import BaseDatabaseCreation
 from django.db.backends.utils import strip_quotes
 

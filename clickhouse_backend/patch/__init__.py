@@ -1,8 +1,8 @@
-from .fields import *
+from .fields import *  # noqa: F403
 from .fields import __all__ as fields_all
-from .functions import *
+from .functions import *  # noqa: F403
 from .functions import __all__ as functions_all
-from .migrations import *
+from .migrations import *  # noqa: F403
 from .migrations import __all__ as migrations_all
 
 __all__ = [
@@ -14,6 +14,6 @@ __all__ = [
 
 
 def patch_all():
-    patch_functions()
-    patch_fields()
-    patch_migrations()
+    patch_functions()  # noqa: F405
+    patch_fields()  # noqa: F405
+    patch_migrations()  # noqa: F405
