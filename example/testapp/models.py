@@ -1,4 +1,4 @@
-from django.db.models import CheckConstraint, Func, IntegerChoices, Q
+from django.db.models import CheckConstraint, IntegerChoices, Q
 from django.utils import timezone
 
 from clickhouse_backend import models

@@ -1,5 +1,3 @@
-import unittest
-
 from django.core.management.color import no_style
 from django.db import connection
 from django.test import SimpleTestCase

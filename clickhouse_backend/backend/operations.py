@@ -141,17 +141,17 @@ class DatabaseOperations(BaseDatabaseOperations):
     def date_extract_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions/
         if lookup_type == "iso_year":
-            sql = f"toISOYear(%s)" % sql
+            sql = "toISOYear(%s)" % sql
         elif lookup_type == "day":
-            sql = f"toDayOfMonth(%s)" % sql
+            sql = "toDayOfMonth(%s)" % sql
         elif lookup_type == "week":
-            sql = f"toISOWeek(%s)" % sql
+            sql = "toISOWeek(%s)" % sql
         elif lookup_type == "week_day":
-            sql = f"modulo(toDayOfWeek(%s), 7) + 1" % sql
+            sql = "modulo(toDayOfWeek(%s), 7) + 1" % sql
         elif lookup_type == "iso_week_day":
-            sql = f"toDayOfWeek(%s)" % sql
+            sql = "toDayOfWeek(%s)" % sql
         else:
-            sql = f"to%s(%s)" % (lookup_type.capitalize(), sql)
+            sql = "to%s(%s)" % (lookup_type.capitalize(), sql)
         if compat.dj_ge41:
             return sql, args[0]
         else:

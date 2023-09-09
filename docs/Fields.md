@@ -52,11 +52,11 @@ Passing `null=True` will make a field [Nullable](https://clickhouse.com/docs/en/
 
 Passing `low_cardinality=True` will make a field [LowCardinality](https://clickhouse.com/docs/en/sql-reference/data-types/lowcardinality).
 
-Name of field class is always concat clickhouse date type name to `Field`.
+Name of field class is always concat clickhouse data type name to `Field`.
 For example, [DateTime64](https://clickhouse.com/docs/en/sql-reference/data-types/datetime64) field is named as `DateTime64Field`.
 All clickhouse fields are imported from `clickhouse_backend.models`
 
-Supported date types are:
+Supported data types are:
 
 - Float32/Float64
 - Int8/Int16/Int32/Int64/Int128/Int256
@@ -82,12 +82,12 @@ Fields importing path: `clickhouse_backend.models.[U]Int(8|16|32|64|128|256)Fiel
 
 For example, UInt8 type is imported from `clickhouse_backend.models.UInt8Field`
 
-Both Nullable and LowCardinality are supported for all int types.
+Both Nullable and LowCardinality are supported for all integer types.
 
 All UInt types will have correct range validators.
 
 For example, `clickhouse_backend.models.UInt16Field` have a range from 0 to 65535.
-As a contrast, `django.db.models.SmallIntegerField` have a range from 0 to 32767, causing half range waisted.
+As a contrast, `django.db.models.PositiveSmallIntegerField` have a range from 0 to 32767, causing half range waisted.
 
 
 ### Float(32|64)

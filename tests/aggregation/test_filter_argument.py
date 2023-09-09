@@ -1,21 +1,7 @@
 import datetime
 from decimal import Decimal
 
-from django.db.models import (
-    Avg,
-    Case,
-    Count,
-    Exists,
-    F,
-    Max,
-    OuterRef,
-    Q,
-    StdDev,
-    Subquery,
-    Sum,
-    Variance,
-    When,
-)
+from django.db.models import Avg, Case, Count, F, Q, StdDev, Sum, Variance, When
 from django.test import TestCase
 from django.test.utils import Approximate
 

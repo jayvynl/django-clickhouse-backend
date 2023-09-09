@@ -9,14 +9,14 @@ from django.utils.translation import gettext_lazy as _
 
 from clickhouse_backend.validators import MaxBytesValidator
 
-from .array import *
+from .array import *  # noqa: F403
 from .base import FieldMixin
-from .integer import *
-from .json import *
-from .map import *
-from .tuple import *
+from .integer import *  # noqa: F403
+from .json import *  # noqa: F403
+from .map import *  # noqa: F403
+from .tuple import *  # noqa: F403
 
-__all__ = [
+__all__ = [  # noqa: F405
     "Int8Field",
     "UInt8Field",
     "Int16Field",

@@ -13,7 +13,7 @@ from unittest import mock
 try:
     import zoneinfo
 except ImportError:
-    from backports import zoneinfo
+    from backports import zoneinfo  # noqa: F401
 
 try:
     import pytz
@@ -28,10 +28,9 @@ from django.core.validators import EmailValidator, RegexValidator
 from django.db import migrations, models
 from django.db.migrations.serializer import BaseSerializer
 from django.db.migrations.writer import MigrationWriter, OperationWriter
-from django.test import SimpleTestCase, ignore_warnings
+from django.test import SimpleTestCase
 from django.utils.deconstruct import deconstructible
 from django.utils.functional import SimpleLazyObject
-from django.utils.timezone import get_default_timezone, get_fixed_timezone
 from django.utils.translation import gettext_lazy as _
 
 from clickhouse_backend import compat

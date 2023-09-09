@@ -1822,7 +1822,7 @@ class OperationTests(OperationTestBase):
         constraint before modifying the column.
         """
         app_label = "alter_rename_field_reloads_state_on_fk_target_changes"
-        project_state = self.apply_operations(
+        self.apply_operations(
             app_label,
             ProjectState(),
             operations=[

@@ -1,3 +1,6 @@
+### 1.1.2
+- Use [flake8](https://flake8.pycqa.org/) to lint code.
+
 ### 1.1.1
 - [Black](https://github.com/psf/black) code style.
 - Support [MergeTree settings](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree#settings) in creating table.

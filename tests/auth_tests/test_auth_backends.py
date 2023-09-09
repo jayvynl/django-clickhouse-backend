@@ -1,29 +1,19 @@
-import sys
 from datetime import date
 from unittest import mock
 
 from django.contrib.auth import (
     BACKEND_SESSION_KEY,
     SESSION_KEY,
-    _clean_credentials,
     authenticate,
     get_user,
     signals,
 )
 from django.contrib.auth.backends import BaseBackend, ModelBackend
-from django.contrib.auth.hashers import MD5PasswordHasher
 from django.contrib.auth.models import AnonymousUser, Group, Permission, User
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.http import HttpRequest
-from django.test import (
-    RequestFactory,
-    SimpleTestCase,
-    TestCase,
-    modify_settings,
-    override_settings,
-)
-from django.views.debug import technical_500_response
+from django.test import SimpleTestCase, TestCase, modify_settings, override_settings
 from django.views.decorators.debug import sensitive_variables
 
 from .models import (
