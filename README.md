@@ -1,5 +1,11 @@
 Django ClickHouse Database Backend
 ===
+[![PyPI - Version](https://img.shields.io/pypi/v/django-clickhouse-backend)](https://pypi.org/project/django-clickhouse-backend)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/django-clickhouse-backend)](https://pypi.org/project/django-clickhouse-backend)
+[![PyPI django version](https://img.shields.io/pypi/frameworkversions/django/django-clickhouse-backend)](https://pypi.org/project/django-clickhouse-backend)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/django-clickhouse-backend)](https://pypi.org/project/django-clickhouse-backend)
+[![GitHub licence](https://img.shields.io/github/license/jayvynl/django-clickhouse-backend)](https://github.com/jayvynl/django-clickhouse-backend/blob/main/LICENSE)
+[![GitHub Action: Test](https://github.com/jayvynl/django-clickhouse-backend/actions/workflows/test-main.yml/badge.svg)](https://github.com/jayvynl/django-clickhouse-backend/actions/workflows/test-main.yml)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 Django clickhouse backend is a [django database backend](https://docs.djangoproject.com/en/4.1/ref/databases/) for
