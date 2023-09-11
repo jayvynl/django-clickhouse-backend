@@ -1,7 +1,7 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
-name: Base-Test
+name: Base test
 
 on:
   workflow_call:
@@ -14,10 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11"]
-        django-version: ["32", "40", "41", "42"]
+        django-version: ["3.2", "4.0", "4.1", "4.2"]
         include:
           - python-version: "3.7"
-            django-version: "32"
+            django-version: "3.2"
 
     name: Python${{ matrix.python-version }} Django${{ matrix.django-version }}
     steps:
@@ -33,8 +33,31 @@ jobs:
         python -m pip install tox
     - name: Lint code
       run: tox -e lint
+    - name: Cache docker image
+      uses: actions/cache@v3
+      with:
+        path: /var/lib/docker/image/overlay2
+        key: docker-image-${{ hashFiles('compose.yaml') }}
     - name: Start clickhouse cluster
       run: docker compose up -d --wait
     - name: Run test
       # Run tox using the version of Python in `PATH`
       run: tox -e py-django${{ matrix.django-version }}
+    - name: Coveralls Parallel
+      uses: coverallsapp/github-action@v2
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        flag-name: run-${{ join(matrix.*, '-') }}
+        parallel: true
+
+  coveralls-finish:
+
+    needs: test
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Coveralls Finished
+      uses: coverallsapp/github-action@v2
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        parallel-finished: true
