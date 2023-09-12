@@ -1,20 +1,18 @@
 from django.db import models
 
-from clickhouse_backend.models import ClickhouseModel
 
-
-class Author(ClickhouseModel):
+class Author(models.Model):
     name = models.CharField(max_length=100)
     age = models.IntegerField()
     friends = models.ManyToManyField("self", blank=True)
 
 
-class Publisher(ClickhouseModel):
+class Publisher(models.Model):
     name = models.CharField(max_length=255)
     num_awards = models.IntegerField()
 
 
-class Book(ClickhouseModel):
+class Book(models.Model):
     isbn = models.CharField(max_length=9)
     name = models.CharField(max_length=255)
     pages = models.IntegerField()
@@ -29,7 +27,7 @@ class Book(ClickhouseModel):
         ordering = ("name",)
 
 
-class Store(ClickhouseModel):
+class Store(models.Model):
     name = models.CharField(max_length=255)
     books = models.ManyToManyField(Book)
     original_opening = models.DateTimeField()
@@ -40,20 +38,20 @@ class HardbackBook(Book):
 
 
 # Models for ticket #21150
-class Alfa(ClickhouseModel):
+class Alfa(models.Model):
     name = models.CharField(max_length=10, null=True)
 
 
-class Bravo(ClickhouseModel):
+class Bravo(models.Model):
     pass
 
 
-class Charlie(ClickhouseModel):
+class Charlie(models.Model):
     alfa = models.ForeignKey(Alfa, models.SET_NULL, null=True)
     bravo = models.ForeignKey(Bravo, models.SET_NULL, null=True)
 
 
-class SelfRefFK(ClickhouseModel):
+class SelfRefFK(models.Model):
     name = models.CharField(max_length=50)
     parent = models.ForeignKey(
         "self", models.SET_NULL, null=True, blank=True, related_name="children"

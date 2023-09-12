@@ -7,10 +7,8 @@ import uuid
 
 from django.db import models
 
-from clickhouse_backend.models import ClickhouseModel
 
-
-class Article(ClickhouseModel):
+class Article(models.Model):
     headline = models.CharField(max_length=100, default="Default headline")
     pub_date = models.DateTimeField()
 
@@ -21,7 +19,7 @@ class Article(ClickhouseModel):
         return self.headline
 
 
-class FeaturedArticle(ClickhouseModel):
+class FeaturedArticle(models.Model):
     article = models.OneToOneField(Article, models.CASCADE, related_name="featured")
 
 
@@ -31,7 +29,7 @@ class ArticleSelectOnSave(Article):
         select_on_save = True
 
 
-class SelfRef(ClickhouseModel):
+class SelfRef(models.Model):
     selfref = models.ForeignKey(
         "self",
         models.SET_NULL,
@@ -47,7 +45,7 @@ class SelfRef(ClickhouseModel):
         return SelfRef.objects.get(selfref=self).pk
 
 
-class PrimaryKeyWithDefault(ClickhouseModel):
+class PrimaryKeyWithDefault(models.Model):
     uuid = models.UUIDField(primary_key=True, default=uuid.uuid4)
 
 

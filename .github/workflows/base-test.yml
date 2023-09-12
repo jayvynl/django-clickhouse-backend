@@ -33,11 +33,6 @@ jobs:
         python -m pip install tox
     - name: Lint code
       run: tox -e lint
-    - name: Cache docker image
-      uses: actions/cache@v3
-      with:
-        path: /var/lib/docker/image/overlay2
-        key: docker-image-${{ hashFiles('compose.yaml') }}
     - name: Start clickhouse cluster
       run: docker compose up -d --wait
     - name: Run test

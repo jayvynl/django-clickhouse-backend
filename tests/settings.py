@@ -1,3 +1,6 @@
+from pathlib import Path
+
+BASE_DIR = Path(__file__).parent
 SECRET_KEY = "fake-key"
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
@@ -17,20 +20,6 @@ DATABASES = {
         "ENGINE": "clickhouse_backend.backend",
         "OPTIONS": {
             "migration_cluster": "cluster",
-            "connections_min": 1,
-            "settings": {
-                "mutations_sync": 1,
-                "allow_suspicious_low_cardinality_types": 1,
-                "allow_experimental_object_type": 1,
-                "insert_distributed_sync": 1,
-            },
-        },
-        "TEST": {"cluster": "cluster"},
-    },
-    "other": {
-        "ENGINE": "clickhouse_backend.backend",
-        "NAME": "other",
-        "OPTIONS": {
             "connections_min": 1,
             "settings": {
                 "mutations_sync": 1,
@@ -71,6 +60,11 @@ DATABASES = {
         },
         "TEST": {"cluster": "cluster", "managed": False},
     },
+    "other": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    },
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MIGRATE = False
+DATABASE_ROUTERS = ["dbrouters.ClickHouseRouter"]

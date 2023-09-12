@@ -75,7 +75,7 @@ def patch_migration_recorder():
                 class Migration(django_models.Model):
                     app = django_models.CharField(max_length=255)
                     name = django_models.CharField(max_length=255)
-                    applied = models.DateTimeField(default=now)
+                    applied = django_models.DateTimeField(default=now)
 
                     class Meta:
                         apps = Apps()
