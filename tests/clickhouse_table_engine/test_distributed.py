@@ -12,36 +12,47 @@ from .test_base import OperationTestBase
 class TestDistributed(TestCase):
     databases = {"default", "s1r2", "s2r1", "other"}
 
+    def test_truncate_distributed_table(self):
+        DistributedStudent.objects.bulk_create(
+            [DistributedStudent(name=f"Student{i}", score=i * 10) for i in range(10)]
+        )
+        self._fixture_teardown()
+        for db in ["default", "s1r2", "s2r1"]:
+            for model in [Student, DistributedStudent]:
+                self.assertFalse(model.objects.using(db).exists())
+
     def test_distributed_can_see_underlying_table(self):
         Student.objects.create(name="Jack", score=90)
-        assert DistributedStudent.objects.filter(name="Jack", score=90).exists()
+        self.assertTrue(
+            DistributedStudent.objects.filter(name="Jack", score=90).exists()
+        )
 
     def test_write_distributed(self):
         students = DistributedStudent.objects.bulk_create(
             [DistributedStudent(name=f"Student{i}", score=i * 10) for i in range(10)]
         )
-        assert DistributedStudent.objects.count() == 10
-        assert DistributedStudent.objects.using("s1r2").count() == 10
-        assert DistributedStudent.objects.using("s2r1").count() == 10
-        assert Student.objects.count() == Student.objects.using("s1r2").count()
-        assert (
+        self.assertEqual(DistributedStudent.objects.count(), 10)
+        self.assertEqual(DistributedStudent.objects.using("s1r2").count(), 10)
+        self.assertEqual(DistributedStudent.objects.using("s2r1").count(), 10)
+        self.assertEqual(Student.objects.count(), Student.objects.using("s1r2").count())
+        self.assertEqual(
             Student.objects.using("s1r2").count()
-            + Student.objects.using("s2r1").count()
-            == 10
+            + Student.objects.using("s2r1").count(),
+            10,
         )
         DistributedStudent.objects.filter(id__in=[s.id for s in students[5:]]).update(
             name="lol"
         )
-        assert DistributedStudent.objects.filter(name="lol").count() == 5
+        self.assertEqual(DistributedStudent.objects.filter(name="lol").count(), 5)
         DistributedStudent.objects.filter(id__in=[s.id for s in students[:5]]).delete()
-        assert DistributedStudent.objects.count() == 5
-        assert DistributedStudent.objects.using("s1r2").count() == 5
-        assert DistributedStudent.objects.using("s2r1").count() == 5
-        assert Student.objects.count() == Student.objects.using("s1r2").count()
-        assert (
+        self.assertEqual(DistributedStudent.objects.count(), 5)
+        self.assertEqual(DistributedStudent.objects.using("s1r2").count(), 5)
+        self.assertEqual(DistributedStudent.objects.using("s2r1").count(), 5)
+        self.assertEqual(Student.objects.count(), Student.objects.using("s1r2").count())
+        self.assertEqual(
             Student.objects.using("s1r2").count()
-            + Student.objects.using("s2r1").count()
-            == 5
+            + Student.objects.using("s2r1").count(),
+            5,
         )
 
 

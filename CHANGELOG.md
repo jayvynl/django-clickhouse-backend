@@ -2,6 +2,7 @@
 - Use [flake8](https://flake8.pycqa.org/) to lint code.
 - Add GitHub action which runs tests.
 - Add test coverage to ci and send data to coveralls, add coverage badge.
+- Fix distributed and replicated table engine tests, add test guide to README.md.
 
 ### 1.1.1
 - [Black](https://github.com/psf/black) code style.

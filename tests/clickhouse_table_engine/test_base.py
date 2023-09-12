@@ -96,16 +96,6 @@ class MigrationTestBase(TransactionTestCase):
         for db in dbs:
             self.assertColumnNotNull(table, column, db)
 
-    def _get_column_collation(self, table, column, using):
-        return next(
-            f.collation
-            for f in self.get_table_description(table, using=using)
-            if f.name == column
-        )
-
-    def assertColumnCollation(self, table, column, collation, using="default"):
-        self.assertEqual(self._get_column_collation(table, column, using), collation)
-
     def assertIndexExists(
         self, table, columns, value=True, using="default", index_type=None
     ):
@@ -167,34 +157,6 @@ class MigrationTestBase(TransactionTestCase):
     def assertConstraintNotExists(self, table, name):
         return self.assertConstraintExists(table, name, False)
 
-    def assertUniqueConstraintExists(self, table, columns, value=True, using="default"):
-        with connections[using].cursor() as cursor:
-            constraints = (
-                connections[using].introspection.get_constraints(cursor, table).values()
-            )
-            self.assertEqual(
-                value,
-                any(c["unique"] for c in constraints if c["columns"] == list(columns)),
-            )
-
-    def assertFKExists(self, table, columns, to, value=True, using="default"):
-        if not connections[using].features.can_introspect_foreign_keys:
-            return
-        with connections[using].cursor() as cursor:
-            self.assertEqual(
-                value,
-                any(
-                    c["foreign_key"] == to
-                    for c in connections[using]
-                    .introspection.get_constraints(cursor, table)
-                    .values()
-                    if c["columns"] == list(columns)
-                ),
-            )
-
-    def assertFKNotExists(self, table, columns, to):
-        return self.assertFKExists(table, columns, to, False)
-
     @contextmanager
     def temporary_migration_module(self, app_label="migrations", module=None):
         """
@@ -252,27 +214,25 @@ class OperationTestBase(MigrationTestBase):
             frozenset(connection.introspection.table_names())
             - self._initial_table_names
         )
-        with connection.schema_editor() as editor:
-            with connection.constraint_checks_disabled():
-                with connection.cursor() as cursor:
-                    for table_name in table_names:
-                        cursor.execute(
-                            "SELECT COUNT(*) > 1 FROM cluster('cluster', system.tables) where name=%s",
-                            [table_name],
-                        )
-                        row = cursor.fetchone()
-                        is_on_cluster = row and row[0]
-                        if is_on_cluster:
-                            on_cluster = "ON CLUSTER cluster SYNC"
-                        else:
-                            on_cluster = ""
-                        editor.execute(
-                            editor.sql_delete_table
-                            % {
-                                "table": editor.quote_name(table_name),
-                                "on_cluster": on_cluster,
-                            }
-                        )
+        with connection.schema_editor() as editor, connection.cursor() as cursor:
+            for table_name in table_names:
+                cursor.execute(
+                    "SELECT COUNT(*) > 1 FROM cluster('cluster', system.tables) where name=%s",
+                    [table_name],
+                )
+                row = cursor.fetchone()
+                is_on_cluster = row and row[0]
+                if is_on_cluster:
+                    on_cluster = "ON CLUSTER cluster SYNC"
+                else:
+                    on_cluster = ""
+                editor.execute(
+                    editor.sql_delete_table
+                    % {
+                        "table": editor.quote_name(table_name),
+                        "on_cluster": on_cluster,
+                    }
+                )
 
     def apply_operations(self, app_label, project_state, operations, atomic=True):
         migration = Migration("name", app_label)

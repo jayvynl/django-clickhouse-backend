@@ -387,6 +387,8 @@ DATABASES = {
             "settings": {
                 "mutations_sync": 1,
                 "insert_distributed_sync": 1,
+                "insert_quorum": 2,
+                "alter_sync": 2,
             },
         },
         "TEST": {"cluster": "cluster"},
@@ -399,9 +401,11 @@ DATABASES = {
             "settings": {
                 "mutations_sync": 1,
                 "insert_distributed_sync": 1,
+                "insert_quorum": 2,
+                "alter_sync": 2,
             },
         },
-        "TEST": {"cluster": "cluster", "managed": False},
+        "TEST": {"cluster": "cluster", "managed": False, "DEPENDENCIES": ["default"]},
     },
     "s2r1": {
         "ENGINE": "clickhouse_backend.backend",
@@ -411,9 +415,11 @@ DATABASES = {
             "settings": {
                 "mutations_sync": 1,
                 "insert_distributed_sync": 1,
+                "insert_quorum": 2,
+                "alter_sync": 2,
             },
         },
-        "TEST": {"cluster": "cluster", "managed": False},
+        "TEST": {"cluster": "cluster", "managed": False, "DEPENDENCIES": ["default"]},
     },
     "s2r2": {
         "ENGINE": "clickhouse_backend.backend",
@@ -423,9 +429,11 @@ DATABASES = {
             "settings": {
                 "mutations_sync": 1,
                 "insert_distributed_sync": 1,
+                "insert_quorum": 2,
+                "alter_sync": 2,
             },
         },
-        "TEST": {"cluster": "cluster", "managed": False},
+        "TEST": {"cluster": "cluster", "managed": False, "DEPENDENCIES": ["default"]},
     },
 }
 ```
@@ -436,13 +444,23 @@ Extra settings explanation:
   Migration table will be created on this cluster if this setting is specified, otherwise only local migration table is created.
 - `"mutations_sync": 1`
   This is suggested if you want to test [data mutations](https://clickhouse.com/docs/en/guides/developer/mutations).
+  *Don't* set this in production environment.
 - `"insert_distributed_sync": 1`
   This is suggested if you want to test inserting data into distributed table.
-- `"TEST": {"cluster": "cluster", "managed": False}`
+  *Don't* set this in production environment.
+- `"insert_quorum": 2`
+  This is suggested if you want to test inserting data into replicated table.
+  The value is set to replica number.
+- `"alter_sync": 2`
+  This is suggested if you want to test altering replicated table.
+  *Don't* set this in production environment.
+- `"TEST": {"cluster": "cluster", "managed": False, "DEPENDENCIES": ["default"]}`
   Test database will be created on this cluster.
   If you have multiple database connections to the same cluster and want to run tests over all these connections,
   then only one connection should set `"managed": True`(the default value), other connections should set `"managed": False`.
   So that test database will not be created multiple times.
+  
+  If your managed database alias is not `s1r2`, `"DEPENDENCIES": ["s1r2"]` should be set to ensure the [creation order for test databases](https://docs.djangoproject.com/en/4.2/topics/testing/advanced/#controlling-creation-order-for-test-databases).
 
   Do not hardcode database name when you define replicated table or distributed table.
   Because test database name is different from deployed database name.

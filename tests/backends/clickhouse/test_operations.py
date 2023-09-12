@@ -12,5 +12,8 @@ class OperationsTests(SimpleTestCase):
                 no_style(),
                 [Person._meta.db_table, Tag._meta.db_table],
             ),
-            ['TRUNCATE "backends_person" ', 'TRUNCATE "backends_tag" '],
+            [
+                'TRUNCATE "backends_person"',
+                'TRUNCATE "backends_tag"',
+            ],
         )
