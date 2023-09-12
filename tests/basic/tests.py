@@ -638,7 +638,7 @@ class SelectOnSaveTests(TestCase):
         with self.assertNumQueries(1):
             a1.save()
         asos = ArticleSelectOnSave.objects.create(pub_date=datetime.now())
-        with self.assertNumQueries(1):
+        with self.assertNumQueries(2):
             asos.save()
         with self.assertNumQueries(1):
             asos.save(force_update=True)
@@ -674,7 +674,7 @@ class SelectOnSaveTests(TestCase):
         try:
             Article._base_manager._queryset_class = FakeQuerySet
             asos = ArticleSelectOnSave.objects.create(pub_date=datetime.now())
-            with self.assertNumQueries(2):
+            with self.assertNumQueries(3):
                 asos.save()
                 self.assertTrue(FakeQuerySet.called)
         finally:

@@ -1,9 +1,7 @@
 from django.db import models
 
-from clickhouse_backend.models import ClickhouseModel
 
-
-class Square(ClickhouseModel):
+class Square(models.Model):
     root = models.IntegerField()
     square = models.PositiveIntegerField()
 
@@ -11,7 +9,7 @@ class Square(ClickhouseModel):
         return "%s ** 2 == %s" % (self.root, self.square)
 
 
-class Person(ClickhouseModel):
+class Person(models.Model):
     first_name = models.CharField(max_length=20)
     last_name = models.CharField(max_length=20)
 
@@ -24,7 +22,7 @@ class SchoolClassManager(models.Manager):
         return super().get_queryset().exclude(year=1000)
 
 
-class SchoolClass(ClickhouseModel):
+class SchoolClass(models.Model):
     year = models.PositiveIntegerField()
     day = models.CharField(max_length=9, blank=True)
     last_updated = models.DateTimeField()
@@ -32,7 +30,7 @@ class SchoolClass(ClickhouseModel):
     objects = SchoolClassManager()
 
 
-class VeryLongModelNameZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ(ClickhouseModel):
+class VeryLongModelNameZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ(models.Model):
     primary_key_is_quite_long_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz = (
         models.BigAutoField(primary_key=True)
     )
@@ -44,11 +42,11 @@ class VeryLongModelNameZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ(ClickhouseMode
     )
 
 
-class Tag(ClickhouseModel):
+class Tag(models.Model):
     name = models.CharField(max_length=30)
 
 
-class Reporter(ClickhouseModel):
+class Reporter(models.Model):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
 
@@ -61,7 +59,7 @@ class ReporterProxy(Reporter):
         proxy = True
 
 
-class Article(ClickhouseModel):
+class Article(models.Model):
     headline = models.CharField(max_length=100)
     pub_date = models.DateField()
     reporter = models.ForeignKey(Reporter, models.CASCADE)
@@ -76,7 +74,7 @@ class Article(ClickhouseModel):
         return self.headline
 
 
-class Item(ClickhouseModel):
+class Item(models.Model):
     name = models.CharField(max_length=30)
     date = models.DateField()
     time = models.TimeField()
@@ -86,7 +84,7 @@ class Item(ClickhouseModel):
         return self.name
 
 
-class Object(ClickhouseModel):
+class Object(models.Model):
     related_objects = models.ManyToManyField(
         "self", db_constraint=False, symmetrical=False
     )
@@ -96,19 +94,19 @@ class Object(ClickhouseModel):
         return str(self.id)
 
 
-class ObjectReference(ClickhouseModel):
+class ObjectReference(models.Model):
     obj = models.ForeignKey(Object, models.CASCADE, db_constraint=False)
 
     def __str__(self):
         return str(self.obj_id)
 
 
-class ObjectSelfReference(ClickhouseModel):
+class ObjectSelfReference(models.Model):
     key = models.CharField(max_length=3, unique=True)
     obj = models.ForeignKey("ObjectSelfReference", models.SET_NULL, null=True)
 
 
-class CircularA(ClickhouseModel):
+class CircularA(models.Model):
     key = models.CharField(max_length=3, unique=True)
     obj = models.ForeignKey("CircularB", models.SET_NULL, null=True)
 
@@ -116,7 +114,7 @@ class CircularA(ClickhouseModel):
         return (self.key,)
 
 
-class CircularB(ClickhouseModel):
+class CircularB(models.Model):
     key = models.CharField(max_length=3, unique=True)
     obj = models.ForeignKey("CircularA", models.SET_NULL, null=True)
 
@@ -124,19 +122,19 @@ class CircularB(ClickhouseModel):
         return (self.key,)
 
 
-class RawData(ClickhouseModel):
+class RawData(models.Model):
     raw_data = models.BinaryField()
 
 
-class Author(ClickhouseModel):
+class Author(models.Model):
     name = models.CharField(max_length=255, unique=True)
 
 
-class Book(ClickhouseModel):
+class Book(models.Model):
     author = models.ForeignKey(Author, models.CASCADE, to_field="name")
 
 
-class SQLKeywordsModel(ClickhouseModel):
+class SQLKeywordsModel(models.Model):
     id = models.BigAutoField(primary_key=True, db_column="select")
     reporter = models.ForeignKey(Reporter, models.CASCADE, db_column="where")
 

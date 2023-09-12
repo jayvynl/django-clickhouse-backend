@@ -1,13 +1,11 @@
 from django.db import models
 
-from clickhouse_backend.models import ClickhouseModel
 
-
-class Book(ClickhouseModel):
+class Book(models.Model):
     title = models.CharField(max_length=100)
 
 
-class Unmanaged(ClickhouseModel):
+class Unmanaged(models.Model):
     title = models.CharField(max_length=100)
 
     class Meta:

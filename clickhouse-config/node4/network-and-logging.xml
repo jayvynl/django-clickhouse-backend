@@ -4,9 +4,8 @@
   <listen_host>0.0.0.0</listen_host>
   <listen_try>1</listen_try>
 
-  <!--
   <logger>
-      <console>1</console>
+    <level>warning</level>
+    <console>1</console>
   </logger>
-  -->
 </clickhouse>

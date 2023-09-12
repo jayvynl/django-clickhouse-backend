@@ -1,8 +1,6 @@
 x-base-service: &base-service
   image: clickhouse/clickhouse-server:23.6.2.18
   restart: always
-  environment:
-    - "CLICKHOUSE_DB=other"
   ulimits:
     nofile:
       soft: 262144

@@ -1,9 +1,7 @@
 from django.db import models
 
-from clickhouse_backend.models import ClickhouseModel
 
-
-class Author(ClickhouseModel):
+class Author(models.Model):
     name = models.CharField(max_length=100)
     age = models.IntegerField()
     friends = models.ManyToManyField("self", blank=True)
@@ -13,7 +11,7 @@ class Author(ClickhouseModel):
         return self.name
 
 
-class Publisher(ClickhouseModel):
+class Publisher(models.Model):
     name = models.CharField(max_length=255)
     num_awards = models.IntegerField()
 
@@ -21,7 +19,7 @@ class Publisher(ClickhouseModel):
         return self.name
 
 
-class Book(ClickhouseModel):
+class Book(models.Model):
     isbn = models.CharField(max_length=9)
     name = models.CharField(max_length=255)
     pages = models.IntegerField()
@@ -36,7 +34,7 @@ class Book(ClickhouseModel):
         return self.name
 
 
-class Store(ClickhouseModel):
+class Store(models.Model):
     name = models.CharField(max_length=255)
     books = models.ManyToManyField(Book)
     original_opening = models.DateTimeField()
