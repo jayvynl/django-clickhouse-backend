@@ -385,7 +385,7 @@ DATABASES = {
         "OPTIONS": {
             "migration_cluster": "cluster",
             "settings": {
-                "mutations_sync": 1,
+                "mutations_sync": 2,
                 "insert_distributed_sync": 1,
                 "insert_quorum": 2,
                 "alter_sync": 2,
@@ -399,7 +399,7 @@ DATABASES = {
         "OPTIONS": {
             "migration_cluster": "cluster",
             "settings": {
-                "mutations_sync": 1,
+                "mutations_sync": 2,
                 "insert_distributed_sync": 1,
                 "insert_quorum": 2,
                 "alter_sync": 2,
@@ -413,7 +413,7 @@ DATABASES = {
         "OPTIONS": {
             "migration_cluster": "cluster",
             "settings": {
-                "mutations_sync": 1,
+                "mutations_sync": 2,
                 "insert_distributed_sync": 1,
                 "insert_quorum": 2,
                 "alter_sync": 2,
@@ -427,7 +427,7 @@ DATABASES = {
         "OPTIONS": {
             "migration_cluster": "cluster",
             "settings": {
-                "mutations_sync": 1,
+                "mutations_sync": 2,
                 "insert_distributed_sync": 1,
                 "insert_quorum": 2,
                 "alter_sync": 2,
@@ -442,8 +442,8 @@ Extra settings explanation:
 
 - `"migration_cluster": "cluster"`
   Migration table will be created on this cluster if this setting is specified, otherwise only local migration table is created.
-- `"mutations_sync": 1`
-  This is suggested if you want to test [data mutations](https://clickhouse.com/docs/en/guides/developer/mutations).
+- `"mutations_sync": 2`
+  This is suggested if you want to test [data mutations](https://clickhouse.com/docs/en/guides/developer/mutations) on replicated table.
   *Don't* set this in production environment.
 - `"insert_distributed_sync": 1`
   This is suggested if you want to test inserting data into distributed table.
@@ -452,7 +452,7 @@ Extra settings explanation:
   This is suggested if you want to test inserting data into replicated table.
   The value is set to replica number.
 - `"alter_sync": 2`
-  This is suggested if you want to test altering replicated table.
+  This is suggested if you want to test altering or truncating replicated table.
   *Don't* set this in production environment.
 - `"TEST": {"cluster": "cluster", "managed": False, "DEPENDENCIES": ["default"]}`
   Test database will be created on this cluster.

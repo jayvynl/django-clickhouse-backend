@@ -22,7 +22,7 @@ DATABASES = {
             "migration_cluster": "cluster",
             "connections_min": 1,
             "settings": {
-                "mutations_sync": 1,
+                "mutations_sync": 2,
                 "insert_distributed_sync": 1,
                 "insert_quorum": 2,
                 "alter_sync": 2,
@@ -39,7 +39,7 @@ DATABASES = {
             "migration_cluster": "cluster",
             "connections_min": 1,
             "settings": {
-                "mutations_sync": 1,
+                "mutations_sync": 2,
                 "insert_distributed_sync": 1,
                 "insert_quorum": 2,
                 "alter_sync": 2,
@@ -56,7 +56,7 @@ DATABASES = {
             "migration_cluster": "cluster",
             "connections_min": 1,
             "settings": {
-                "mutations_sync": 1,
+                "mutations_sync": 2,
                 "insert_distributed_sync": 1,
                 "insert_quorum": 2,
                 "alter_sync": 2,
