@@ -29,9 +29,11 @@ class ClickhouseManager(models.Manager):
 
 class ClickhouseModel(models.Model):
     objects = ClickhouseManager()
+    _overwrite_base_manager = ClickhouseManager()
 
     class Meta:
         abstract = True
+        base_manager_name = "_overwrite_base_manager"
 
     def _do_update(self, base_qs, using, pk_val, values, update_fields, forced_update):
         """
