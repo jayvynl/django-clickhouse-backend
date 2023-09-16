@@ -278,27 +278,30 @@ class DatabaseOperations(BaseDatabaseOperations):
     def table_model_dict(self):
         return {model._meta.db_table: model for model in apps.get_models()}
 
-    def _get_on_cluster(self, style, table, sync=False):
-        if table in self.table_model_dict:
-            cluster = getattr(self.table_model_dict[table], "cluster", None)
-            if cluster:
-                if sync:
-                    return (
-                        f"ON CLUSTER {style.SQL_FIELD(self.quote_name(cluster))} SYNC"
-                    )
-                return f"ON CLUSTER {style.SQL_FIELD(self.quote_name(cluster))}"
-        return ""
+    def sql_flush_table(self, style, table):
+        from clickhouse_backend import models
 
-    def sql_flush(self, style, tables, *, reset_sequences=False, allow_cascade=False):
-        return [
-            "%s %s %s"
-            % (
+        cluster = None
+        if table in self.table_model_dict:
+            opts = self.table_model_dict[table]._meta
+            engine = getattr(opts, "engine", None)
+            if isinstance(engine, models.Distributed):
+                table = engine.table
+                cluster = engine.cluster
+
+        if cluster:
+            return "%s %s ON CLUSTER %s" % (
                 style.SQL_KEYWORD("TRUNCATE"),
                 style.SQL_FIELD(self.quote_name(table)),
-                self._get_on_cluster(style, table),
+                style.SQL_FIELD(self.quote_name(cluster)),
             )
-            for table in tables
-        ]
+        return "%s %s" % (
+            style.SQL_KEYWORD("TRUNCATE"),
+            style.SQL_FIELD(self.quote_name(table)),
+        )
+
+    def sql_flush(self, style, tables, *, reset_sequences=False, allow_cascade=False):
+        return [self.sql_flush_table(style, table) for table in tables]
 
     def prep_for_iexact_query(self, x):
         return x

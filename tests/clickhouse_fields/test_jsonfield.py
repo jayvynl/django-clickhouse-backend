@@ -26,7 +26,7 @@ class MapFieldTests(TestCase):
     def test_filter(self):
         v = {"a": [1, 2, 3], "b": [{"c": 1}, {"d": 2}], "c": {"d": "e"}}
         JSONModel.objects.create(json=v)
-        assert JSONModel.objects.filter(json__a=[1, 2, 3]).exists()
-        assert JSONModel.objects.filter(json__b__0__c=1).exists()
-        assert JSONModel.objects.filter(json__c__d="e").exists()
-        assert JSONModel.objects.filter(json__c={"d": "e"}).exists()
+        self.assertTrue(JSONModel.objects.filter(json__a=[1, 2, 3]).exists())
+        self.assertTrue(JSONModel.objects.filter(json__b__0__c=1).exists())
+        self.assertTrue(JSONModel.objects.filter(json__c__d="e").exists())
+        self.assertTrue(JSONModel.objects.filter(json__c={"d": "e"}).exists())

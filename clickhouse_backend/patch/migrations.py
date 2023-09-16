@@ -1,8 +1,7 @@
 from django.apps.registry import Apps
-from django.db import DatabaseError
 from django.db import models as django_models
 from django.db.migrations import Migration
-from django.db.migrations.exceptions import IrreversibleError, MigrationSchemaMissing
+from django.db.migrations.exceptions import IrreversibleError
 from django.db.migrations.operations.fields import FieldOperation
 from django.db.migrations.operations.models import (
     DeleteModel,
@@ -31,44 +30,22 @@ def patch_migration_recorder():
         """
         if self._migration_class is None:
             if self.connection.vendor == "clickhouse":
-                if getattr(self.connection, "migration_cluster", None):
 
-                    class Migration(models.ClickhouseModel):
-                        host = models.StringField(max_length=255)
-                        app = models.StringField(max_length=255)
-                        name = models.StringField(max_length=255)
-                        applied = models.DateTime64Field(default=now)
-                        deleted = models.BoolField(default=False)
+                class Migration(models.ClickhouseModel):
+                    app = models.StringField(max_length=255)
+                    name = models.StringField(max_length=255)
+                    applied = models.DateTime64Field(default=now)
+                    deleted = models.BoolField(default=False)
 
-                        class Meta:
-                            apps = Apps()
-                            app_label = "migrations"
-                            db_table = "django_migrations"
-                            engine = models.ReplicatedMergeTree(
-                                "/clickhouse/tables/{shard}/{database}/{table}",
-                                "{replica}",
-                                order_by=("app", "name"),
-                            )
-                            cluster = self.connection.migration_cluster
+                    class Meta:
+                        apps = Apps()
+                        app_label = "migrations"
+                        db_table = "django_migrations"
+                        engine = models.MergeTree(order_by=("app", "name"))
+                        cluster = getattr(self.connection, "migration_cluster", None)
 
-                        def __str__(self):
-                            return "Migration %s for %s" % (self.name, self.app)
-
-                else:
-
-                    class Migration(models.ClickhouseModel):
-                        app = models.StringField(max_length=255)
-                        name = models.StringField(max_length=255)
-                        applied = models.DateTime64Field(default=now)
-
-                        class Meta:
-                            apps = Apps()
-                            app_label = "migrations"
-                            db_table = "django_migrations"
-                            engine = models.MergeTree(order_by=("app", "name"))
-
-                        def __str__(self):
-                            return "Migration %s for %s" % (self.name, self.app)
+                    def __str__(self):
+                        return "Migration %s for %s" % (self.name, self.app)
 
             else:
 
@@ -88,79 +65,24 @@ def patch_migration_recorder():
             self._migration_class = Migration
         return self._migration_class
 
-    def MigrationDistributed(self):
-        if not hasattr(self, "_migration_distributed_class"):
-            if self.connection.vendor == "clickhouse" and getattr(
-                self.connection, "migration_cluster", None
-            ):
-
-                class MigrationDistributed(models.ClickhouseModel):
-                    host = models.StringField(max_length=255)
-                    app = models.StringField(max_length=255)
-                    name = models.StringField(max_length=255)
-                    applied = models.DateTime64Field(default=now)
-                    deleted = models.BoolField(default=False)
-
-                    class Meta:
-                        apps = Apps()
-                        app_label = "migrations"
-                        db_table = "django_migrations_distributed"
-                        engine = models.Distributed(
-                            self.connection.migration_cluster,
-                            models.currentDatabase(),
-                            "django_migrations",
-                        )
-                        cluster = self.connection.migration_cluster
-
-                    def __str__(self):
-                        return "Migration %s for %s" % (self.name, self.app)
-
-                self._migration_distributed_class = MigrationDistributed
-            else:
-                self._migration_distributed_class = None
-        return self._migration_distributed_class
-
-    def hostName(self):
-        if not hasattr(self, "_hostName"):
-            with self.connection.cursor() as cursor:
-                cursor.execute("SELECT hostName()")
-                (self._hostName,) = cursor.fetchone()
-        return self._hostName
-
     def migration_qs(self):
-        if self.MigrationDistributed is not None:
+        if self.connection.vendor == "clickhouse":
             return self.Migration.objects.using(self.connection.alias).filter(
-                host=self.hostName(), deleted=False
+                deleted=False
             )
         return self.Migration.objects.using(self.connection.alias)
-
-    def ensure_schema(self):
-        if self.has_table():
-            return
-        try:
-            with self.connection.schema_editor() as editor:
-                editor.create_model(self.Migration)
-                if self.MigrationDistributed is not None:
-                    editor.create_model(self.MigrationDistributed)
-        except DatabaseError as exc:
-            raise MigrationSchemaMissing(
-                "Unable to create the django_migrations table (%s)" % exc
-            )
 
     def record_applied(self, app, name):
         """Record that a migration was applied."""
         self.ensure_schema()
-        if self.MigrationDistributed is not None:
-            if (
-                self.Migration.objects.using(self.connection.alias)
-                .filter(host=self.hostName(), app=app, name=name)
-                .exists()
-            ):
-                self.Migration.objects.using(self.connection.alias).filter(
-                    host=self.hostName(), app=app, name=name
-                ).settings(mutations_sync=1).update(deleted=False)
-            else:
-                self.migration_qs.create(host=self.hostName(), app=app, name=name)
+        if self.connection.vendor == "clickhouse" and (
+            self.Migration.objects.using(self.connection.alias)
+            .filter(app=app, name=name)
+            .exists()
+        ):
+            self.Migration.objects.using(self.connection.alias).filter(
+                app=app, name=name
+            ).settings(mutations_sync=1).update(deleted=False)
         else:
             self.migration_qs.create(app=app, name=name)
 
@@ -168,14 +90,9 @@ def patch_migration_recorder():
         """Record that a migration was unapplied."""
         self.ensure_schema()
         if self.connection.vendor == "clickhouse":
-            if self.MigrationDistributed is not None:
-                self.migration_qs.filter(app=app, name=name).settings(
-                    mutations_sync=1
-                ).update(deleted=True)
-            else:
-                self.migration_qs.filter(app=app, name=name).settings(
-                    mutations_sync=1
-                ).delete()
+            self.migration_qs.filter(app=app, name=name).settings(
+                mutations_sync=1
+            ).update(deleted=True)
         else:
             self.migration_qs.filter(app=app, name=name).delete()
 
@@ -187,13 +104,10 @@ def patch_migration_recorder():
             self.migration_qs.all().delete()
 
     MigrationRecorder.Migration = property(Migration)
-    MigrationRecorder.MigrationDistributed = property(MigrationDistributed)
     MigrationRecorder.migration_qs = property(migration_qs)
-    MigrationRecorder.ensure_schema = ensure_schema
     MigrationRecorder.record_applied = record_applied
     MigrationRecorder.record_unapplied = record_unapplied
     MigrationRecorder.flush = flush
-    MigrationRecorder.hostName = hostName
 
 
 def patch_migration():
@@ -208,10 +122,18 @@ def patch_migration():
         """
         applied_on_remote = False
         if getattr(schema_editor.connection, "migration_cluster", None):
-            recorder = MigrationRecorder(schema_editor.connection)
-            applied_on_remote = recorder.MigrationDistributed.objects.filter(
-                app=self.app_label, name=self.name, deleted=False
-            ).exists()
+            with schema_editor.connection.cursor() as cursor:
+                cursor.execute(
+                    "select EXISTS(select 1 from clusterAllReplicas(%s, currentDatabase(), %s)"
+                    " where app=%s and name=%s and deleted=false)",
+                    [
+                        schema_editor.connection.migration_cluster,
+                        "django_migrations",
+                        self.app_label,
+                        self.name,
+                    ],
+                )
+                (applied_on_remote,) = cursor.fetchone()
         for operation in self.operations:
             # If this operation cannot be represented as SQL, place a comment
             # there instead
@@ -267,10 +189,18 @@ def patch_migration():
         """
         unapplied_on_remote = False
         if getattr(schema_editor.connection, "migration_cluster", None):
-            recorder = MigrationRecorder(schema_editor.connection)
-            unapplied_on_remote = recorder.MigrationDistributed.objects.filter(
-                app=self.app_label, name=self.name, deleted=True
-            ).exists()
+            with schema_editor.connection.cursor() as cursor:
+                cursor.execute(
+                    "select EXISTS(select 1 from clusterAllReplicas(%s, currentDatabase(), %s)"
+                    " where app=%s and name=%s and deleted=true)",
+                    [
+                        schema_editor.connection.migration_cluster,
+                        "django_migrations",
+                        self.app_label,
+                        self.name,
+                    ],
+                )
+                (unapplied_on_remote,) = cursor.fetchone()
         # Construct all the intermediate states we need for a reverse migration
         to_run = []
         new_state = project_state
