@@ -10,14 +10,14 @@ from django.contrib.auth.models import (
     Group,
     Permission,
     User,
-    UserManager,
+    # UserManager,
 )
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
-from django.db import connection, migrations
-from django.db.migrations.state import ModelState, ProjectState
+# from django.db import connection, migrations
+# from django.db.migrations.state import ModelState, ProjectState
 from django.db.models.signals import post_save
-from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from .models import CustomEmailField, IntegerUsernameUser
 
