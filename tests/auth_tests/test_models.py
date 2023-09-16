@@ -5,15 +5,15 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.hashers import get_hasher
-from django.contrib.auth.models import (
+from django.contrib.auth.models import (  # UserManager,
     AnonymousUser,
     Group,
     Permission,
     User,
-    # UserManager,
 )
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
+
 # from django.db import connection, migrations
 # from django.db.migrations.state import ModelState, ProjectState
 from django.db.models.signals import post_save
