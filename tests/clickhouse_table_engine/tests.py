@@ -13,4 +13,4 @@ class TestEngineSettings(TestCase):
             )
             engine_full = cursor.fetchone()[0]
         for k, v in opts.engine.settings.items():
-            assert f"{k} = {v}" in engine_full
+            self.assertTrue(f"{k} = {v}" in engine_full)

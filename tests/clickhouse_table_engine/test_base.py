@@ -217,7 +217,7 @@ class OperationTestBase(MigrationTestBase):
         with connection.schema_editor() as editor, connection.cursor() as cursor:
             for table_name in table_names:
                 cursor.execute(
-                    "SELECT COUNT(*) > 1 FROM cluster('cluster', system.tables) where name=%s",
+                    "SELECT COUNT(*) > 1 FROM clusterAllReplicas('cluster', system.tables) where name=%s",
                     [table_name],
                 )
                 row = cursor.fetchone()

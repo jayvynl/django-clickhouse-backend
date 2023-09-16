@@ -288,8 +288,6 @@ class DatabaseOperations(BaseDatabaseOperations):
             if isinstance(engine, models.Distributed):
                 table = engine.table
                 cluster = engine.cluster
-            else:
-                cluster = getattr(opts, "cluster", None)
 
         if cluster:
             return "%s %s ON CLUSTER %s" % (
