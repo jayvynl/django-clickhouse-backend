@@ -133,31 +133,31 @@ class BaseMergeTree(Engine):
     ):
         assert (
             order_by is not None or primary_key is not None
-        ), "order_by or primary_key is missing."
+        ), "At least one of order_by or primary_key must be provided"
         self.order_by = order_by
         self.primary_key = primary_key
         self.partition_by = partition_by
 
-        if order_by is not None:
-            if isinstance(order_by, str) or not is_iterable(order_by):
-                self.order_by = [order_by]
-            if any(o is None for o in self.order_by):
-                raise ValueError("None is not allowed in order_by")
-
-        if primary_key is not None:
-            if isinstance(primary_key, str) or not is_iterable(primary_key):
-                self.primary_key = [primary_key]
-            if any(o is None for o in self.primary_key):
-                raise ValueError("None is not allowed in primary_key")
+        for key in ["order_by", "primary_key", "partition_by"]:
+            value = getattr(self, key)
+            if value is not None:
+                if isinstance(value, str) or not is_iterable(value):
+                    value = (value,)
+                    setattr(self, key, value)
+                elif not isinstance(value, tuple):
+                    value = tuple(value)
+                    setattr(self, key, value)
+                if any(i is None for i in value):
+                    raise ValueError(f"None is not allowed in {key}")
 
         # https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree#choosing-a-primary-key-that-differs-from-the-sorting-key
         # primary key expression tuple must be a prefix of the sorting key expression tuple.
-        if self.order_by is not None and self.primary_key is not None:
-            for o, p in zip_longest(self.order_by, self.primary_key):
-                if p is None:
-                    break
-                if p != o:
-                    raise ValueError("primary_key must be a prefix of order_by")
+        if (
+            self.order_by is not None
+            and self.primary_key is not None
+            and self.order_by[: len(self.primary_key)] != self.primary_key
+        ):
+            raise ValueError("primary_key must be a prefix of order_by")
 
         super().__init__(*expressions, **settings)
 
