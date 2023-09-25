@@ -1,4 +1,22 @@
+from django.utils import timezone
+
 from clickhouse_backend import models
+
+
+class Event(models.ClickhouseModel):
+    ip = models.GenericIPAddressField(default="::")
+    port = models.UInt16Field(default=0)
+    protocol = models.StringField(default="", low_cardinality=True)
+    content = models.StringField(default="")
+    timestamp = models.DateTime64Field(default=timezone.now)
+
+    class Meta:
+        ordering = ["-timestamp"]
+        engine = models.MergeTree(
+            primary_key="timestamp",
+            order_by=("timestamp", "id"),
+            partition_by=models.toYYYYMMDD("timestamp"),
+        )
 
 
 class EngineWithSettings(models.ClickhouseModel):

@@ -7,10 +7,10 @@ def get_timezone():
     """Guess what timezone the user is in.
 
     Just remember, no matter USE_TZ or not,
-    clickhouse always store UNIX timestamp (which is in UTC timezone).
+    ClickHouse always store UNIX timestamp (which is in UTC timezone).
 
     Results of lookups turning datetime to date are relevant to timezone.
-    We should always pass timezone parameter to clickhouse functions like
+    We should always pass timezone parameter to ClickHouse functions like
     toDate, toStartOfMonth.
     """
     if settings.USE_TZ:

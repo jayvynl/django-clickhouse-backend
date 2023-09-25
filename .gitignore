@@ -1,5 +1,6 @@
 .coverage
 .idea
+.vscode
 .tox
 venv
 **/__pycache__

@@ -38,7 +38,7 @@ dependencies = [
 dynamic = ["version", "readme"]
 
 [tool.setuptools.dynamic]
-version = {attr = "clickhouse_backend.VERSION"}
+version = {attr = "clickhouse_backend.__version__"}
 readme = {file = ["README.md"], content-type = "text/markdown"}
 
 [tool.isort]
