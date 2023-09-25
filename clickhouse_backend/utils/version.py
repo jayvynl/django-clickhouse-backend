@@ -34,7 +34,7 @@ def get_main_version(version):
     return ".".join(str(x) for x in version[:parts])
 
 
-@functools.lru_cache
+@functools.lru_cache(maxsize=128)
 def get_git_changeset():
     """Return a numeric identifier of the latest git changeset.
 
