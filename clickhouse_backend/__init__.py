@@ -1,3 +1,5 @@
-VERSION = (1, 1, 3)
+from django import get_version
 
-__version__ = ".".join(map(str, VERSION))
+VERSION = (1, 1, 3, "alpha", 0)
+
+__version__ = get_version(VERSION)
