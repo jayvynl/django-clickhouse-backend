@@ -1,4 +1,4 @@
-from django import get_version
+from clickhouse_backend.utils.version import get_version
 
 VERSION = (1, 1, 3, "alpha", 0)
 
