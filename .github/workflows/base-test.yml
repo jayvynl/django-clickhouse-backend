@@ -45,11 +45,6 @@ jobs:
         flag-name: run-${{ join(matrix.*, '-') }}
         parallel: true
 
-  release:
-
-    needs: test
-    uses: ./.github/workflows/release.yml
-
   coveralls-finish:
 
     needs: test

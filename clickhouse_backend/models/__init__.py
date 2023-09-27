@@ -1,5 +1,3 @@
-from clickhouse_backend.patch import patch_all
-
 from .base import ClickhouseModel
 from .engines import *  # noqa: F401,F403
 from .engines import __all__ as engines_all
@@ -17,4 +15,3 @@ __all__ = [
     *fucntions_all,
     *indexes_all,
 ]
-patch_all()

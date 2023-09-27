@@ -12,8 +12,6 @@ from django.db.migrations.operations.models import (
 from django.db.migrations.recorder import MigrationRecorder
 from django.utils.timezone import now
 
-from clickhouse_backend import models
-
 __all__ = ["patch_migrations", "patch_migration_recorder", "patch_migration"]
 
 
@@ -30,6 +28,7 @@ def patch_migration_recorder():
         """
         if self._migration_class is None:
             if self.connection.vendor == "clickhouse":
+                from clickhouse_backend import models
 
                 class Migration(models.ClickhouseModel):
                     app = models.StringField(max_length=255)
@@ -64,6 +63,19 @@ def patch_migration_recorder():
 
             self._migration_class = Migration
         return self._migration_class
+
+    def has_table(self):
+        """Return True if the django_migrations table exists."""
+        with self.connection.cursor() as cursor:
+            tables = self.connection.introspection.table_names(cursor)
+            if self.Migration._meta.db_table in tables:
+                if self.connection.vendor == "clickhouse":
+                    # fix https://github.com/jayvynl/django-clickhouse-backend/issues/51
+                    cursor.execute(
+                        "ALTER table django_migrations ADD COLUMN IF NOT EXISTS deleted Bool"
+                    )
+                return True
+        return False
 
     def migration_qs(self):
         if self.connection.vendor == "clickhouse":
@@ -104,6 +116,7 @@ def patch_migration_recorder():
             self.migration_qs.all().delete()
 
     MigrationRecorder.Migration = property(Migration)
+    MigrationRecorder.has_table = has_table
     MigrationRecorder.migration_qs = property(migration_qs)
     MigrationRecorder.record_applied = record_applied
     MigrationRecorder.record_unapplied = record_unapplied
