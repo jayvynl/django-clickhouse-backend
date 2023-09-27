@@ -8,7 +8,7 @@ class TestMigrationTable(TestCase):
     def test_update_from_110(self):
         with connection.cursor() as cursor:
             cursor.execute("ALTER table django_migrations DROP COLUMN deleted")
-            call_command("migrate")
+            call_command("migrate", fake=True)
             fields = connection.introspection.get_table_description(
                 cursor, "django_migrations"
             )
