@@ -259,11 +259,7 @@ class BackendTestCase(TransactionTestCase):
         if paramstyle == "format":
             query = "INSERT INTO %s (%s, %s) VALUES" % (tbl, f1, f2)
         elif paramstyle == "pyformat":
-            query = "INSERT INTO %s (%s, %s) VALUES" % (
-                tbl,
-                f1,
-                f2,
-            )
+            query = "INSERT INTO %s (%s, %s) VALUES" % (tbl, f1, f2)
         else:
             raise ValueError("unsupported paramstyle in test")
         with connection.cursor() as cursor:
@@ -369,7 +365,7 @@ class BackendTestCase(TransactionTestCase):
             self.fail("Unexpected error raised with Unicode password: %s" % e)
         finally:
             connection.settings_dict["PASSWORD"] = old_password
-            connection.connection.close()
+            connection.close()
             connection.connection = None
 
     def test_database_operations_helper_class(self):
@@ -431,11 +427,10 @@ class BackendTestCase(TransactionTestCase):
         # Open a connection to the database.
         with connection.cursor():
             pass
-        # Emulate a connection close by the database.
+        # _close is a noop, because underlying connection is shared between threads.
         connection._close()
-        # Even then is_usable() should not raise an exception.
         try:
-            self.assertFalse(connection.is_usable())
+            self.assertTrue(connection.is_usable())
         finally:
             # Clean up the mess created by connection._close(). Since the
             # connection is already closed, this crashes on some backends.
@@ -705,6 +700,7 @@ class FkConstraintsTests(TransactionTestCase):
 
 class ThreadTests(TransactionTestCase):
     available_apps = ["backends"]
+    databases = {"default", "s1r2", "s2r1"}
 
     def test_default_connection_thread_local(self):
         """
@@ -736,15 +732,17 @@ class ThreadTests(TransactionTestCase):
                 t = threading.Thread(target=runner)
                 t.start()
                 t.join()
-            # Each created connection got different inner connection.
+            # The inner connection is shared between threads.
             self.assertEqual(
-                len({conn.connection for conn in connections_dict.values()}), 3
+                len({conn.connection for conn in connections_dict.values()}), 1
             )
         finally:
             # Finish by closing the connections opened by the other threads
             # (the connection opened in the main thread will automatically be
             # closed on teardown).
             for conn in connections_dict.values():
+                # Regression test for https://github.com/jayvynl/django-clickhouse-backend/issues/53
+                self.assertIs(conn.connection, connection.connection)
                 if conn is not connection and conn.allow_thread_sharing:
                     conn.close()
                     conn.dec_thread_sharing()
@@ -783,6 +781,10 @@ class ThreadTests(TransactionTestCase):
             # (the connection opened in the main thread will automatically be
             # closed on teardown).
             for conn in connections_dict.values():
+                # Regression test for https://github.com/jayvynl/django-clickhouse-backend/issues/53
+                if conn.vendor == "clickhouse":
+                    conn.ensure_connection()
+                    self.assertIs(conn.connection, connections[conn.alias].connection)
                 if conn is not connection and conn.allow_thread_sharing:
                     conn.close()
                     conn.dec_thread_sharing()

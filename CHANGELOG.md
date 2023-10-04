@@ -1,6 +1,7 @@
 ### 1.1.3
 - Fix #50 partition by single expression raise TypeError.
 - Fix #51 .
+- Fix #53 .
 
 ### 1.1.2
 - Use [flake8](https://flake8.pycqa.org/) to lint code.
