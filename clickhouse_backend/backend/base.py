@@ -1,3 +1,5 @@
+import threading
+
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db.backends.base.base import BaseDatabaseWrapper
@@ -16,6 +18,9 @@ from .schema import DatabaseSchemaEditor
 
 
 class DatabaseWrapper(BaseDatabaseWrapper):
+    _connection_sharing_lock = threading.Lock()
+    _clickhouse_connections = {}
+
     vendor = "clickhouse"
     display_name = "ClickHouse"
     # This dictionary maps Field objects to their associated ClickHouse column
@@ -200,8 +205,17 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     @async_unsafe
     def get_new_connection(self, conn_params):
-        connection = Database.connect(**conn_params)
-        return connection
+        # Fix https://github.com/jayvynl/django-clickhouse-backend/issues/53
+        with self._connection_sharing_lock:
+            if self.alias in self._clickhouse_connections:
+                params, conn = self._clickhouse_connections[self.alias]
+                if conn_params == params:
+                    return conn
+
+            conn = Database.connect(**conn_params)
+            self._clickhouse_connections[self.alias] = (conn_params, conn)
+
+        return conn
 
     def init_connection_state(self):
         pass
@@ -222,6 +236,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def _set_autocommit(self, autocommit):
         pass
 
+    def _close(self):
+        """Close database connection.
+
+        This is a noop, because inner connection is shared between threads.
+        """
+        pass
+
     def is_usable(self):
         try:
             # Use a clickhouse_driver cursor directly, bypassing Django's utilities.
@@ -239,6 +260,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             row = cursor.fetchone()
         return row[0]
 
+    @cached_property
     def get_database_version(self):
         """
         Return a tuple of the database's version.
