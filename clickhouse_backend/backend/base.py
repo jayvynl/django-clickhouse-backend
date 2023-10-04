@@ -260,7 +260,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             row = cursor.fetchone()
         return row[0]
 
-    @cached_property
     def get_database_version(self):
         """
         Return a tuple of the database's version.
