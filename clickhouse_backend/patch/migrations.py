@@ -66,16 +66,17 @@ def patch_migration_recorder():
 
     def has_table(self):
         """Return True if the django_migrations table exists."""
-        with self.connection.cursor() as cursor:
-            tables = self.connection.introspection.table_names(cursor)
-            if self.Migration._meta.db_table in tables:
-                if self.connection.vendor == "clickhouse":
+        # Assert migration table won't be deleted once created.
+        if not getattr(self, "_has_table", False):
+            with self.connection.cursor() as cursor:
+                tables = self.connection.introspection.table_names(cursor)
+                self._has_table = self.Migration._meta.db_table in tables
+                if self._has_table and self.connection.vendor == "clickhouse":
                     # fix https://github.com/jayvynl/django-clickhouse-backend/issues/51
                     cursor.execute(
                         "ALTER table django_migrations ADD COLUMN IF NOT EXISTS deleted Bool"
                     )
-                return True
-        return False
+        return self._has_table
 
     def migration_qs(self):
         if self.connection.vendor == "clickhouse":
