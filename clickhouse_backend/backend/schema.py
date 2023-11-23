@@ -37,7 +37,7 @@ class ChColumns(Columns):
 
 
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
-    sql_create_table = "CREATE TABLE %(table)s %(on_cluster)s (%(definition)s) ENGINE = %(engine)s %(extra)s"
+    sql_create_table = "CREATE TABLE IF NOT EXISTS %(table)s %(on_cluster)s (%(definition)s) ENGINE = %(engine)s %(extra)s"
     sql_rename_table = "RENAME TABLE %(old_table)s TO %(new_table)s %(on_cluster)s"
     sql_delete_table = "DROP TABLE %(table)s %(on_cluster)s"
 
