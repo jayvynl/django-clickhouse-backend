@@ -15,6 +15,7 @@ jobs:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11"]
         django-version: ["3.2", "4.0", "4.1", "4.2"]
+        clickhouse-version: ["23.8", "latest"]
         include:
           - python-version: "3.7"
             django-version: "3.2"
@@ -34,7 +35,7 @@ jobs:
     - name: Lint code
       run: tox -e lint
     - name: Start clickhouse cluster
-      run: docker compose up -d --wait
+      run: CLICKHOUSE_VERSION=${{ matrix.clickhouse-version }} docker compose up -d --wait
     - name: Run test
       # Run tox using the version of Python in `PATH`
       run: tox -e py-django${{ matrix.django-version }}

@@ -22,7 +22,7 @@ class DatabaseIntrospectionTests(TestCase):
     def test_table_list(self):
         with connection.cursor() as cursor:
             self.assertIn(
-                (Person._meta.db_table, "t"),
+                (Person._meta.db_table, "t", ""),
                 connection.introspection.get_table_list(cursor),
             )
 

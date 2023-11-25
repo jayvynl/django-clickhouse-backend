@@ -1,5 +1,5 @@
 x-base-service: &base-service
-  image: clickhouse/clickhouse-server:23.6.2.18
+  image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION:-23.6.2.18}
   restart: always
   ulimits:
     nofile:

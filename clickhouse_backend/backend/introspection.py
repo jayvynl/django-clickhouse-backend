@@ -1,11 +1,13 @@
 import re
+from collections import namedtuple
 
-from django.db.backends.base.introspection import (
-    BaseDatabaseIntrospection,
-    FieldInfo,
-    TableInfo,
-)
+from django.db.backends.base.introspection import BaseDatabaseIntrospection
+from django.db.backends.base.introspection import FieldInfo as BaseFieldInfo
+from django.db.backends.base.introspection import TableInfo as BaseTableInfo
 from django.utils.functional import cached_property
+
+FieldInfo = namedtuple("FieldInfo", BaseFieldInfo._fields + ("comment",))
+TableInfo = namedtuple("TableInfo", BaseTableInfo._fields + ("comment",))
 
 constraint_pattern = re.compile(
     r"CONSTRAINT (`)?((?(1)(?:[^\\`]|\\.)+|\S+))(?(1)`|) (CHECK .+?),?\n"
@@ -16,8 +18,6 @@ index_pattern = re.compile(
 
 
 class DatabaseIntrospection(BaseDatabaseIntrospection):
-    ignored_tables = []
-
     def get_field_type(self, data_type, description):
         if data_type.startswith("LowCardinality"):  # LowCardinality(Int16)
             data_type = data_type[15:-1]
@@ -25,9 +25,9 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             data_type = data_type[9:-1]
         if data_type.startswith("FixedString"):  # FixedString(20)
             return "FixedStringField"
-        elif data_type.startswith("DateTime64"):
+        elif data_type.startswith("DateTime64"):  # DateTime64(6, 'UTC')
             return "DateTime64Field"
-        elif data_type.startswith("Decimal"):
+        elif data_type.startswith("Decimal"):  # Decimal(9, 3)
             return "DecimalField"
         elif data_type.startswith("Enum8"):
             return "Enum8Field"
@@ -50,40 +50,34 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         """Return a list of table and view names in the current database."""
         cursor.execute(
             """
-            SELECT table_name,
-            CASE table_type WHEN 2 THEN 'v' ELSE 't' END
-            FROM INFORMATION_SCHEMA.TABLES
-            WHERE table_catalog = currentDatabase()
-            AND table_type IN (1, 2)
+            SELECT name,
+            if(engine LIKE '%%View', 'v', 't'),
+            comment
+            FROM system.tables
+            WHERE database = currentDatabase()
+            AND NOT is_temporary
+            AND engine NOT LIKE 'System%%'
+            AND has_own_data
         """
         )
-        return [
-            TableInfo(*row)
-            for row in cursor.fetchall()
-            if row[0] not in self.ignored_tables
-        ]
+        return [TableInfo(*row) for row in cursor.fetchall()]
 
     def get_table_description(self, cursor, table_name):
-        """
-        Return a description of the table.
-        """
-        # Query the INFORMATION_SCHEMA.COLUMNS table.
+        """Return a description of the table."""
         cursor.execute(
             """
-            SELECT column_name, data_type, NULL, character_maximum_length,
+            SELECT name, type, character_octet_length, character_octet_length,
             coalesce(numeric_precision, datetime_precision),
-            numeric_scale, is_nullable::Bool, column_default, NULL
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE table_catalog = currentDatabase() AND table_name = %s
+            numeric_scale, type LIKE 'Nullable(%%)', default_expression, NULL, comment
+            FROM system.columns
+            WHERE database = currentDatabase() AND table = %s
         """,
             [table_name],
         )
         return [FieldInfo(*line) for line in cursor.fetchall()]
 
     def get_constraints(self, cursor, table_name):
-        """
-        Retrieve any constraints and indexes.
-        """
+        """Retrieve any constraints and indexes."""
         constraints = {}
         # No way to get structured data, parse from SHOW CREATE TABLE.
         # https://clickhouse.com/docs/en/sql-reference/statements/show#show-create-table
