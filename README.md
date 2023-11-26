@@ -82,6 +82,11 @@ and use some RDBMS to store other tables.
 Here I give an example setting for clickhouse and postgresql.
 
 ```python
+INSTALLED_APPS = [
+    # ...
+    "clickhouse_backend",
+    # ...
+]
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",

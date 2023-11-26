@@ -18,6 +18,12 @@ class DatabaseIntrospectionTests(TestCase):
             connection.introspection.get_field_type("Nullable(Decimal(8, 2))", ""),
             "DecimalField",
         )
+        self.assertEqual(
+            connection.introspection.get_field_type(
+                "LowCardinality(Nullable(Decimal(8, 2)))", ""
+            ),
+            "DecimalField",
+        )
 
     def test_table_list(self):
         with connection.cursor() as cursor:

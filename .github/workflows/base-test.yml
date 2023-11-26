@@ -20,7 +20,7 @@ jobs:
           - python-version: "3.7"
             django-version: "3.2"
 
-    name: Python${{ matrix.python-version }} Django${{ matrix.django-version }}
+    name: ClickHouse${{ matrix.clickhouse-version }} Python${{ matrix.python-version }} Django${{ matrix.django-version }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
