@@ -6,6 +6,8 @@ from django.db.backends.base.introspection import FieldInfo as BaseFieldInfo
 from django.db.backends.base.introspection import TableInfo as BaseTableInfo
 from django.utils.functional import cached_property
 
+from clickhouse_backend.utils.encoding import ensure_str
+
 FieldInfo = namedtuple("FieldInfo", BaseFieldInfo._fields + ("comment",))
 TableInfo = namedtuple("TableInfo", BaseTableInfo._fields + ("comment",))
 
@@ -83,6 +85,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         # https://clickhouse.com/docs/en/sql-reference/statements/show#show-create-table
         cursor.execute('SHOW CREATE TABLE "%s"' % table_name)
         (table_sql,) = cursor.fetchone()
+        table_sql = ensure_str(table_sql)
         for backtick, name, definition in constraint_pattern.findall(table_sql):
             constraints[name] = {
                 "columns": [],

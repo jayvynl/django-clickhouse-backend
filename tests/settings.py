@@ -7,6 +7,7 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "clickhouse_backend",
 ]
 MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",

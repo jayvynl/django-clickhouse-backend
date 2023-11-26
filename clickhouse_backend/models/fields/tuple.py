@@ -2,7 +2,6 @@ import collections
 import collections.abc
 import copy
 import json
-import warnings
 
 from django.contrib.postgres.utils import prefix_validation_error
 from django.core import checks, exceptions
@@ -64,12 +63,6 @@ class TupleField(FieldMixin, Field):
 
             if field.remote_field:
                 raise RuntimeError("Field %ss cannot be a related field." % index)
-            if getattr(field, "low_cardinality", False):
-                warnings.warn(
-                    "clickhouse_driver have bug when there is LowCardinality subtype inside Tuple. "
-                    f"Implicitly set low_cardinality = False on {repr(field)}"
-                )
-                field.low_cardinality = False
 
         if not fields:
             raise RuntimeError("'base_fields' must not be empty.")

@@ -53,20 +53,15 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # Map fields which some backends may not be able to differentiate to the
     # field it's introspected as.
     introspected_field_types = {
-        "BigIntegerField": "BigIntegerField",
-        "BinaryField": "BinaryField",
-        "BooleanField": "BooleanField",
-        "CharField": "CharField",
-        "GenericIPAddressField": "GenericIPAddressField",
-        "IntegerField": "IntegerField",
-        "PositiveBigIntegerField": "PositiveBigIntegerField",
-        "PositiveIntegerField": "PositiveIntegerField",
-        "PositiveSmallIntegerField": "PositiveSmallIntegerField",
-        "SmallIntegerField": "SmallIntegerField",
+        "AutoField": "Int64Field",
+        "BigAutoField": "Int64Field",
+        "GenericIPAddressField": "IPv6Field",
+        "SmallAutoField": "Int64Field",
     }
 
     # https://clickhouse.com/docs/en/sql-reference/statements/alter/index/
     # Index manipulation is supported only for tables with *MergeTree* engine (including replicated variants).
+    # Not btree index, don't support ordering.
     supports_index_column_ordering = False
 
     # Does the backend support introspection of materialized views?
@@ -123,6 +118,11 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_collation_on_textfield = False
     # Does the backend support non-deterministic collations?
     supports_non_deterministic_collations = False
+
+    # Does the backend support column and table comments?
+    supports_comments = True
+    # Does the backend support column comments in ADD COLUMN statements?
+    supports_comments_inline = False
 
     # SQL template override for tests.aggregation.tests.NowUTC
     test_now_utc_template = "now64()"
