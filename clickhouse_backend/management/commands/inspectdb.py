@@ -96,7 +96,8 @@ class Command(DCommand):
 
                 comment = None
                 managed_comment = ""
-                if info := table_info.get(table_name):
+                info = table_info.get(table_name)
+                if info:
                     if info.type == "v":
                         managed_comment = "  # Created from a view. Don't remove."
                     if connection.features.supports_comments:
