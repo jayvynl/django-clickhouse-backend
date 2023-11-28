@@ -8,10 +8,10 @@ from clickhouse_backend.utils.encoding import ensure_str
 
 
 class Command(DCommand):
-    db_module = "clickhouse_backend"
-
     def handle_inspection(self, options):
         connection = connections[options["database"]]
+        if connection.vendor != "clickhouse":
+            return super().handle_inspection(options)
         # 'table_name_filter' is a stealth option
         table_name_filter = options.get("table_name_filter")
 
@@ -31,7 +31,7 @@ class Command(DCommand):
                 "# Feel free to rename the models, but don't rename db_table values or "
                 "field names."
             )
-            yield "from %s import models" % self.db_module
+            yield "from clickhouse_backend import models"
             known_models = []
             # Determine types of tables and/or views to be introspected.
             types = {"t"}
@@ -45,24 +45,18 @@ class Command(DCommand):
                     if not table_name_filter(table_name):
                         continue
                 try:
-                    try:
-                        constraints = connection.introspection.get_constraints(
-                            cursor, table_name
-                        )
-                    except NotImplementedError:
-                        constraints = {}
                     table_description = connection.introspection.get_table_description(
                         cursor, table_name
                     )
                 except Exception as e:
-                    yield "# Unable to inspect table '%s'" % table_name
-                    yield "# The error was: %s" % e
+                    yield f"# Unable to inspect table '{table_name}'"
+                    yield f"# The error was: {e}"
                     continue
 
                 model_name = table2model(table_name)
                 yield ""
                 yield ""
-                yield "class %s(models.ClickhouseModel):" % model_name
+                yield f"class {model_name}(models.ClickhouseModel):"
                 known_models.append(model_name)
                 used_column_names = []  # Holds column names used in the table so far
                 column_to_field_name = {}  # Maps column names to names of model fields
@@ -88,9 +82,7 @@ class Command(DCommand):
                         extra_params["db_comment"] = row.comment
 
                     if extra_params:
-                        param = ", ".join(
-                            "%s=%r" % (k, v) for k, v in extra_params.items()
-                        )
+                        param = ", ".join(f"{k}={v!r}" for k, v in extra_params.items())
                     else:
                         param = ""
 
@@ -100,46 +92,45 @@ class Command(DCommand):
                     field_desc = f"{att_name} = {field_define}"
                     if comment_notes:
                         field_desc += "  # " + " ".join(comment_notes)
-                    yield "    %s" % field_desc
+                    yield f"    {field_desc}"
+
                 comment = None
+                managed_comment = ""
                 if info := table_info.get(table_name):
-                    is_view = info.type == "v"
+                    if info.type == "v":
+                        managed_comment = "  # Created from a view. Don't remove."
                     if connection.features.supports_comments:
                         comment = info.comment
-                else:
-                    is_view = False
-                yield from self.get_meta(
-                    table_name,
-                    constraints,
-                    column_to_field_name,
-                    is_view,
-                    False,
-                    comment,
-                )
+
+                yield ""
+                yield "    class Meta:"
+                yield f"        managed = False{managed_comment}"
+                yield f"        db_table = {table_name!r}"
+                if compat.dj_ge42 and comment:
+                    yield f"        db_table_comment = {comment!r}"
 
     def inspect_field_type(self, column_type, param=""):
         column_type = ensure_str(column_type)
-
-        if column_type.startswith("LowCardinality"):  # LowCardinality(Int16)
+        # LowCardinality(Int16)
+        if column_type.startswith("LowCardinality"):
             param = self.merge_params(param, "low_cardinality=True")
             remain = yield from self.inspect_field_type(column_type[15:], param)
             return remain[1:]
-        elif column_type.startswith("Nullable"):  # Nullable(Int16)
+        # Nullable(Int16)
+        elif column_type.startswith("Nullable"):
             param = self.merge_params(param, "null=True", "blank=True")
-            remain = yield from self.inspect_field_type(
-                column_type[9:], param
-            )  # Nullable(Int16)
+            remain = yield from self.inspect_field_type(column_type[9:], param)
             return remain[1:]
-        elif column_type.startswith("FixedString"):  # FixedString(20)
+        # FixedString(20)
+        elif column_type.startswith("FixedString"):
             i = 12
             while column_type[i].isdigit():
                 i += 1
             param = self.merge_params(param, f"max_bytes={column_type[12:i]}")
             yield f"models.FixedStringField({param})"
             return column_type[i + 1 :]
-        elif column_type.startswith(
-            "DateTime64"
-        ):  # DateTime64(6, 'UTC') or DateTime64(9)
+        # DateTime64(6, 'UTC') or DateTime64(9)
+        elif column_type.startswith("DateTime64"):
             if int(column_type[11]) != models.DateTime64Field.DEFAULT_PRECISION:
                 param = self.merge_params(param, f"precision={column_type[11]}")
             yield f"models.DateTime64Field({param})"
@@ -150,7 +141,8 @@ class Command(DCommand):
                     i += 1
                 return column_type[i + 2 :]
             return column_type[13:]
-        elif column_type.startswith("DateTime"):  # DateTime('UTC') or DateTime
+        # DateTime('UTC') or DateTime
+        elif column_type.startswith("DateTime"):
             yield f"models.DateTimeField({param})"
             if len(column_type) > 8 and column_type[8] == "(":
                 i = 10
@@ -158,7 +150,8 @@ class Command(DCommand):
                     i += 1
                     return column_type[i + 2 :]
             return column_type[8:]
-        elif column_type.startswith("Decimal"):  # Decimal(9, 3)
+        # Decimal(9, 3)
+        elif column_type.startswith("Decimal"):
             i = 8
             while column_type[i].isdigit():
                 i += 1
@@ -171,7 +164,8 @@ class Command(DCommand):
             param = self.merge_params(param, max_digits, decimal_places)
             yield f"models.DecimalField({param})"
             return column_type[i + 1 :]
-        elif column_type.startswith("Enum"):  # Enum8('a' = 1, 'b' = 2)
+        # Enum8('a' = 1, 'b' = 2)
+        elif column_type.startswith("Enum"):
             i = 4
             while column_type[i].isdigit():
                 i += 1
@@ -185,16 +179,16 @@ class Command(DCommand):
             param = self.merge_params(param, f"choices=[{', '.join(choices)}]")
             yield f"models.{typ}Field({param})"
             return remain[1:]
-        elif column_type.startswith(
-            "Array"
-        ):  # Array(Tuple(String, Enum8('a' = 1, 'b' = 2)))
+        # Array(Tuple(String, Enum8('a' = 1, 'b' = 2)))
+        elif column_type.startswith("Array"):
             yield "models.ArrayField("
             remain = yield from self.inspect_field_type(column_type[6:])
             if param:
                 yield f", {param}"
             yield ")"
             return remain[1:]
-        elif column_type.startswith("Tuple"):  # Tuple(String, Enum8('a' = 1, 'b' = 2))
+        # Tuple(String, Enum8('a' = 1, 'b' = 2))
+        elif column_type.startswith("Tuple"):
             yield "models.TupleField(["
             remain = yield from self.inspect_field_type(column_type[6:])
             while remain[0] == ",":
@@ -205,7 +199,8 @@ class Command(DCommand):
                 yield f", {param}"
             yield ")"
             return remain[1:]
-        elif column_type.startswith("Map"):  # Map(String, Int8)
+        # Map(String, Int8)
+        elif column_type.startswith("Map"):
             yield "models.MapField("
             remain = yield from self.inspect_field_type(column_type[4:])
             yield ", "
@@ -225,7 +220,8 @@ class Command(DCommand):
         yield f"models.{column_type[:i]}Field({param})"
         return column_type[i:]
 
-    def consume_enum_choice(self, s):  # 'a' = 1
+    def consume_enum_choice(self, s):
+        # 'a' = 1
         has_bytes = False
         i = 1
         while True:
