@@ -201,7 +201,7 @@ class SQLUpdateCompiler(ClickhouseMixin, compiler.SQLUpdateCompiler):
                     )
             elif hasattr(val, "prepare_database_save"):
                 if field.remote_field:
-                    val = field.get_db_prep_save(
+                    val = field.get_db_prep_value(
                         val.prepare_database_save(field),
                         connection=self.connection,
                     )
@@ -212,7 +212,8 @@ class SQLUpdateCompiler(ClickhouseMixin, compiler.SQLUpdateCompiler):
                         % (field, val, field.__class__.__name__)
                     )
             else:
-                val = field.get_db_prep_save(val, connection=self.connection)
+                # update params are formatted into query string.
+                val = field.get_db_prep_value(val, connection=self.connection)
 
             # Getting the placeholder for the field.
             if hasattr(field, "get_placeholder"):
