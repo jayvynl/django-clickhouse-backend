@@ -33,7 +33,4 @@ class JSONField(FieldMixin, json.JSONField):
         return value
 
     def get_db_prep_save(self, value, connection):
-        value = super().get_db_prep_save(value, connection)
-        if isinstance(value, JSON):
-            value = value.value
         return value
