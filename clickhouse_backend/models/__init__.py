@@ -7,6 +7,7 @@ from .functions import *  # noqa: F401,F403
 from .functions import __all__ as fucntions_all
 from .indexes import *  # noqa: F401,F403
 from .indexes import __all__ as indexes_all
+from .count import * # noqa: F401,F403
 
 __all__ = [
     "ClickhouseModel",
