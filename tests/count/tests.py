@@ -1,15 +1,16 @@
-from django.test import TestCase
-
 from clickhouse_backend.models import (
-    uniqExact,
     uniq,
     uniqCombined,
     uniqCombined64,
+    uniqExact,
     uniqHLL12,
     uniqTheta,
 )
 
+from django.test import TestCase
+
 from .models import WatchSeries
+
 
 class CountTestCase(TestCase):
     expected = [
