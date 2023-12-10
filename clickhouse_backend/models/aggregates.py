@@ -2,6 +2,15 @@ from django.db.models import Aggregate
 from django.db.models.expressions import Star
 from django.db.models.fields import IntegerField
 
+__all__ = [
+    "uniqExact",
+    "uniq",
+    "uniqCombined",
+    "uniqCombined64",
+    "uniqHLL12",
+    "uniqTheta",
+]
+
 
 class uniqExact(Aggregate):
     function = "uniqExact"
