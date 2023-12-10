@@ -3,7 +3,7 @@ from django.db.models.expressions import Star
 from django.db.models.fields import IntegerField
 
 
-class UniqExact(Aggregate):
+class uniqExact(Aggregate):
     function = "uniqExact"
     name = "uniqExact"
     output_field = IntegerField()
@@ -18,7 +18,7 @@ class UniqExact(Aggregate):
         super().__init__(expression, filter=filter, **extra)
 
 
-class Uniq(Aggregate):
+class uniq(Aggregate):
     function = "uniq"
     name = "uniq"
     output_field = IntegerField()
