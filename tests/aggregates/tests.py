@@ -8,15 +8,23 @@ from clickhouse_backend.models import (
 )
 
 from django.test import TestCase
+from django.db.models import Q
 
 from .models import WatchSeries
 
 
-class CountTestCase(TestCase):
-    expected = [
+class AggregatesTestCase(TestCase):
+    expected_result_without_star = [
         {"show": "Bridgerton", "episode": "S1E1", "uid_count": 4},
         {"show": "Bridgerton", "episode": "S1E2", "uid_count": 2},
         {"show": "Game of Thrones", "episode": "S1E1", "uid_count": 3},
+        {"show": "Game of Thrones", "episode": "S1E2", "uid_count": 1},
+    ]
+
+    expected_result_with_star = [
+        {"show": "Bridgerton", "episode": "S1E1", "uid_count": 6},
+        {"show": "Bridgerton", "episode": "S1E2", "uid_count": 3},
+        {"show": "Game of Thrones", "episode": "S1E1", "uid_count": 9},
         {"show": "Game of Thrones", "episode": "S1E2", "uid_count": 1},
     ]
 
@@ -153,56 +161,60 @@ class CountTestCase(TestCase):
         # Use bulk_create to insert the list of objects in a single query
         WatchSeries.objects.bulk_create(watch_series_list)
 
-    def test_uniqexact(self):
+    def _test_uniq(self, cls_uniq):
         result = (
             WatchSeries.objects.all()
             .values("show", "episode")
-            .annotate(uid_count=uniqExact("uid"))
+            .annotate(uid_count=cls_uniq("*"))
             .order_by("show", "episode")
         )
-        self.assertListEqual(list(result), self.expected)
+
+        self.assertQuerysetEqual(result, self.expected_result_with_star, transform=dict)
+
+    def _test_uniq_with_filter(self, cls_uniq):
+        with self.assertRaises(ValueError):
+            WatchSeries.objects.values("show", "episode").annotate(
+                uid_count=cls_uniq("*", filter=Q(episode="S1E1"))
+            ).order_by("show", "episode")
+
+    def _test_uniq_without_star(self, cls_uniq):
+        result = (
+            WatchSeries.objects.all()
+            .values("show", "episode")
+            .annotate(uid_count=cls_uniq("uid"))
+            .order_by("show", "episode")
+        )
+
+        self.assertQuerysetEqual(
+            result, self.expected_result_without_star, transform=dict
+        )
+
+    def test_uniqexact(self):
+        self._test_uniq(uniqExact)
+        self._test_uniq_with_filter(uniqExact)
+        self._test_uniq_without_star(uniqExact)
 
     def test_uniq(self):
-        result = (
-            WatchSeries.objects.all()
-            .values("show", "episode")
-            .annotate(uid_count=uniq("uid"))
-            .order_by("show", "episode")
-        )
-        self.assertListEqual(list(result), self.expected)
+        self._test_uniq(uniq)
+        self._test_uniq_with_filter(uniq)
+        self._test_uniq_without_star(uniq)
 
-    def test_uniq_combined(self):
-        result = (
-            WatchSeries.objects.all()
-            .values("show", "episode")
-            .annotate(uid_count=uniqCombined("uid"))
-            .order_by("show", "episode")
-        )
-        self.assertListEqual(list(result), self.expected)
+    def test_uniqcombined(self):
+        self._test_uniq(uniqCombined)
+        self._test_uniq_with_filter(uniqCombined)
+        self._test_uniq_without_star(uniqCombined)
 
-    def test_uniq_combined64(self):
-        result = (
-            WatchSeries.objects.all()
-            .values("show", "episode")
-            .annotate(uid_count=uniqCombined64("uid"))
-            .order_by("show", "episode")
-        )
-        self.assertListEqual(list(result), self.expected)
+    def test_uniqcombined64(self):
+        self._test_uniq(uniqCombined64)
+        self._test_uniq_with_filter(uniqCombined64)
+        self._test_uniq_without_star(uniqCombined64)
 
-    def test_uniq_hll12(self):
-        result = (
-            WatchSeries.objects.all()
-            .values("show", "episode")
-            .annotate(uid_count=uniqHLL12("uid"))
-            .order_by("show", "episode")
-        )
-        self.assertListEqual(list(result), self.expected)
+    def test_uniqhll12(self):
+        self._test_uniq(uniqHLL12)
+        self._test_uniq_with_filter(uniqHLL12)
+        self._test_uniq_without_star(uniqHLL12)
 
-    def test_uniq_theta(self):
-        result = (
-            WatchSeries.objects.all()
-            .values("show", "episode")
-            .annotate(uid_count=uniqTheta("uid"))
-            .order_by("show", "episode")
-        )
-        self.assertListEqual(list(result), self.expected)
+    def test_uniqtheta(self):
+        self._test_uniq(uniqTheta)
+        self._test_uniq_with_filter(uniqTheta)
+        self._test_uniq_without_star(uniqTheta)
