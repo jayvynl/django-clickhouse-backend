@@ -139,14 +139,19 @@ class CountTestCase(TestCase):
             },
         ]
 
-        for item in data_list:
-            # Create a new WatchSeries instance with the data from each dictionary
-            WatchSeries.objects.create(
+        # Create a list of WatchSeries objects
+        watch_series_list = [
+            WatchSeries(
                 date_id=item["date"],
                 uid=item["user"],
                 show=item["show"],
                 episode=item["episode"],
             )
+            for item in data_list
+        ]
+
+        # Use bulk_create to insert the list of objects in a single query
+        WatchSeries.objects.bulk_create(watch_series_list)
 
     def test_uniqexact(self):
         result = (
