@@ -584,6 +584,10 @@ Changelog
 
 [All changelogs](https://github.com/jayvynl/django-clickhouse-backend/blob/main/CHANGELOG.md).
 
+Contributing
+---
+
+Read [Contributing guide](./CONTRIBUTING.md).
 
 License
 ---
