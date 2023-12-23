@@ -521,8 +521,8 @@ If `migration_cluster` is not specified in database configuration. You should al
 Because other nodes do not know whether migrations have been applied by any other node.
 
 If `migration_cluster` is specified. Then migration table(named `django_migrations`) will be created on the specified cluster.
-When applied, [migration options](https://docs.djangoproject.com/en/4.2/ref/migration-operations/) of model with cluster defined in `Meta` class
-will be executed on cluster, other migration options will be executed locally.
+When applied, [migration operations](https://docs.djangoproject.com/en/4.2/ref/migration-operations/) of model with cluster defined in `Meta` class
+will be executed on cluster, other migration operations will be executed locally.
 This means distributed table will be created on all nodes as long as any node has applied the migrations.
 Other local table will only be created on node which has applied the migrations.
 
