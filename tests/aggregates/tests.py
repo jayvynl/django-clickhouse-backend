@@ -1,3 +1,6 @@
+from django.db.models import Q
+from django.test import TestCase
+
 from clickhouse_backend.models import (
     uniq,
     uniqCombined,
@@ -6,9 +9,6 @@ from clickhouse_backend.models import (
     uniqHLL12,
     uniqTheta,
 )
-
-from django.test import TestCase
-from django.db.models import Q
 
 from .models import WatchSeries
 

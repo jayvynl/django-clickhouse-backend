@@ -1,20 +1,13 @@
 from django.conf import settings
 from django.db import models
 
+from .base import Func
+
 __all__ = [
     "toYYYYMM",
     "toYYYYMMDD",
     "toYYYYMMDDhhmmss",
-    "currentDatabase",
-    "Rand",
-    "hostName",
 ]
-
-
-class Func(models.Func):
-    @property
-    def function(self):
-        return self.__class__.__name__
 
 
 class toYYYYMM(Func):
@@ -41,15 +34,3 @@ class toYYYYMMDD(toYYYYMM):
 
 class toYYYYMMDDhhmmss(toYYYYMM):
     pass
-
-
-class currentDatabase(Func):
-    arity = 0
-
-
-class Rand(Func):
-    arity = 0
-
-
-class hostName(Func):
-    arity = 0
