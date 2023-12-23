@@ -1,10 +1,11 @@
-from django.db.models import Aggregate
+from django.db.models import aggregates
 from django.db.models.expressions import Star
-from django.db.models.fields import IntegerField
+
+from clickhouse_backend.models.fields import UInt64Field
 
 __all__ = [
-    "uniqExact",
     "uniq",
+    "uniqExact",
     "uniqCombined",
     "uniqCombined64",
     "uniqHLL12",
@@ -12,91 +13,52 @@ __all__ = [
 ]
 
 
-class uniqExact(Aggregate):
-    function = "uniqExact"
-    name = "uniqExact"
-    output_field = IntegerField()
-    allow_distinct = True
-    empty_result_set_value = 0
+class Aggregate(aggregates.Aggregate):
+    @property
+    def function(self):
+        return self.__class__.__name__
 
-    def __init__(self, expression, filter=None, **extra):
-        if expression == "*":
-            expression = Star()
-        if isinstance(expression, Star) and filter is not None:
-            raise ValueError("Star cannot be used with filter.")
-        super().__init__(expression, filter=filter, **extra)
+    @property
+    def name(self):
+        return self.__class__.__name__
+
+    def deconstruct(self):
+        module_name = self.__module__
+        name = self.__class__.__name__
+        if module_name.startswith("clickhouse_backend.models.aggregates"):
+            module_name = "clickhouse_backend.models"
+        return (
+            f"{module_name}.{name}",
+            self._constructor_args[0],
+            self._constructor_args[1],
+        )
 
 
 class uniq(Aggregate):
-    function = "uniq"
-    name = "uniq"
-    output_field = IntegerField()
+    output_field = UInt64Field()
     allow_distinct = True
     empty_result_set_value = 0
 
-    def __init__(self, expression, filter=None, **extra):
-        if expression == "*":
-            expression = Star()
-        if isinstance(expression, Star) and filter is not None:
-            raise ValueError("Star cannot be used with filter.")
-        super().__init__(expression, filter=filter, **extra)
+    def __init__(self, *expressions, distinct=False, filter=None, **extra):
+        expressions = [Star() if exp == "*" else exp for exp in expressions]
+        super().__init__(*expressions, distinct=distinct, filter=filter, **extra)
 
 
-class uniqCombined(Aggregate):
-    function = "uniqCombined"
-    name = "uniqCombined"
-    output_field = IntegerField()
-    allow_distinct = True
-    empty_result_set_value = 0
-
-    def __init__(self, expression, filter=None, **extra):
-        if expression == "*":
-            expression = Star()
-        if isinstance(expression, Star) and filter is not None:
-            raise ValueError("Star cannot be used with filter.")
-        super().__init__(expression, filter=filter, **extra)
+class uniqExact(uniq):
+    pass
 
 
-class uniqCombined64(Aggregate):
-    function = "uniqCombined64"
-    name = "uniqCombined64"
-    output_field = IntegerField()
-    allow_distinct = True
-    empty_result_set_value = 0
-
-    def __init__(self, expression, filter=None, **extra):
-        if expression == "*":
-            expression = Star()
-        if isinstance(expression, Star) and filter is not None:
-            raise ValueError("Star cannot be used with filter.")
-        super().__init__(expression, filter=filter, **extra)
+class uniqCombined(uniq):
+    pass
 
 
-class uniqHLL12(Aggregate):
-    function = "uniqHLL12"
-    name = "uniqHLL12"
-    output_field = IntegerField()
-    allow_distinct = True
-    empty_result_set_value = 0
-
-    def __init__(self, expression, filter=None, **extra):
-        if expression == "*":
-            expression = Star()
-        if isinstance(expression, Star) and filter is not None:
-            raise ValueError("Star cannot be used with filter.")
-        super().__init__(expression, filter=filter, **extra)
+class uniqCombined64(uniq):
+    pass
 
 
-class uniqTheta(Aggregate):
-    function = "uniqTheta"
-    name = "uniqTheta"
-    output_field = IntegerField()
-    allow_distinct = True
-    empty_result_set_value = 0
+class uniqHLL12(uniq):
+    pass
 
-    def __init__(self, expression, filter=None, **extra):
-        if expression == "*":
-            expression = Star()
-        if isinstance(expression, Star) and filter is not None:
-            raise ValueError("Star cannot be used with filter.")
-        super().__init__(expression, filter=filter, **extra)
+
+class uniqTheta(uniq):
+    pass
