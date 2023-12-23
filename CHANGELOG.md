@@ -1,3 +1,17 @@
+### 1.1.5
+- refactor: refactor uniq aggregate function.
+- feat: add some ClickHouse tuple and hash functions.
+- fix: test and fix ClickHouse functions.
+- ci: remove deploy of testpypi.
+- docs: update DatabaseOperations.max_in_list_size docstring.
+- docs: fix readme error word.
+- chore: clickhouse_backend.models.functions turn module to package.
+
+### 1.1.4
+- fix [#57](https://github.com/jayvynl/django-clickhouse-backend/issues/57).
+- Implemente an improved version of inspectdb command.
+- Fix update compiler.
+
 ### 1.1.3
 - Fix #50 partition by single expression raise TypeError.
 - Fix #51 .
