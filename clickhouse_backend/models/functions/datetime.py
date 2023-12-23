@@ -1,5 +1,7 @@
-from django.conf import settings
 from django.db import models
+
+from clickhouse_backend.models import fields
+from clickhouse_backend.utils.timezone import get_timezone
 
 from .base import Func
 
@@ -11,7 +13,9 @@ __all__ = [
 
 
 class toYYYYMM(Func):
-    def __init__(self, *expressions, output_field=None, **extra):
+    output_field = fields.UInt32Field()
+
+    def __init__(self, *expressions):
         arity = len(expressions)
         if arity < 1 or arity > 2:
             raise TypeError(
@@ -23,9 +27,10 @@ class toYYYYMM(Func):
             )
         if arity == 2 and isinstance(expressions[1], str):
             expressions = (expressions[0], models.Value(expressions[1]))
-        elif settings.USE_TZ:
-            expressions = (expressions[0], models.Value(settings.TIME_ZONE))
-        super().__init__(*expressions, output_field=output_field, **extra)
+        else:
+            expressions = (expressions[0], models.Value(get_timezone()))
+
+        super().__init__(*expressions)
 
 
 class toYYYYMMDD(toYYYYMM):
@@ -33,4 +38,4 @@ class toYYYYMMDD(toYYYYMM):
 
 
 class toYYYYMMDDhhmmss(toYYYYMM):
-    pass
+    output_field = fields.UInt64Field()

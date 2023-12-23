@@ -145,6 +145,9 @@ class TupleField(FieldMixin, Field):
             self.container_class = tuple
 
     def _convert_type(self, value):
+        # When used as Expression output_field
+        if not hasattr(self, "container_class"):
+            self.set_attributes_from_name("")
         if value is None or isinstance(value, self.container_class):
             return value
         if self.is_named_tuple:
