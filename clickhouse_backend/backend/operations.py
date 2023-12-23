@@ -253,7 +253,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     def max_in_list_size(self):
         """
         The maximum size of an array is limited to one million elements.
-        https://clickhouse.com/docs/en/sql-reference/data-types/array#working-with-data-types
+        https://github.com/ClickHouse/ClickHouse/issues/20059
         """
         return 1000000
 
