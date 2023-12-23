@@ -163,24 +163,39 @@ class AggregatesTestCase(TestCase):
 
     def _test_uniq(self, cls_uniq):
         result = (
-            WatchSeries.objects.all()
-            .values("show", "episode")
+            WatchSeries.objects.values("show", "episode")
             .annotate(uid_count=cls_uniq("*"))
             .order_by("show", "episode")
         )
 
         self.assertQuerysetEqual(result, self.expected_result_with_star, transform=dict)
 
+    def _test_uniq_mix_field_star(self, cls_uniq):
+        result = (
+            WatchSeries.objects.values("show", "episode")
+            .annotate(uid_count=cls_uniq("date_id", "*", "uid"))
+            .order_by("show", "episode")
+        )
+
+        self.assertQuerysetEqual(result, self.expected_result_with_star, transform=dict)
+
     def _test_uniq_with_filter(self, cls_uniq):
-        with self.assertRaises(ValueError):
-            WatchSeries.objects.values("show", "episode").annotate(
-                uid_count=cls_uniq("*", filter=Q(episode="S1E1"))
-            ).order_by("show", "episode")
+        expected_result = [
+            {"show": "Bridgerton", "episode": "S1E1", "uid_count": 6},
+            {"show": "Bridgerton", "episode": "S1E2", "uid_count": 0},
+            {"show": "Game of Thrones", "episode": "S1E1", "uid_count": 9},
+            {"show": "Game of Thrones", "episode": "S1E2", "uid_count": 0},
+        ]
+        result = (
+            WatchSeries.objects.values("show", "episode")
+            .annotate(uid_count=cls_uniq("*", filter=Q(episode="S1E1")))
+            .order_by("show", "episode")
+        )
+        self.assertQuerysetEqual(result, expected_result, transform=dict)
 
     def _test_uniq_without_star(self, cls_uniq):
         result = (
-            WatchSeries.objects.all()
-            .values("show", "episode")
+            WatchSeries.objects.values("show", "episode")
             .annotate(uid_count=cls_uniq("uid"))
             .order_by("show", "episode")
         )
@@ -189,32 +204,26 @@ class AggregatesTestCase(TestCase):
             result, self.expected_result_without_star, transform=dict
         )
 
-    def test_uniqexact(self):
-        self._test_uniq(uniqExact)
-        self._test_uniq_with_filter(uniqExact)
-        self._test_uniq_without_star(uniqExact)
+    def _test(self, cls_uniq):
+        self._test_uniq(cls_uniq)
+        self._test_uniq_mix_field_star(cls_uniq)
+        self._test_uniq_with_filter(cls_uniq)
+        self._test_uniq_without_star(cls_uniq)
 
     def test_uniq(self):
-        self._test_uniq(uniq)
-        self._test_uniq_with_filter(uniq)
-        self._test_uniq_without_star(uniq)
+        self._test(uniq)
+
+    def test_uniqexact(self):
+        self._test(uniqExact)
 
     def test_uniqcombined(self):
-        self._test_uniq(uniqCombined)
-        self._test_uniq_with_filter(uniqCombined)
-        self._test_uniq_without_star(uniqCombined)
+        self._test(uniqCombined)
 
     def test_uniqcombined64(self):
-        self._test_uniq(uniqCombined64)
-        self._test_uniq_with_filter(uniqCombined64)
-        self._test_uniq_without_star(uniqCombined64)
+        self._test(uniqCombined64)
 
     def test_uniqhll12(self):
-        self._test_uniq(uniqHLL12)
-        self._test_uniq_with_filter(uniqHLL12)
-        self._test_uniq_without_star(uniqHLL12)
+        self._test(uniqHLL12)
 
     def test_uniqtheta(self):
-        self._test_uniq(uniqTheta)
-        self._test_uniq_with_filter(uniqTheta)
-        self._test_uniq_without_star(uniqTheta)
+        self._test(uniqTheta)

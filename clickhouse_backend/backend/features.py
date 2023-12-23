@@ -127,6 +127,10 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # SQL template override for tests.aggregation.tests.NowUTC
     test_now_utc_template = "now64()"
 
+    # Does the database support SQL 2003 FILTER (WHERE ...) in aggregate
+    # expressions?
+    supports_aggregate_filter_clause = True
+
     @cached_property
     def supports_transactions(self):
         return self.fake_transaction
