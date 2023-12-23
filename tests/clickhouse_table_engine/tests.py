@@ -2,6 +2,7 @@ from django.db import connection
 from django.test import TestCase
 
 from clickhouse_backend import models
+from clickhouse_backend.utils.timezone import get_timezone
 
 from .models import EngineWithSettings, Event
 
@@ -16,7 +17,7 @@ class TestMergeTree(TestCase):
             engine_full = cursor.fetchone()[0]
         self.assertEqual(
             engine_full.partition(" SETTINGS ")[0],
-            "MergeTree PARTITION BY toYYYYMMDD(timestamp) PRIMARY KEY timestamp ORDER BY (timestamp, id)",
+            f"MergeTree PARTITION BY toYYYYMMDD(timestamp, '{get_timezone()}') PRIMARY KEY timestamp ORDER BY (timestamp, id)",
         )
 
     def test_mergetree_init_exception(self):

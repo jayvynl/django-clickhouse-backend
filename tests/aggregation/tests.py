@@ -1537,6 +1537,7 @@ class AggregateTestCase(TestCase):
             expr = Min(
                 "store__original_opening",
                 filter=~Q(store__name="Amazon.com"),
+                # Never take effect
                 default=Cast(datetime.datetime(1970, 1, 1), DateTimeField()),
             )
             queryset = Book.objects.annotate(oldest_store_opening=expr).order_by("isbn")
@@ -1557,7 +1558,7 @@ class AggregateTestCase(TestCase):
                     },
                     {
                         "isbn": "067232959",
-                        "oldest_store_opening": datetime.datetime(1970, 1, 1),
+                        "oldest_store_opening": datetime.datetime.fromtimestamp(0),
                     },
                     {
                         "isbn": "155860191",
@@ -1581,10 +1582,10 @@ class AggregateTestCase(TestCase):
             )
 
         def test_aggregation_default_using_datetime_from_database(self):
-            now = timezone.now()
             expr = Min(
                 "store__original_opening",
                 filter=~Q(store__name="Amazon.com"),
+                # Never take effect
                 default=TruncHour(NowUTC(), output_field=DateTimeField()),
             )
             queryset = Book.objects.annotate(oldest_store_opening=expr).order_by("isbn")
@@ -1605,9 +1606,7 @@ class AggregateTestCase(TestCase):
                     },
                     {
                         "isbn": "067232959",
-                        "oldest_store_opening": now.replace(
-                            minute=0, second=0, microsecond=0, tzinfo=None
-                        ),
+                        "oldest_store_opening": datetime.datetime.fromtimestamp(0),
                     },
                     {
                         "isbn": "155860191",
