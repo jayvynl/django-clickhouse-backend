@@ -1,3 +1,7 @@
+### 1.1.6
+
+- add `CLICKHOUSE_ENABLE_UPDATE_ROWCOUNT` django setting.
+
 ### 1.1.5
 - refactor: refactor uniq aggregate function.
 - feat: add some ClickHouse tuple and hash functions.

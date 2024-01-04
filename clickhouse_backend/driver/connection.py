@@ -5,6 +5,7 @@ from clickhouse_driver import connection
 from clickhouse_driver.dbapi import connection as dbapi_connection
 from clickhouse_driver.dbapi import cursor, errors
 from clickhouse_pool.pool import ChPoolError
+from django.conf import settings
 
 from .escape import escape_params
 from .pool import ClickhousePool
@@ -93,7 +94,9 @@ class Cursor(cursor.Cursor):
 
     def execute(self, operation, parameters=None):
         """fix https://github.com/jayvynl/django-clickhouse-backend/issues/9"""
-        if update_pattern.match(operation):
+        if getattr(
+            settings, "CLICKHOUSE_ENABLE_UPDATE_ROWCOUNT", True
+        ) and update_pattern.match(operation):
             query = self._client.substitute_params(
                 operation, parameters, self._client.connection.context
             )

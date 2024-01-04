@@ -73,3 +73,20 @@ If data insertions happen on multiple datacenter, server, process or thread, you
 Because work_id and datacenter_id are 5 bits, they should be an integer between 0 and 31. CLICKHOUSE_WORKER_ID default to 0, CLICKHOUSE_DATACENTER_ID will be generated randomly if not provided.
 
 `clickhouse.idworker.snowflake.SnowflakeIDWorker` is not thread safe. You could inherit `clickhouse.idworker.base.BaseIDWorker` and implement one, then set `CLICKHOUSE_ID_WORKER` in `settings.py` to doted import path of your IDWorker instance.
+
+### Other
+
+#### CLICKHOUSE_ENABLE_UPDATE_ROWCOUNT
+
+*New in 1.1.6*
+
+Whether returning rowcount when executing `update` query, default is `True`.
+
+Django rely on [rowcount](https://peps.python.org/pep-0249/#rowcount) of [Python DBAPI 2.0](https://peps.python.org/pep-0249/) to get number of rows deleted or updated.
+However, clickhouse_driver always have rowcount equals -1 when updating and deleting.
+
+Updating of Django builtin model instances will [work abnormally](https://github.com/jayvynl/django-clickhouse-backend/issues/9) when this feature is missing.
+To fix this issue, ClickHouse backend use a modified version of clickhouse_driver which execute count aggregation and set rowcount before updating.
+
+However, this will cause another problem, count aggregation will be extremely slow sometimes, because it scans all affected rows.
+Set `CLICKHOUSE_ENABLE_UPDATE_ROWCOUNT` to `False` when this feature is not needed.
