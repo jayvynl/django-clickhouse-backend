@@ -464,7 +464,7 @@ Extra settings explanation:
   then only one connection should set `"managed": True`(the default value), other connections should set `"managed": False`.
   So that test database will not be created multiple times.
   
-  If your managed database alias is not `s1r2`, `"DEPENDENCIES": ["s1r2"]` should be set to ensure the [creation order for test databases](https://docs.djangoproject.com/en/4.2/topics/testing/advanced/#controlling-creation-order-for-test-databases).
+  If your managed database alias is `s1r2` instead `default`, `"DEPENDENCIES": ["s1r2"]` should be set to ensure the [creation order for test databases](https://docs.djangoproject.com/en/4.2/topics/testing/advanced/#controlling-creation-order-for-test-databases).
 
   Do not hardcode database name when you define replicated table or distributed table.
   Because test database name is different from deployed database name.
