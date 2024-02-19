@@ -221,9 +221,9 @@ class ReplicatedMixin:
                     len(expressions),
                 )
             )
-        replicated_params = map(value_if_string, self.expressions[:2])
+        replicated_params = map(value_if_string, expressions[:2])
         super().__init__(*expressions[2:], **extra)
-        self.expressions = (*replicated_params, *self.expressions)
+        self.expressions = (*replicated_params, *expressions)
 
 
 class ReplicatedMergeTree(MergeTree):
