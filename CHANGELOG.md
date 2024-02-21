@@ -1,3 +1,9 @@
+### 1.1.7
+
+- fix: #76 `AttributeError: 'ReplicatedReplacingMergeTree' object has no attribute 'expressions'`.
+- fix: migrate ReplacingMergeTree with [`ver`](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replacingmergetree#ver) raising `AttributeError: 'F' object has no attribute 'get_source_expressions'`.
+- fix: unable to omit [`zoo_path`](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replication#zoo_path) and [`replica_name`](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replication#replica_name) in replicated engines other than `ReplicatedMergeTree`.
+
 ### 1.1.6
 
 - add `CLICKHOUSE_ENABLE_UPDATE_ROWCOUNT` django setting.

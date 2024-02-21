@@ -185,63 +185,35 @@ class VersionedCollapsingMergeTree(BaseMergeTree):
 
 
 class GraphiteMergeTree(BaseMergeTree):
-    arity = 1
-
-    def __init__(self, *expressions, **extra):
-        if expressions:
-            expressions = (value_if_string(expressions[0]), *expressions[1:])
-        super().__init__(*expressions, **extra)
+    def __init__(self, config_section, **extra):
+        super().__init__(value_if_string(config_section), **extra)
 
 
 class ReplicatedMixin:
-    def __init__(self, *expressions, **extra):
-        if self.arity is not None and len(expressions) != self.arity + 2:
-            raise TypeError(
-                "'%s' takes exactly %s arguments (%s given)"
-                % (
-                    self.__class__.__name__,
-                    self.arity + 2,
-                    len(expressions),
-                )
-            )
-        if self.arity is None and len(expressions) < 2:
-            raise TypeError(
-                "'%s' takes at least 2 arguments (%s given)"
-                % (
-                    self.__class__.__name__,
-                    len(expressions),
-                )
-            )
-        if self.max_arity is not None and len(expressions) > self.max_arity + 2:
-            raise TypeError(
-                "'%s' takes at most %s arguments (%s given)"
-                % (
-                    self.__class__.__name__,
-                    self.max_arity + 2,
-                    len(expressions),
-                )
-            )
-        replicated_params = map(value_if_string, expressions[:2])
-        super().__init__(*expressions[2:], **extra)
-        self.source_expressions = (*replicated_params, *self.source_expressions)
+    def __init__(self, *replicated_parameters, other_parameters=(), **extra):
+        """
+        https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replication#replicatedmergetree-parameters
+        https://github.com/ClickHouse/ClickHouse/issues/8675
+        https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replication#creating-replicated-tables
 
-
-class ReplicatedMergeTree(MergeTree):
-    arity = None
-
-    def __init__(self, *expressions, **extra):
-        # https://github.com/ClickHouse/ClickHouse/issues/8675
-        # https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replication#creating-replicated-tables
-        # You can specify default arguments for Replicated table engine in the server configuration file.
-        # In this case, you can omit arguments when creating tables.
-        if expressions:
-            if len(expressions) != 2:
+        replicated_parameters: zoo_path and replica_name. Their default values can be specified in the server
+            configuration file, in this case, they both can be omitted.
+        other_parameters: Parameters of an engine which is used for creating the replicated version,
+            for example, version in ReplacingMergeTree
+        """
+        if replicated_parameters:
+            if len(replicated_parameters) != 2:
                 raise TypeError(
-                    "'ReplicatedMergeTree' takes at 0 or 2 arguments (%s given)"
-                    % len(expressions)
+                    "'ReplicatedMergeTree' takes 0 or 2 arguments (%s given)"
+                    % len(replicated_parameters)
                 )
-            expressions = map(value_if_string, expressions)
-        super().__init__(*expressions, **extra)
+            replicated_parameters = map(value_if_string, replicated_parameters)
+        super().__init__(*other_parameters, **extra)
+        self.source_expressions = (*replicated_parameters, *self.source_expressions)
+
+
+class ReplicatedMergeTree(ReplicatedMixin, MergeTree):
+    pass
 
 
 class ReplicatedReplacingMergeTree(ReplicatedMixin, ReplacingMergeTree):

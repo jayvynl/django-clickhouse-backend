@@ -48,3 +48,35 @@ class DistributedStudent(models.ClickhouseModel):
             "cluster", models.currentDatabase(), Student._meta.db_table, models.Rand()
         )
         cluster = "cluster"
+
+
+class ReplacingMergeTree(models.ClickhouseModel):
+    ver = models.UInt64Field()
+    is_deleted = models.UInt8Field()
+
+    class Meta:
+        engine = models.ReplacingMergeTree("ver", "is_deleted", order_by="id")
+
+
+class ReplicatedReplacingMergeTree(models.ClickhouseModel):
+    ver = models.UInt64Field()
+    is_deleted = models.UInt8Field()
+
+    class Meta:
+        engine = models.ReplicatedReplacingMergeTree(
+            other_parameters=("ver", "is_deleted"), order_by="id"
+        )
+        cluster = "cluster"
+
+
+class ReplicatedReplacingMergeTreeWithZooReplica(models.ClickhouseModel):
+    ver = models.UInt64Field()
+    is_deleted = models.UInt8Field()
+
+    class Meta:
+        engine = models.ReplicatedReplacingMergeTree(
+            "/clickhouse/tables/{shard}/table_name",
+            "{replica}",
+            order_by="id",
+        )
+        cluster = "cluster"

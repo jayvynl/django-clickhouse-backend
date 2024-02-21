@@ -12,7 +12,7 @@ from django.db.backends.ddl_references import (
     Table,
 )
 from django.db.models.constraints import CheckConstraint, UniqueConstraint
-from django.db.models.expressions import ExpressionList
+from django.db.models.expressions import Col, ExpressionList, F
 from django.db.models.indexes import IndexExpression
 
 from clickhouse_backend import compat
@@ -165,6 +165,10 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
 
         compiler = Query(model, alias_cols=False).get_compiler(
             connection=self.connection
+        )
+        engine.source_expressions = tuple(
+            Col("", model._meta.get_field(e.name)) if isinstance(e, F) else e
+            for e in engine.source_expressions
         )
         return Expressions(model._meta.db_table, engine, compiler, self.quote_value)
 
