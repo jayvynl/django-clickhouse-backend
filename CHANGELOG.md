@@ -1,3 +1,7 @@
+### unreleased
+
+- feat: #72 support window functions.
+
 ### 1.1.7
 
 - fix: #76 `AttributeError: 'ReplicatedReplacingMergeTree' object has no attribute 'expressions'`.

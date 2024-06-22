@@ -131,6 +131,11 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # expressions?
     supports_aggregate_filter_clause = True
 
+    # Does the backend support window expressions (expression OVER (...))?
+    supports_over_clause = True
+    supports_frame_range_fixed_distance = True
+    only_supports_unbounded_with_preceding_and_following = False
+
     @cached_property
     def supports_transactions(self):
         return self.fake_transaction
