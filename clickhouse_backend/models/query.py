@@ -17,3 +17,15 @@ class QuerySet(query.QuerySet):
         if isinstance(clone.query, Query):
             clone.query.setting_info.update(kwargs)
         return clone
+
+    def prewhere(self, *args, **kwargs):
+        """
+        Return a new QuerySet instance with the args ANDed to the existing
+        prewhere set.
+        """
+        self._not_support_combined_queries("prewhere")
+        if (args or kwargs) and self.query.is_sliced:
+            raise TypeError("Cannot prewhere a query once a slice has been taken.")
+        clone = self._chain()
+        clone._query.add_prewhere(query.Q(*args, **kwargs))
+        return clone
