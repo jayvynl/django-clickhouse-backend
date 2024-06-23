@@ -552,6 +552,10 @@ class WindowFunctionTests(TestCase):
                 order_by="-salary"
                 if compat.dj_ge41
                 else OrderBy(F("salary"), descending=True),
+                # https://github.com/ClickHouse/ClickHouse/issues/61391
+                # recent clickhouse version(24.5.3.5) ntile has a bug,
+                # older version(23.6) is OK without frame.
+                frame=RowRange(),
             )
         ).order_by("ntile", "-salary", "name")
         self.assertQuerySetEqual(
