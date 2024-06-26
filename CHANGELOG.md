@@ -1,7 +1,7 @@
-### unreleased
+### 1.2.0
 
 - feat: #72 support window functions.
-- feat: #80 support [prewhere](https://clickhouse.com/docs/en/sql-reference/statements/select/prewhere).
+- feat: #80 support [prewhere clause](https://clickhouse.com/docs/en/sql-reference/statements/select/prewhere).
 
 ### 1.1.7
 
