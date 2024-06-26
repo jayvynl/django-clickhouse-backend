@@ -53,6 +53,12 @@ class Query(query.Query):
             self.prewhere.add(clause, AND)
         self.demote_joins(existing_inner)
 
+    if not compat.dj_ge42:
+
+        @property
+        def is_sliced(self):
+            return self.low_mark != 0 or self.high_mark is not None
+
 
 def clone_decorator(cls):
     old_clone = cls.clone

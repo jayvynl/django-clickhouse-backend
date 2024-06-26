@@ -1,5 +1,7 @@
 import itertools
 
+from django.core.exceptions import EmptyResultSet
+from django.db import NotSupportedError
 from django.db.models.fields import AutoFieldMixin
 from django.db.models.sql import compiler
 
@@ -9,6 +11,13 @@ from clickhouse_backend.models import engines
 
 if compat.dj_ge42:
     from django.core.exceptions import FullResultSet
+else:
+
+    class FullResultSet(Exception):
+        """A database query predicate is matches everything."""
+
+        pass
+
 
 # Max rows you can insert using expression as value.
 MAX_ROWS_INSERT_USE_EXPRESSION = 1000
@@ -39,26 +48,234 @@ class ClickhouseMixin:
         return sql, params
 
     def _compile_where(self, table):
-        if compat.dj_ge42:
-            try:
-                where, params = self.compile(self.query.where)
-            except FullResultSet:
-                where, params = "", ()
-        else:
+        try:
             where, params = self.compile(self.query.where)
+        except FullResultSet:
+            where, params = "", ()
         if where:
             where = where.replace(table + ".", "")
         else:
-            where = "1"
+            where = "TRUE"
         return where, params
 
 
 class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
-    def as_sql(self, *args, **kwargs):
-        sql, params = super().as_sql(*args, **kwargs)
-        sql, params = self._add_settings_sql(sql, params)
-        sql, params = self._add_explain_sql(sql, params)
-        return sql, params
+    def pre_sql_setup(self, with_col_aliases=False):
+        """
+        Do any necessary class setup immediately prior to producing SQL. This
+        is for things that can't necessarily be done in __init__ because we
+        might not have all the pieces in place at that time.
+        """
+        if compat.dj_ge42:
+            self.setup_query(with_col_aliases=with_col_aliases)
+            (
+                self.where,
+                self.having,
+                self.qualify,
+            ) = self.query.where.split_having_qualify(
+                must_group_by=self.query.group_by is not None
+            )
+            (
+                self.prewhere,
+                prehaving,
+                prequalify,
+            ) = self.query.prewhere.split_having_qualify(
+                must_group_by=self.query.group_by is not None
+            )
+            # Check before ClickHouse complain.
+            # DB::Exception: Window function is found in PREWHERE in query. (ILLEGAL_AGGREGATION)
+            if prequalify:
+                raise NotSupportedError(
+                    "Window function is disallowed in the prewhere clause."
+                )
+        else:
+            self.setup_query()
+            self.where, self.having = self.query.where.split_having()
+            self.prewhere, prehaving = self.query.where.split_having()
+        # Check before ClickHouse complain.
+        # DB::Exception: Aggregate function is found in PREWHERE in query. (ILLEGAL_AGGREGATION)
+        if prehaving:
+            raise NotSupportedError(
+                "Aggregate function is disallowed in the prewhere clause."
+            )
+        order_by = self.get_order_by()
+        extra_select = self.get_extra_select(order_by, self.select)
+        self.has_extra_select = bool(extra_select)
+        group_by = self.get_group_by(self.select + extra_select, order_by)
+        return extra_select, order_by, group_by
+
+    def as_sql(self, with_limits=True, with_col_aliases=False):
+        """
+        Create the SQL for this query. Return the SQL string and list of
+        parameters.
+
+        If 'with_limits' is False, any limit/offset information is not included
+        in the query.
+        """
+        refcounts_before = self.query.alias_refcount.copy()
+        try:
+            combinator = self.query.combinator
+            if compat.dj_ge42:
+                extra_select, order_by, group_by = self.pre_sql_setup(
+                    with_col_aliases=with_col_aliases or bool(combinator),
+                )
+            else:
+                extra_select, order_by, group_by = self.pre_sql_setup()
+            # Is a LIMIT/OFFSET clause needed?
+            with_limit_offset = with_limits and self.query.is_sliced
+            if combinator:
+                result, params = self.get_combinator_sql(
+                    combinator, self.query.combinator_all
+                )
+            # Django >= 4.2 have this branch
+            elif compat.dj_ge42 and self.qualify:
+                result, params = self.get_qualify_sql()
+                order_by = None
+            else:
+                distinct_fields, distinct_params = self.get_distinct()
+                # This must come after 'select', 'ordering', and 'distinct'
+                # (see docstring of get_from_clause() for details).
+                from_, f_params = self.get_from_clause()
+                try:
+                    where, w_params = (
+                        self.compile(self.where) if self.where is not None else ("", [])
+                    )
+                except EmptyResultSet:
+                    if compat.dj_ge42 and self.elide_empty:
+                        raise
+                    # Use a predicate that's always False.
+                    where, w_params = "FALSE", []
+                except FullResultSet:
+                    where, w_params = "", []
+                try:
+                    having, h_params = (
+                        self.compile(self.having)
+                        if self.having is not None
+                        else ("", [])
+                    )
+                except FullResultSet:
+                    having, h_params = "", []
+                # v1.2.0 new feature, support prewhere clause.
+                # refer https://clickhouse.com/docs/en/sql-reference/statements/select/prewhere
+                try:
+                    prewhere, p_params = (
+                        self.compile(self.prewhere)
+                        if self.prewhere is not None
+                        else ("", [])
+                    )
+                except EmptyResultSet:
+                    if compat.dj_ge42 and self.elide_empty:
+                        raise
+                    # Use a predicate that's always False.
+                    prewhere, p_params = "FALSE", []
+                except FullResultSet:
+                    prewhere, p_params = "", []
+                result = ["SELECT"]
+                params = []
+
+                if self.query.distinct:
+                    distinct_result, distinct_params = self.connection.ops.distinct_sql(
+                        distinct_fields,
+                        distinct_params,
+                    )
+                    result += distinct_result
+                    params += distinct_params
+
+                out_cols = []
+                for _, (s_sql, s_params), alias in self.select + extra_select:
+                    if alias:
+                        s_sql = "%s AS %s" % (
+                            s_sql,
+                            self.connection.ops.quote_name(alias),
+                        )
+                    params.extend(s_params)
+                    out_cols.append(s_sql)
+
+                result += [", ".join(out_cols)]
+                if from_:
+                    result += ["FROM", *from_]
+                params.extend(f_params)
+
+                if prewhere:
+                    result.append("PREWHERE %s" % prewhere)
+                    params.extend(p_params)
+
+                if where:
+                    result.append("WHERE %s" % where)
+                    params.extend(w_params)
+
+                grouping = []
+                for g_sql, g_params in group_by:
+                    grouping.append(g_sql)
+                    params.extend(g_params)
+                if grouping:
+                    if distinct_fields:
+                        raise NotImplementedError(
+                            "annotate() + distinct(fields) is not implemented."
+                        )
+                    result.append("GROUP BY %s" % ", ".join(grouping))
+                    if self._meta_ordering:
+                        order_by = None
+                if having:
+                    result.append("HAVING %s" % having)
+                    params.extend(h_params)
+
+            if order_by:
+                ordering = []
+                for _, (o_sql, o_params, _) in order_by:
+                    ordering.append(o_sql)
+                    params.extend(o_params)
+                order_by_sql = "ORDER BY %s" % ", ".join(ordering)
+                result.append(order_by_sql)
+
+            if with_limit_offset:
+                result.append(
+                    self.connection.ops.limit_offset_sql(
+                        self.query.low_mark, self.query.high_mark
+                    )
+                )
+
+            if self.query.subquery and extra_select:
+                # If the query is used as a subquery, the extra selects would
+                # result in more columns than the left-hand side expression is
+                # expecting. This can happen when a subquery uses a combination
+                # of order_by() and distinct(), forcing the ordering expressions
+                # to be selected as well. Wrap the query in another subquery
+                # to exclude extraneous selects.
+                sub_selects = []
+                sub_params = []
+                for index, (select, _, alias) in enumerate(self.select, start=1):
+                    if alias:
+                        sub_selects.append(
+                            "%s.%s"
+                            % (
+                                self.connection.ops.quote_name("subquery"),
+                                self.connection.ops.quote_name(alias),
+                            )
+                        )
+                    else:
+                        select_clone = select.relabeled_clone(
+                            {select.alias: "subquery"}
+                        )
+                        subselect, subparams = select_clone.as_sql(
+                            self, self.connection
+                        )
+                        sub_selects.append(subselect)
+                        sub_params.extend(subparams)
+                sql = "SELECT %s FROM (%s) subquery" % (
+                    ", ".join(sub_selects),
+                    " ".join(result),
+                )
+                params = tuple(sub_params + params)
+            else:
+                sql = " ".join(result)
+                params = tuple(params)
+            sql, params = self._add_settings_sql(sql, params)
+            sql, params = self._add_explain_sql(sql, params)
+            return sql, params
+        finally:
+            # Finally do cleanup - get rid of the joins we created above.
+            self.query.reset_refcounts(refcounts_before)
 
 
 class SQLInsertCompiler(compiler.SQLInsertCompiler):
