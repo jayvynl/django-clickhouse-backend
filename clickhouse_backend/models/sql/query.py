@@ -3,6 +3,7 @@ from collections import namedtuple
 from django.db import router
 from django.db.models.sql import query, subqueries
 from django.db.models.sql.constants import INNER
+from django.db.models.sql.datastructures import BaseTable, Join
 from django.db.models.sql.where import AND
 
 from clickhouse_backend import compat
@@ -26,6 +27,7 @@ class Query(query.Query):
     def clone(self):
         obj = super().clone()
         obj.setting_info = self.setting_info.copy()
+        obj.prewhere = self.prewhere.clone()
         return obj
 
     def explain(self, using, format=None, type=None, **settings):
@@ -36,15 +38,8 @@ class Query(query.Query):
 
     def add_prewhere(self, q_object):
         """
-        A preprocessor for the internal _add_q(). Responsible for doing final
-        join promotion.
+        refer add_q
         """
-        # For join promotion this case is doing an AND for the added q_object
-        # and existing conditions. So, any existing inner join forces the join
-        # type to remain inner. Existing outer joins can however be demoted.
-        # (Consider case where rel_a is LOUTER and rel_a__col=1 is added - if
-        # rel_a doesn't produce any rows, then the whole condition must fail.
-        # So, demotion is OK.
         existing_inner = {
             a for a in self.alias_map if self.alias_map[a].join_type == INNER
         }
@@ -58,6 +53,82 @@ class Query(query.Query):
         @property
         def is_sliced(self):
             return self.low_mark != 0 or self.high_mark is not None
+
+    def resolve_expression(self, query, *args, **kwargs):
+        clone = self.clone()
+        # Subqueries need to use a different set of aliases than the outer query.
+        clone.bump_prefix(query)
+        clone.subquery = True
+        clone.where.resolve_expression(query, *args, **kwargs)
+        clone.prewhere.resolve_expression(query, *args, **kwargs)
+        # Resolve combined queries.
+        if clone.combinator:
+            clone.combined_queries = tuple(
+                [
+                    combined_query.resolve_expression(query, *args, **kwargs)
+                    for combined_query in clone.combined_queries
+                ]
+            )
+        for key, value in clone.annotations.items():
+            resolved = value.resolve_expression(query, *args, **kwargs)
+            if hasattr(resolved, "external_aliases"):
+                resolved.external_aliases.update(clone.external_aliases)
+            clone.annotations[key] = resolved
+        # Outer query's aliases are considered external.
+        for alias, table in query.alias_map.items():
+            clone.external_aliases[alias] = (
+                isinstance(table, Join)
+                and table.join_field.related_model._meta.db_table != alias
+            ) or (
+                isinstance(table, BaseTable) and table.table_name != table.table_alias
+            )
+        return clone
+
+    def change_aliases(self, change_map):
+        """
+        Change the aliases in change_map (which maps old-alias -> new-alias),
+        relabelling any references to them in select columns and the where
+        clause.
+        """
+        # If keys and values of change_map were to intersect, an alias might be
+        # updated twice (e.g. T4 -> T5, T5 -> T6, so also T4 -> T6) depending
+        # on their order in change_map.
+        assert set(change_map).isdisjoint(change_map.values())
+
+        # 1. Update references in "select" (normal columns plus aliases),
+        # "group by" and "where".
+        self.where.relabel_aliases(change_map)
+        self.prewhere.relabel_aliases(change_map)
+        if isinstance(self.group_by, tuple):
+            self.group_by = tuple(
+                [col.relabeled_clone(change_map) for col in self.group_by]
+            )
+        self.select = tuple([col.relabeled_clone(change_map) for col in self.select])
+        self.annotations = self.annotations and {
+            key: col.relabeled_clone(change_map)
+            for key, col in self.annotations.items()
+        }
+
+        # 2. Rename the alias in the internal table/alias datastructures.
+        for old_alias, new_alias in change_map.items():
+            if old_alias not in self.alias_map:
+                continue
+            alias_data = self.alias_map[old_alias].relabeled_clone(change_map)
+            self.alias_map[new_alias] = alias_data
+            self.alias_refcount[new_alias] = self.alias_refcount[old_alias]
+            del self.alias_refcount[old_alias]
+            del self.alias_map[old_alias]
+
+            table_aliases = self.table_map[alias_data.table_name]
+            for pos, alias in enumerate(table_aliases):
+                if alias == old_alias:
+                    table_aliases[pos] = new_alias
+                    break
+        self.external_aliases = {
+            # Table is aliased or it's being changed and thus is aliased.
+            change_map.get(alias, alias): (aliased or alias in change_map)
+            for alias, aliased in self.external_aliases.items()
+        }
 
 
 def clone_decorator(cls):

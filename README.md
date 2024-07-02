@@ -28,6 +28,7 @@ Read [Documentation](https://github.com/jayvynl/django-clickhouse-backend/blob/m
 - Support creating test database and table, working with django TestCase and pytest-django.
 - Support most clickhouse data types.
 - Support [SETTINGS in SELECT Query](https://clickhouse.com/docs/en/sql-reference/statements/select/#settings-in-select-query).
+- Support [PREWHERE clause](https://clickhouse.com/docs/en/sql-reference/statements/select/prewhere).
 
 **Notes:**
 

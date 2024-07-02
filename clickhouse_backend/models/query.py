@@ -1,6 +1,6 @@
-from django.db.models import query
+from django.db.models import Q, query
 
-from .sql import Query
+from clickhouse_backend.models import sql
 
 
 class QuerySet(query.QuerySet):
@@ -14,7 +14,7 @@ class QuerySet(query.QuerySet):
 
     def settings(self, **kwargs):
         clone = self._chain()
-        if isinstance(clone.query, Query):
+        if isinstance(clone.query, sql.Query):
             clone.query.setting_info.update(kwargs)
         return clone
 
@@ -27,5 +27,5 @@ class QuerySet(query.QuerySet):
         if (args or kwargs) and self.query.is_sliced:
             raise TypeError("Cannot prewhere a query once a slice has been taken.")
         clone = self._chain()
-        clone._query.add_prewhere(query.Q(*args, **kwargs))
+        clone._query.add_prewhere(Q(*args, **kwargs))
         return clone
