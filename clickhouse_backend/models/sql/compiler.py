@@ -8,6 +8,7 @@ from django.db.models.sql import compiler
 from clickhouse_backend import compat
 from clickhouse_backend.idworker import id_worker
 from clickhouse_backend.models import engines
+from clickhouse_backend.models.sql import Query
 
 if compat.dj_ge42:
     from django.core.exceptions import FullResultSet
@@ -75,13 +76,24 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
             ) = self.query.where.split_having_qualify(
                 must_group_by=self.query.group_by is not None
             )
-            (
-                self.prewhere,
-                prehaving,
-                prequalify,
-            ) = self.query.prewhere.split_having_qualify(
-                must_group_by=self.query.group_by is not None
-            )
+            if isinstance(self.query, Query):
+                (
+                    self.prewhere,
+                    prehaving,
+                    prequalify,
+                ) = self.query.prewhere.split_having_qualify(
+                    must_group_by=self.query.group_by is not None
+                )
+            else:
+                (
+                    self.prewhere,
+                    prehaving,
+                    prequalify,
+                ) = (
+                    None,
+                    None,
+                    None,
+                )
             # Check before ClickHouse complain.
             # DB::Exception: Window function is found in PREWHERE in query. (ILLEGAL_AGGREGATION)
             if prequalify:

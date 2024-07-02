@@ -26,6 +26,9 @@ class ClickhouseManager(models.Manager):
             model=self.model, query=Query(self.model), using=self._db, hints=self._hints
         )
 
+    def prewhere(self, *args, **kwargs):
+        return self.get_queryset().prewhere(*args, **kwargs)
+
 
 class ClickhouseModel(models.Model):
     objects = ClickhouseManager()
