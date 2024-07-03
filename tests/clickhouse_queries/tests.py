@@ -3,6 +3,8 @@ from django.db.models import Count, Window
 from django.db.models.functions import Rank
 from django.test import TestCase
 
+from clickhouse_backend import compat
+
 from . import models
 
 
@@ -33,12 +35,12 @@ class QueriesTests(TestCase):
         self.assertEqual(qs[0].name, "a1")
 
     def test_prewhere_fk(self):
-        self.assertQuerySetEqual(
+        b1, b2 = (
             models.Book.objects.filter(author__name=self.a1.name)
             .prewhere(author_id=self.a1.id)
-            .order_by("name"),
-            [self.b1, self.b2],
+            .order_by("id")
         )
+        self.assertTrue(b1.id == self.b1.id and b2.id == self.b2.id)
 
     # clickhouse backend will generate suitable query, but clickhouse will raise exception.
     # clickhouse 23.11
@@ -64,12 +66,15 @@ class QueriesTests(TestCase):
                 )
             )
 
-    def test_prewhere_window(self):
-        with self.assertRaisesMessage(
-            NotSupportedError, "Window function is disallowed in the prewhere clause."
-        ):
-            list(
-                models.Book.objects.annotate(
-                    rank=Window(Rank(), partition_by="author", order_by="name")
-                ).prewhere(rank__gt=1)
-            )
+    if compat.dj_ge42:
+
+        def test_prewhere_window(self):
+            with self.assertRaisesMessage(
+                NotSupportedError,
+                "Window function is disallowed in the prewhere clause.",
+            ):
+                list(
+                    models.Book.objects.annotate(
+                        rank=Window(Rank(), partition_by="author", order_by="name")
+                    ).prewhere(rank__gt=1)
+                )

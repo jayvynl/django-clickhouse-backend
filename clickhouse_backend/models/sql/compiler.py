@@ -85,15 +85,7 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
                     must_group_by=self.query.group_by is not None
                 )
             else:
-                (
-                    self.prewhere,
-                    prehaving,
-                    prequalify,
-                ) = (
-                    None,
-                    None,
-                    None,
-                )
+                self.prewhere, prehaving, prequalify = None, None, None
             # Check before ClickHouse complain.
             # DB::Exception: Window function is found in PREWHERE in query. (ILLEGAL_AGGREGATION)
             if prequalify:
@@ -103,7 +95,10 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
         else:
             self.setup_query()
             self.where, self.having = self.query.where.split_having()
-            self.prewhere, prehaving = self.query.where.split_having()
+            if isinstance(self.query, Query):
+                self.prewhere, prehaving = self.query.prewhere.split_having()
+            else:
+                self.prewhere, prehaving = None, None
         # Check before ClickHouse complain.
         # DB::Exception: Aggregate function is found in PREWHERE in query. (ILLEGAL_AGGREGATION)
         if prehaving:
