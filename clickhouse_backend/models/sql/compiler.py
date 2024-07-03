@@ -148,7 +148,7 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
                         self.compile(self.where) if self.where is not None else ("", [])
                     )
                 except EmptyResultSet:
-                    if compat.dj_ge42 and self.elide_empty:
+                    if compat.dj3 or self.elide_empty:
                         raise
                     # Use a predicate that's always False.
                     where, w_params = "FALSE", []
