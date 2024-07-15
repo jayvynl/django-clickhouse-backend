@@ -385,7 +385,10 @@ class DatabaseOperations(BaseDatabaseOperations):
             if insert_pattern.match(sql):
                 return "%s %s" % (sql, ", ".join(map(str, params)))
             else:
-                return sql % tuple(params)
+                try:
+                    return sql % tuple(params)
+                except TypeError:
+                    return sql % params
         return sql
 
     def settings_sql(self, **kwargs):
