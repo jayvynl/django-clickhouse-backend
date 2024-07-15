@@ -129,6 +129,25 @@ class LastExecutedQueryTest(TestCase):
                 "%s %s" % (sql, ", ".join(map(str, params))),
             )
 
+    @skipUnlessDBFeature("supports_paramstyle_pyformat")
+    def test_last_executed_query_params_dict(self):
+        square_opts = Square._meta
+        sql = "SELECT %s, %s FROM %s WHERE %s =" %  (
+            connection.ops.quote_name(square_opts.get_field("root").column),
+            connection.ops.quote_name(square_opts.get_field("square").column),
+            connection.introspection.identifier_converter(square_opts.db_table),
+            connection.ops.quote_name(square_opts.get_field("root").column),
+        )
+        sql_with_param = f"{sql} %(root)s"
+        with connection.cursor() as cursor:
+            param_value = 2
+            params = {"root": param_value}
+            cursor.execute(sql_with_param, params)
+            self.assertEqual(
+                cursor.db.ops.last_executed_query(cursor, sql_with_param, params),
+                "%s %s" % (sql, param_value),
+            )
+
 
 class ParameterHandlingTest(TestCase):
     def test_bad_parameter_count(self):
