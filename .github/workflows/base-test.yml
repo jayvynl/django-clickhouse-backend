@@ -8,7 +8,6 @@ on:
 
 jobs:
   test:
-
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -22,36 +21,40 @@ jobs:
 
     name: ClickHouse${{ matrix.clickhouse-version }} Python${{ matrix.python-version }} Django${{ matrix.django-version }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: pip install tox 'coveralls<3'
-    - name: Lint code
-      run: tox -e lint
-    - name: Start clickhouse cluster
-      run: CLICKHOUSE_VERSION=${{ matrix.clickhouse-version }} docker compose up -d --wait
-    - name: Run test
-      # Run tox using the version of Python in `PATH`
-      run: tox -e py-django${{ matrix.django-version }}
-    - name: Coveralls Parallel
-      run: coveralls
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        COVERALLS_PARALLEL: true
-        COVERALLS_FLAG_NAME: run-${{ join(matrix.*, '-') }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: pip install tox 'coveralls<3'
+      - name: Lint code
+        run: tox -e lint
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Start clickhouse cluster
+        run: CLICKHOUSE_VERSION=${{ matrix.clickhouse-version }} docker compose up -d --wait
+      - name: Run test
+        # Run tox using the version of Python in `PATH`
+        run: tox -e py-django${{ matrix.django-version }}
+      - name: Coveralls Parallel
+        run: coveralls
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_PARALLEL: true
+          COVERALLS_FLAG_NAME: run-${{ join(matrix.*, '-') }}
 
   coveralls-finish:
-
     needs: test
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-    - name: Coveralls Finished
-      uses: coverallsapp/github-action@v2
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        parallel-finished: true
+      - name: Coveralls Finished
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
