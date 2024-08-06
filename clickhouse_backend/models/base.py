@@ -26,8 +26,14 @@ class ClickhouseManager(models.Manager):
             model=self.model, query=Query(self.model), using=self._db, hints=self._hints
         )
 
+    def settings(self, **kwargs):
+        return self.get_queryset().settings(**kwargs)
+
     def prewhere(self, *args, **kwargs):
         return self.get_queryset().prewhere(*args, **kwargs)
+
+    def datetimes(self, *args, **kwargs):
+        return self.get_queryset().datetimes(*args, **kwargs)
 
 
 class ClickhouseModel(models.Model):
