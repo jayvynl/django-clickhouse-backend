@@ -73,5 +73,6 @@ DATABASES = {
     },
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-MIGRATE = False
 DATABASE_ROUTERS = ["dbrouters.ClickHouseRouter"]
+MIGRATE = False
+USE_TZ = False

@@ -1,18 +1,20 @@
 from django.db import models
 
+from clickhouse_backend.models import ClickhouseModel
 
-class Author(models.Model):
+
+class Author(ClickhouseModel):
     name = models.CharField(max_length=100)
     age = models.IntegerField()
     friends = models.ManyToManyField("self", blank=True)
 
 
-class Publisher(models.Model):
+class Publisher(ClickhouseModel):
     name = models.CharField(max_length=255)
     num_awards = models.IntegerField()
 
 
-class Book(models.Model):
+class Book(ClickhouseModel):
     isbn = models.CharField(max_length=9)
     name = models.CharField(max_length=255)
     pages = models.IntegerField()
@@ -24,7 +26,7 @@ class Book(models.Model):
     pubdate = models.DateField()
 
 
-class Store(models.Model):
+class Store(ClickhouseModel):
     name = models.CharField(max_length=255)
     books = models.ManyToManyField(Book)
     original_opening = models.DateTimeField()
@@ -35,7 +37,7 @@ class DepartmentStore(Store):
     chain = models.CharField(max_length=255)
 
 
-class Employee(models.Model):
+class Employee(ClickhouseModel):
     # The order of these fields matter, do not change. Certain backends
     # rely on field ordering to perform database conversions, and this
     # model helps to test that.
@@ -47,12 +49,12 @@ class Employee(models.Model):
     salary = models.DecimalField(max_digits=8, decimal_places=2)
 
 
-class Company(models.Model):
+class Company(ClickhouseModel):
     name = models.CharField(max_length=200)
     motto = models.CharField(max_length=200, null=True, blank=True)
     ticker_name = models.CharField(max_length=10, null=True, blank=True)
     description = models.CharField(max_length=200, null=True, blank=True)
 
 
-class Ticket(models.Model):
+class Ticket(ClickhouseModel):
     active_at = models.DateTimeField()
