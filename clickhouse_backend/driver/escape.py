@@ -107,7 +107,7 @@ def escape_params(params: Params, context: Dict, for_server=False) -> Params:
 
     This function is not used in INSERT INTO queries.
     """
-    if isinstance(params, Dict):
+    if isinstance(params, dict):
         escaped = {
             key: escape_param(value, context, for_server=for_server)
             for key, value in params.items()

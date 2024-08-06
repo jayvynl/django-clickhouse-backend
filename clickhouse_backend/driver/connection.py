@@ -1,10 +1,8 @@
 import re
-from typing import Dict
 
 from clickhouse_driver import connection
 from clickhouse_driver.dbapi import connection as dbapi_connection
 from clickhouse_driver.dbapi import cursor, errors
-from clickhouse_pool.pool import ChPoolError
 from django.conf import settings
 
 from .escape import escape_params
@@ -53,10 +51,11 @@ def send_query(self, query, query_id=None, params=None):
     connection.write_binary_str(query, self.fout)
 
     if revision >= connection.defines.DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS:
-        if not isinstance(params, Dict):
-            params = None
-        # Always settings_as_strings = True
-        escaped = escape_params(params or {}, self.context, for_server=True)
+        if self.context.client_settings["server_side_params"]:
+            # Always settings_as_strings = True
+            escaped = escape_params(params or {}, self.context, for_server=True)
+        else:
+            escaped = {}
         connection.write_settings(
             escaped, self.fout, True, connection.SettingsFlags.CUSTOM
         )
@@ -73,11 +72,10 @@ connection.Connection.send_query = send_query
 class Cursor(cursor.Cursor):
     def close(self):
         """Push client back to connection pool"""
+        if self.closed:
+            return
         self._state = self._states.CURSOR_CLOSED
-        try:
-            self._connection.pool.push(self._client)
-        except ChPoolError:
-            pass
+        self._connection.pool.push(self._client)
 
     @property
     def closed(self):
@@ -87,10 +85,7 @@ class Cursor(cursor.Cursor):
         # If someone forgets calling close method,
         # then release connection when gc happens.
         if not self.closed:
-            try:
-                self._connection.pool.push(self._client)
-            except ChPoolError:
-                pass
+            self.close()
 
     def execute(self, operation, parameters=None):
         """fix https://github.com/jayvynl/django-clickhouse-backend/issues/9"""
