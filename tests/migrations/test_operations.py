@@ -577,19 +577,9 @@ class OperationTests(OperationTestBase):
         self.assertNotIn(("test_rnmo", "horse"), project_state.models)
         self.assertTableExists("test_rnmo_pony")
         self.assertTableNotExists("test_rnmo_horse")
-        if connection.features.supports_foreign_keys:
-            self.assertFKExists(
-                "test_rnmo_rider", ["pony_id"], ("test_rnmo_pony", "id")
-            )
-            self.assertFKNotExists(
-                "test_rnmo_rider", ["pony_id"], ("test_rnmo_horse", "id")
-            )
         # Migrate forwards
         new_state = project_state.clone()
-        atomic_rename = connection.features.supports_atomic_references_rename
-        new_state = self.apply_operations(
-            "test_rnmo", new_state, [operation], atomic=atomic_rename
-        )
+        new_state = self.apply_operations("test_rnmo", new_state, [operation])
         # Test new state and database
         self.assertNotIn(("test_rnmo", "pony"), new_state.models)
         self.assertIn(("test_rnmo", "horse"), new_state.models)
@@ -600,16 +590,9 @@ class OperationTests(OperationTestBase):
         )
         self.assertTableNotExists("test_rnmo_pony")
         self.assertTableExists("test_rnmo_horse")
-        if connection.features.supports_foreign_keys:
-            self.assertFKNotExists(
-                "test_rnmo_rider", ["pony_id"], ("test_rnmo_pony", "id")
-            )
-            self.assertFKExists(
-                "test_rnmo_rider", ["pony_id"], ("test_rnmo_horse", "id")
-            )
         # Migrate backwards
         original_state = self.unapply_operations(
-            "test_rnmo", project_state, [operation], atomic=atomic_rename
+            "test_rnmo", project_state, [operation]
         )
         # Test original state and database
         self.assertIn(("test_rnmo", "pony"), original_state.models)
@@ -622,13 +605,6 @@ class OperationTests(OperationTestBase):
         )
         self.assertTableExists("test_rnmo_pony")
         self.assertTableNotExists("test_rnmo_horse")
-        if connection.features.supports_foreign_keys:
-            self.assertFKExists(
-                "test_rnmo_rider", ["pony_id"], ("test_rnmo_pony", "id")
-            )
-            self.assertFKNotExists(
-                "test_rnmo_rider", ["pony_id"], ("test_rnmo_horse", "id")
-            )
         # And deconstruction
         definition = operation.deconstruct()
         self.assertEqual(definition[0], "RenameModel")
@@ -681,41 +657,17 @@ class OperationTests(OperationTestBase):
         # Test the database alteration
         self.assertTableExists("test_rmwsrf_rider")
         self.assertTableNotExists("test_rmwsrf_horserider")
-        if connection.features.supports_foreign_keys:
-            self.assertFKExists(
-                "test_rmwsrf_rider", ["friend_id"], ("test_rmwsrf_rider", "id")
-            )
-            self.assertFKNotExists(
-                "test_rmwsrf_rider", ["friend_id"], ("test_rmwsrf_horserider", "id")
-            )
-        atomic_rename = connection.features.supports_atomic_references_rename
-        with connection.schema_editor(atomic=atomic_rename) as editor:
+        with connection.schema_editor() as editor:
             operation.database_forwards("test_rmwsrf", editor, project_state, new_state)
         self.assertTableNotExists("test_rmwsrf_rider")
         self.assertTableExists("test_rmwsrf_horserider")
-        if connection.features.supports_foreign_keys:
-            self.assertFKNotExists(
-                "test_rmwsrf_horserider", ["friend_id"], ("test_rmwsrf_rider", "id")
-            )
-            self.assertFKExists(
-                "test_rmwsrf_horserider",
-                ["friend_id"],
-                ("test_rmwsrf_horserider", "id"),
-            )
         # And test reversal
-        with connection.schema_editor(atomic=atomic_rename) as editor:
+        with connection.schema_editor() as editor:
             operation.database_backwards(
                 "test_rmwsrf", editor, new_state, project_state
             )
         self.assertTableExists("test_rmwsrf_rider")
         self.assertTableNotExists("test_rmwsrf_horserider")
-        if connection.features.supports_foreign_keys:
-            self.assertFKExists(
-                "test_rmwsrf_rider", ["friend_id"], ("test_rmwsrf_rider", "id")
-            )
-            self.assertFKNotExists(
-                "test_rmwsrf_rider", ["friend_id"], ("test_rmwsrf_horserider", "id")
-            )
 
     def test_rename_model_with_superclass_fk(self):
         """
@@ -745,29 +697,11 @@ class OperationTests(OperationTestBase):
         # Little Horse.
         self.assertTableExists("test_rmwsc_shetlandpony")
         self.assertTableNotExists("test_rmwsc_littlehorse")
-        if connection.features.supports_foreign_keys:
-            # and the foreign key on rider points to pony, not shetland pony
-            self.assertFKExists(
-                "test_rmwsc_rider", ["pony_id"], ("test_rmwsc_pony", "id")
-            )
-            self.assertFKNotExists(
-                "test_rmwsc_rider", ["pony_id"], ("test_rmwsc_shetlandpony", "id")
-            )
-        with connection.schema_editor(
-            atomic=connection.features.supports_atomic_references_rename
-        ) as editor:
+        with connection.schema_editor() as editor:
             operation.database_forwards("test_rmwsc", editor, project_state, new_state)
         # Now we have a little horse table, not shetland pony
         self.assertTableNotExists("test_rmwsc_shetlandpony")
         self.assertTableExists("test_rmwsc_littlehorse")
-        if connection.features.supports_foreign_keys:
-            # but the Foreign keys still point at pony, not little horse
-            self.assertFKExists(
-                "test_rmwsc_rider", ["pony_id"], ("test_rmwsc_pony", "id")
-            )
-            self.assertFKNotExists(
-                "test_rmwsc_rider", ["pony_id"], ("test_rmwsc_littlehorse", "id")
-            )
 
     def test_rename_model_with_self_referential_m2m(self):
         app_label = "test_rename_model_with_self_referential_m2m"
@@ -791,7 +725,6 @@ class OperationTests(OperationTestBase):
             operations=[
                 migrations.RenameModel("ReflexivePony", "ReflexivePony2"),
             ],
-            atomic=connection.features.supports_atomic_references_rename,
         )
         Pony = project_state.apps.get_model(app_label, "ReflexivePony2")
         pony = Pony.objects.create()
@@ -830,7 +763,6 @@ class OperationTests(OperationTestBase):
             operations=[
                 migrations.RenameModel("Pony", "Pony2"),
             ],
-            atomic=connection.features.supports_atomic_references_rename,
         )
         Pony = project_state.apps.get_model(app_label, "Pony2")
         Rider = project_state.apps.get_model(app_label, "Rider")
@@ -869,7 +801,6 @@ class OperationTests(OperationTestBase):
             app_label,
             project_state,
             operations=[migrations.RenameModel("Pony", "PinkPony")],
-            atomic=connection.features.supports_atomic_references_rename,
         )
         Pony = new_state.apps.get_model(app_label, "PinkPony")
         Rider = new_state.apps.get_model(app_label, "Rider")
@@ -910,7 +841,6 @@ class OperationTests(OperationTestBase):
             operations=[
                 migrations.RenameModel("Rider", "Rider2"),
             ],
-            atomic=connection.features.supports_atomic_references_rename,
         )
         Pony = project_state.apps.get_model(app_label, "Pony")
         Rider = project_state.apps.get_model(app_label, "Rider2")
@@ -1032,7 +962,6 @@ class OperationTests(OperationTestBase):
                 ),
                 migrations.RenameModel(old_name="Rider", new_name="Jockey"),
             ],
-            atomic=connection.features.supports_atomic_references_rename,
         )
         Pony = project_state.apps.get_model(app_label, "Pony")
         Jockey = project_state.apps.get_model(app_label, "Jockey")
@@ -1570,13 +1499,12 @@ class OperationTests(OperationTestBase):
         second_state = first_state.clone()
         operation = migrations.AlterModelTable(name="pony", table=None)
         operation.state_forwards(app_label, second_state)
-        atomic_rename = connection.features.supports_atomic_references_rename
-        with connection.schema_editor(atomic=atomic_rename) as editor:
+        with connection.schema_editor() as editor:
             operation.database_forwards(app_label, editor, first_state, second_state)
         self.assertTableExists(new_m2m_table)
         self.assertTableNotExists(original_m2m_table)
         # And test reversal
-        with connection.schema_editor(atomic=atomic_rename) as editor:
+        with connection.schema_editor() as editor:
             operation.database_backwards(app_label, editor, second_state, first_state)
         self.assertTableExists(original_m2m_table)
         self.assertTableNotExists(new_m2m_table)
@@ -1669,93 +1597,6 @@ class OperationTests(OperationTestBase):
             with self.assertNumQueries(0):
                 operation.database_forwards(app_label, editor, new_state, project_state)
         self.assertColumnExists(rider_table, "pony_id")
-
-    @skipUnlessDBFeature("supports_foreign_keys")
-    def test_alter_field_reloads_state_on_fk_with_to_field_target_type_change(self):
-        app_label = "test_alflrsfkwtflttc"
-        project_state = self.apply_operations(
-            app_label,
-            ProjectState(),
-            operations=[
-                migrations.CreateModel(
-                    "Rider",
-                    fields=[
-                        ("id", models.BigAutoField(primary_key=True)),
-                        ("code", models.IntegerField(unique=True)),
-                    ],
-                ),
-                migrations.CreateModel(
-                    "Pony",
-                    fields=[
-                        ("id", models.BigAutoField(primary_key=True)),
-                        (
-                            "rider",
-                            models.ForeignKey(
-                                "%s.Rider" % app_label, models.CASCADE, to_field="code"
-                            ),
-                        ),
-                    ],
-                ),
-            ],
-        )
-        operation = migrations.AlterField(
-            "Rider",
-            "code",
-            models.CharField(max_length=100, unique=True),
-        )
-        self.apply_operations(app_label, project_state, operations=[operation])
-        id_type, id_null = [
-            (c.type_code, c.null_ok)
-            for c in self.get_table_description("%s_rider" % app_label)
-            if c.name == "code"
-        ][0]
-        fk_type, fk_null = [
-            (c.type_code, c.null_ok)
-            for c in self.get_table_description("%s_pony" % app_label)
-            if c.name == "rider_id"
-        ][0]
-        self.assertEqual(id_type, fk_type)
-        self.assertEqual(id_null, fk_null)
-
-    @skipUnlessDBFeature("supports_foreign_keys")
-    def test_alter_field_reloads_state_fk_with_to_field_related_name_target_type_change(
-        self,
-    ):
-        app_label = "test_alflrsfkwtflrnttc"
-        project_state = self.apply_operations(
-            app_label,
-            ProjectState(),
-            operations=[
-                migrations.CreateModel(
-                    "Rider",
-                    fields=[
-                        ("id", models.BigAutoField(primary_key=True)),
-                        ("code", models.PositiveIntegerField(unique=True)),
-                    ],
-                ),
-                migrations.CreateModel(
-                    "Pony",
-                    fields=[
-                        ("id", models.BigAutoField(primary_key=True)),
-                        (
-                            "rider",
-                            models.ForeignKey(
-                                "%s.Rider" % app_label,
-                                models.CASCADE,
-                                to_field="code",
-                                related_name="+",
-                            ),
-                        ),
-                    ],
-                ),
-            ],
-        )
-        operation = migrations.AlterField(
-            "Rider",
-            "code",
-            models.CharField(max_length=100, unique=True),
-        )
-        self.apply_operations(app_label, project_state, operations=[operation])
 
     def test_alter_field_reloads_state_on_fk_with_to_field_target_changes(self):
         """

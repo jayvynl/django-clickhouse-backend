@@ -2,7 +2,6 @@ from datetime import datetime
 
 import pytz
 from django.test import TestCase
-from django.utils import timezone
 
 from clickhouse_backend import models
 from clickhouse_backend.utils.timezone import get_timezone
@@ -17,14 +16,14 @@ class DateTimeTests(TestCase):
             name="John Smith",
             alias="smithj",
             # https://stackoverflow.com/a/18862958
-            birthday=timezone.make_aware(
-                datetime(2023, 11, 30, 16), pytz.timezone(get_timezone())
+            birthday=pytz.timezone(get_timezone()).localize(
+                datetime(2023, 11, 30, 16), is_dst=False
             ),
         )
         cls.elena = Author.objects.create(
             name="Élena Jordan",
             alias="elena",
-            birthday=datetime(2023, 11, 30, 16, tzinfo=pytz.utc),
+            birthday=pytz.utc.localize(datetime(2023, 11, 30, 16), is_dst=False),
         )
 
     def test_yyyymm(self):

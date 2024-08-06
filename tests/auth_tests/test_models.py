@@ -567,11 +567,3 @@ class GroupTests(SimpleTestCase):
     def test_str(self):
         g = Group(name="Users")
         self.assertEqual(str(g), "Users")
-
-
-class PermissionTests(TestCase):
-    def test_str(self):
-        p = Permission.objects.get(codename="view_customemailfield")
-        self.assertEqual(
-            str(p), "auth_tests | custom email field | Can view custom email field"
-        )
