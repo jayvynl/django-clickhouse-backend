@@ -1,3 +1,8 @@
+### 1.3.0
+
+- fix #92 last_executed_query() when params is a mappinglast_executed_query() when params is a mapping.
+- support Django 5.0, update clickhouse-driver to 0.2.8, drop clickhouse-pool dependency.
+
 ### 1.2.0
 
 - feat: #72 support window functions.
