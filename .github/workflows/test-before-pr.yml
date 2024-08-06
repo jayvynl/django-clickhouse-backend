@@ -2,8 +2,10 @@ name: Test before PR
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   test:
     uses: ./.github/workflows/base-test.yml
+    # https://docs.github.com/en/actions/using-workflows/reusing-workflows#passing-inputs-and-secrets-to-a-reusable-workflow
+    secrets: inherit
