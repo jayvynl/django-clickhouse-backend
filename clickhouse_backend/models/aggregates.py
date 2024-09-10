@@ -62,3 +62,7 @@ class uniqHLL12(uniq):
 
 class uniqTheta(uniq):
     pass
+
+
+class anyLast(Aggregate):
+    pass
