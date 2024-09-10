@@ -10,6 +10,7 @@ __all__ = [
     "uniqCombined64",
     "uniqHLL12",
     "uniqTheta",
+    "anyLast",
 ]
 
 
