@@ -12,10 +12,10 @@ FieldInfo = namedtuple("FieldInfo", BaseFieldInfo._fields + ("comment",))
 TableInfo = namedtuple("TableInfo", BaseTableInfo._fields + ("comment",))
 
 constraint_pattern = re.compile(
-    r"CONSTRAINT (`)?((?(1)(?:[^\\`]|\\.)+|\S+))(?(1)`|) (CHECK .+?),?\n"
+    r"CONSTRAINT (`)?((?(1)(?:\\.|[^`])+|\S+))(?(1)`|) (CHECK .+?),?\n"
 )
 index_pattern = re.compile(
-    r"INDEX (`)?((?(1)(?:[^\\`]|\\.)+|\S+))(?(1)`|) (.+? TYPE ([a-zA-Z_][0-9a-zA-Z_]*)\(.+?\) GRANULARITY \d+)"
+    r"INDEX (`)?((?(1)(?:\\.|[^`])+|\S+))(?(1)`|) (.+? TYPE ([a-zA-Z_][0-9a-zA-Z_]*)\(.+?\) GRANULARITY \d+)"
 )
 
 
