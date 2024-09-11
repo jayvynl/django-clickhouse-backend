@@ -20,3 +20,10 @@ class QueriesTests(TestCase):
                 self.a1.save()
             with self.assertRaises(models.Author.MultipleObjectsReturned):
                 self.a1.refresh_from_db()
+
+    # regression test for https://github.com/jayvynl/django-clickhouse-backend/issues/99
+    def test_update_special_string_val(self):
+        self.a1.name = "where **"
+        self.a1.save()
+        self.a1.refresh_from_db()
+        self.assertEqual(self.a1.name, "where **")

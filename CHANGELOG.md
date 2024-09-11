@@ -1,3 +1,12 @@
+### unreleased
+
+- fix: #99 fix update value containing "where" cause exception.
+
+### 1.3.0
+
+- fix: #93 last_executed_query() when params is a mapping of values.
+- feature: #95 upgrade dependencies.
+
 ### 1.2.0
 
 - feat: #72 support window functions.

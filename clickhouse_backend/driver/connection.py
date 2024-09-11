@@ -10,10 +10,10 @@ from django.conf import settings
 from .escape import escape_params
 from .pool import ClickhousePool
 
-update_pattern = re.compile(
-    r"^\s*alter\s+table\s+(\S+)\s+.*?update.+?where\s+(.+?)(?:settings\s+.+)?$",
-    flags=re.IGNORECASE,
-)
+name_regex = r'"(?:[^"]|\\.)+"'
+value_regex = r"(')?(?(1)(?:[^']|\\.)+|\S+)(?(1)'|)"
+name_value_regex = f"{name_regex} = {value_regex}"
+update_pattern = re.compile(f"^ALTER TABLE ({name_regex}) UPDATE ")
 
 
 def send_query(self, query, query_id=None, params=None):
@@ -100,11 +100,20 @@ class Cursor(cursor.Cursor):
             query = self._client.substitute_params(
                 operation, parameters, self._client.connection.context
             )
-            table, where = update_pattern.match(query).groups()
-            super().execute(f"select count(*) from {table} where {where}")
-            (rowcount,) = self.fetchone()
-            self._reset_state()
-            self._rowcount = rowcount
+            m = update_pattern.match(query)
+            table = m.group(1)
+            query_upper = query.upper()
+            i = query_upper.rfind(" WHERE ")
+            if i > 0:
+                j = query_upper.rfind(" SETTINGS ", i + 7)
+                if j > 0:
+                    where = query[i + 7 : j]
+                else:
+                    where = query[i + 7 :]
+                super().execute(f"select count(*) from {table} where {where}")
+                (rowcount,) = self.fetchone()
+                self._reset_state()
+                self._rowcount = rowcount
         super().execute(operation, parameters)
 
 
