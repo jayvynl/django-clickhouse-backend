@@ -1,3 +1,7 @@
+### unreleased
+
+- fix: #99 fix update value containing "where" cause exception.
+
 ### 1.3.0
 
 - fix #92 last_executed_query() when params is a mappinglast_executed_query() when params is a mapping.
