@@ -29,6 +29,7 @@ DATABASES = {
                 "alter_sync": 2,
                 "allow_suspicious_low_cardinality_types": 1,
                 "allow_experimental_object_type": 1,
+                "allow_experimental_json_type": 1,
             },
         },
         "TEST": {"cluster": "cluster"},
