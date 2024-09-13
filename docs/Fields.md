@@ -646,6 +646,9 @@ Neither Nullable nor LowCardinality is supported.
 When query from the database, JSONField get dict or list.
 
 The JSON data type is an experimental feature. To use it, set `allow_experimental_object_type = 1` in the database settings.
+
+**Note:** From [ClickHouse 24.8 LTS](https://clickhouse.com/blog/clickhouse-release-24-08), set `allow_experimental_object_type = 1` to use JSON type.
+
 For example:
 
 ```python
