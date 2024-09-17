@@ -8,6 +8,7 @@ from clickhouse_backend.models import (
     uniqExact,
     uniqHLL12,
     uniqTheta,
+    anyLast
 )
 
 from .models import WatchSeries
@@ -26,6 +27,14 @@ class AggregatesTestCase(TestCase):
         {"show": "Bridgerton", "episode": "S1E2", "uid_count": 3},
         {"show": "Game of Thrones", "episode": "S1E1", "uid_count": 9},
         {"show": "Game of Thrones", "episode": "S1E2", "uid_count": 1},
+    ]
+
+    expected_result_any_last = [
+        {'uid': 'alice', 'user_last_watched_show': 'Game of Thrones'},
+        {'uid': 'bob', 'user_last_watched_show': 'Bridgerton'},
+        {'uid': 'carol', 'user_last_watched_show': 'Bridgerton'},
+        {'uid': 'dan', 'user_last_watched_show': 'Bridgerton'},
+        {'uid': 'erin', 'user_last_watched_show': 'Game of Thrones'},
     ]
 
     @classmethod
@@ -227,3 +236,15 @@ class AggregatesTestCase(TestCase):
 
     def test_uniqtheta(self):
         self._test(uniqTheta)
+
+    def test_anylast(self):
+        result = (
+            WatchSeries.objects.values("uid")
+            .annotate(user_last_watched_show=anyLast("show"))
+            .order_by("uid")
+        )
+
+        self.assertQuerysetEqual(
+            result, self.expected_result_any_last, transform=dict
+        )
+
