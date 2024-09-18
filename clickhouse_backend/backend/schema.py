@@ -213,7 +213,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         )
         if (
             any(field.db_index for field in model._meta.local_fields)
-            or model._meta.index_together
+            or getattr(model._meta, "index_together", None)
         ):
             warnings.warn(msg)
 
