@@ -639,6 +639,8 @@ MapModel.objects.annotate(
 
 ### JSON
 
+**Note:** Object('json') type [is not production-ready and is now deprecated](https://clickhouse.com/docs/en/sql-reference/data-types/object-data-type).
+
 Field importing path: `clickhouse_backend.models.JSONField`.
 
 Neither Nullable nor LowCardinality is supported.

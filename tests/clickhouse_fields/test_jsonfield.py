@@ -5,7 +5,7 @@ from clickhouse_backend import models
 from .models import JSONModel
 
 
-class MapFieldTests(TestCase):
+class JsonFieldTests(TestCase):
     def test_disallow_nullable(self):
         field = models.JSONField(null=True, name="field")
         self.assertEqual(
