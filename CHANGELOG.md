@@ -2,6 +2,7 @@
 
 - fix: #99 update value containing "where" cause exception.
 - fix: #97 JSONField error in ClickHouse 24.8.
+- fix: tuple function error in ClickHouse 24.8.
 
 ### 1.3.0
 

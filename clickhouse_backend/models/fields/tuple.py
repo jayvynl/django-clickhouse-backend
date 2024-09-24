@@ -151,7 +151,12 @@ class TupleField(FieldMixin, Field):
         if value is None or isinstance(value, self.container_class):
             return value
         if self.is_named_tuple:
+            if isinstance(value, dict):
+                return self.container_class(**value)
             return self.container_class(*value)
+        # From ClickHouse server 24.8 LTS, tuple("a", "b") returns NamedTuple.
+        if isinstance(value, dict):
+            return self.container_class(value.values())
         return self.container_class(value)
 
     @property
