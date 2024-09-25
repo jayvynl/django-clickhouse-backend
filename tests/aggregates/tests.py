@@ -2,13 +2,13 @@ from django.db.models import Q
 from django.test import TestCase
 
 from clickhouse_backend.models import (
+    anyLast,
     uniq,
     uniqCombined,
     uniqCombined64,
     uniqExact,
     uniqHLL12,
     uniqTheta,
-    anyLast
 )
 
 from .models import WatchSeries
@@ -30,11 +30,11 @@ class AggregatesTestCase(TestCase):
     ]
 
     expected_result_any_last = [
-        {'uid': 'alice', 'user_last_watched_show': 'Game of Thrones'},
-        {'uid': 'bob', 'user_last_watched_show': 'Bridgerton'},
-        {'uid': 'carol', 'user_last_watched_show': 'Bridgerton'},
-        {'uid': 'dan', 'user_last_watched_show': 'Bridgerton'},
-        {'uid': 'erin', 'user_last_watched_show': 'Game of Thrones'},
+        {"uid": "alice", "user_last_watched_show": "Game of Thrones"},
+        {"uid": "bob", "user_last_watched_show": "Bridgerton"},
+        {"uid": "carol", "user_last_watched_show": "Bridgerton"},
+        {"uid": "dan", "user_last_watched_show": "Bridgerton"},
+        {"uid": "erin", "user_last_watched_show": "Game of Thrones"},
     ]
 
     @classmethod
@@ -244,7 +244,4 @@ class AggregatesTestCase(TestCase):
             .order_by("uid")
         )
 
-        self.assertQuerysetEqual(
-            result, self.expected_result_any_last, transform=dict
-        )
-
+        self.assertQuerysetEqual(result, self.expected_result_any_last, transform=dict)
