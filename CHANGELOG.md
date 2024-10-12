@@ -1,8 +1,9 @@
-### unreleased
+### 1.3.1
 
 - fix: #99 update value containing "where" cause exception.
 - fix: #97 JSONField error in ClickHouse 24.8.
 - fix: tuple function error in ClickHouse 24.8.
+- support Django 5.1, update clickhouse-driver to 0.2.9.
 
 ### 1.3.0
 

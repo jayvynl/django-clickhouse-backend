@@ -20,6 +20,7 @@ classifiers = [
     "Framework :: Django :: 4.1",
     "Framework :: Django :: 4.2",
     "Framework :: Django :: 5.0",
+    "Framework :: Django :: 5.1",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
@@ -34,7 +35,7 @@ classifiers = [
 ]
 dependencies = [
     "django>=3.2",
-    "clickhouse-driver==0.2.8",
+    "clickhouse-driver==0.2.9",
 ]
 dynamic = ["version", "readme"]
 

@@ -6,8 +6,8 @@ Clickhouse backend support django builtin fields and clickhouse specific fields.
 **Note:** You should always use clickhouse specific fields in new projects.
 Support for django built-in fields is only for compatibility with existing third-party apps.
 
-**Note:** [ForeignKey](https://docs.djangoproject.com/en/4.1/ref/models/fields/#foreignkey), [ManyToManyField](https://docs.djangoproject.com/en/4.1/ref/models/fields/#manytomanyfield)
-or even [OneToOneField](https://docs.djangoproject.com/en/4.1/ref/models/fields/#onetoonefield) could be used with clickhouse backend.
+**Note:** [ForeignKey](https://docs.djangoproject.com/en/5.1/ref/models/fields/#foreignkey), [ManyToManyField](https://docs.djangoproject.com/en/5.1/ref/models/fields/#manytomanyfield)
+or even [OneToOneField](https://docs.djangoproject.com/en/5.1/ref/models/fields/#onetoonefield) could be used with clickhouse backend.
 But no database level constraints will be added, so there could be some consistency problems.
 
 
@@ -171,9 +171,9 @@ DATABASES = {
 
 Fields importing path: `clickhouse_backend.models.Date[32]Field`
 
-[Dates query](https://docs.djangoproject.com/en/4.1/ref/models/querysets/#dates) is supported by DateField and Date32Field.
+[Dates query](https://docs.djangoproject.com/en/5.1/ref/models/querysets/#dates) is supported by DateField and Date32Field.
 
-All [date lookup](https://docs.djangoproject.com/en/4.1/ref/models/querysets/#date) are supported by DateField and Date32Field.
+All [date lookup](https://docs.djangoproject.com/en/5.1/ref/models/querysets/#date) are supported by DateField and Date32Field.
 
 Both Nullable and LowCardinality are supported.
 
@@ -206,10 +206,10 @@ Fields importing path: `clickhouse_backend.models.DateTime[64]Field`
 
 DateTime64Field have a [`precision`](https://clickhouse.com/docs/en/sql-reference/data-types/datetime64) parameter which default to 6.
 
-[Dates query](https://docs.djangoproject.com/en/4.1/ref/models/querysets/#dates) and [datetimes query](https://docs.djangoproject.com/en/4.1/ref/models/querysets/#datetimes)
+[Dates query](https://docs.djangoproject.com/en/5.1/ref/models/querysets/#dates) and [datetimes query](https://docs.djangoproject.com/en/5.1/ref/models/querysets/#datetimes)
 are supported by DateTimeField and DateTime64Field.
 
-All [date lookup](https://docs.djangoproject.com/en/4.1/ref/models/querysets/#date) are supported by DateTimeField and DateTime64Field.
+All [date lookup](https://docs.djangoproject.com/en/5.1/ref/models/querysets/#date) are supported by DateTimeField and DateTime64Field.
 
 Both Nullable and LowCardinality are supported by DateTime. But LowCardinality is not supported by DateTime64.
 

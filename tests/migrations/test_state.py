@@ -22,7 +22,6 @@ from .models import (
     FoodQuerySet,
     ModelWithCustomBase,
     NoMigrationFoodManager,
-    UnicodeModel,
 )
 
 
@@ -47,7 +46,6 @@ class StateTests(SimpleTestCase):
                 app_label = "migrations"
                 apps = new_apps
                 unique_together = ["name", "bio"]
-                index_together = ["bio", "age"]
 
         class AuthorProxy(Author):
             class Meta:
@@ -139,7 +137,6 @@ class StateTests(SimpleTestCase):
             author_state.options,
             {
                 "unique_together": {("name", "bio")},
-                "index_together": {("bio", "age")},
                 "indexes": [],
                 "constraints": [],
             },
@@ -1654,25 +1651,6 @@ class ModelStateTests(SimpleTestCase):
         field.model = models.Model
         with self.assertRaisesMessage(
             ValueError, 'ModelState.fields cannot be bound to a model - "field" is.'
-        ):
-            ModelState("app", "Model", [("field", field)])
-
-    def test_sanity_check_to(self):
-        field = models.ForeignKey(UnicodeModel, models.CASCADE)
-        with self.assertRaisesMessage(
-            ValueError,
-            'ModelState.fields cannot refer to a model class - "field.to" does. '
-            "Use a string reference instead.",
-        ):
-            ModelState("app", "Model", [("field", field)])
-
-    def test_sanity_check_through(self):
-        field = models.ManyToManyField("UnicodeModel")
-        field.remote_field.through = UnicodeModel
-        with self.assertRaisesMessage(
-            ValueError,
-            'ModelState.fields cannot refer to a model class - "field.through" does. '
-            "Use a string reference instead.",
         ):
             ModelState("app", "Model", [("field", field)])
 

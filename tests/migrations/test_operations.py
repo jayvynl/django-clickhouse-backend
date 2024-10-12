@@ -2132,7 +2132,6 @@ class OperationTests(OperationTestBase):
             operation.state_forwards(app_label, new_state)
             new_model = new_state.apps.get_model(app_label, "Pony")
             self.assertIsNot(old_model, new_model)
-            self.assertEqual(new_model._meta.index_together, tuple())
             self.assertEqual(new_model._meta.indexes[0].name, "new_pony_pink_idx")
 
     @skipUnlessDBFeature("supports_expression_indexes")
