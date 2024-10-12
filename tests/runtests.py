@@ -29,7 +29,18 @@ def get_test_modules():
             yield test_module
 
 
+# assertQuerysetEqual is removed from django 5.1
+def patch_assertQuerysetEqual():
+    from django.test import TransactionTestCase
+
+    def assertQuerysetEqual(self, *args, **kw):
+        return self.assertQuerySetEqual(*args, **kw)
+
+    TransactionTestCase.assertQuerysetEqual = assertQuerysetEqual
+
+
 if __name__ == "__main__":
+    patch_assertQuerysetEqual()
     parser = argparse.ArgumentParser(description="Run the Django test suite.")
     parser.add_argument(
         "modules",

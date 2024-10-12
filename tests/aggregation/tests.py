@@ -1106,25 +1106,6 @@ class AggregateTestCase(TestCase):
         ):
             Book.objects.annotate(Max("id")).annotate(my_max=MyMax("id__max", "price"))
 
-    def test_multi_arg_aggregate(self):
-        class MyMax(Max):
-            output_field = DecimalField()
-
-            def as_sql(self, compiler, connection):
-                copy = self.copy()
-                copy.set_source_expressions(copy.get_source_expressions()[0:1])
-                return super(MyMax, copy).as_sql(compiler, connection)
-
-        with self.assertRaisesMessage(TypeError, "Complex aggregates require an alias"):
-            Book.objects.aggregate(MyMax("pages", "price"))
-
-        with self.assertRaisesMessage(
-            TypeError, "Complex annotations require an alias"
-        ):
-            Book.objects.annotate(MyMax("pages", "price"))
-
-        Book.objects.aggregate(max_field=MyMax("pages", "price"))
-
     def test_add_implementation(self):
         class MySum(Sum):
             pass

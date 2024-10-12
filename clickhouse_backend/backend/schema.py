@@ -211,9 +211,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             "Refer to https://clickhouse.com/docs/en/engines/table-engines/"
             "mergetree-family/mergetree/#table_engine-mergetree-data_skipping-indexes"
         )
-        if (
-            any(field.db_index for field in model._meta.local_fields)
-            or getattr(model._meta, "index_together", None)
+        if any(field.db_index for field in model._meta.local_fields) or getattr(
+            model._meta, "index_together", None
         ):
             warnings.warn(msg)
 
