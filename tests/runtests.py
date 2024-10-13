@@ -6,7 +6,7 @@ import django
 from django.conf import settings
 from django.test.utils import get_runner
 
-from clickhouse_backend.compat import dj_ge4
+from clickhouse_backend import compat
 
 RUNTESTS_DIR = os.path.abspath(os.path.dirname(__file__))
 SKIP_DIRS = ["unsupported"]
@@ -31,12 +31,13 @@ def get_test_modules():
 
 # assertQuerysetEqual is removed from django 5.1
 def patch_assertQuerysetEqual():
-    from django.test import TransactionTestCase
+    if compat.dj_ge5:
+        from django.test import TransactionTestCase
 
-    def assertQuerysetEqual(self, *args, **kw):
-        return self.assertQuerySetEqual(*args, **kw)
+        def assertQuerysetEqual(self, *args, **kw):
+            return self.assertQuerySetEqual(*args, **kw)
 
-    TransactionTestCase.assertQuerysetEqual = assertQuerysetEqual
+        TransactionTestCase.assertQuerysetEqual = assertQuerysetEqual
 
 
 if __name__ == "__main__":
@@ -78,7 +79,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Turn on the SQL query logger within tests.",
     )
-    if not dj_ge4:
+    if not compat.dj_ge4:
         from django.test.runner import default_test_processes
 
         parser.add_argument(
@@ -114,7 +115,7 @@ if __name__ == "__main__":
     django.setup()
 
     parallel = options.parallel
-    if dj_ge4 and parallel in {0, "auto"}:
+    if compat.dj_ge4 and parallel in {0, "auto"}:
         # This doesn't work before django.setup() on some databases.
         from django.db import connections
         from django.test.runner import get_max_test_processes
