@@ -17,19 +17,23 @@ class DatabaseClient(BaseDatabaseClient):
         user = settings_dict.get("USER")
         passwd = settings_dict.get("PASSWORD")
         secure = options.get("secure")
+        dsn = options.get("dsn")
 
-        if host:
-            args += ["-h", host]
-        if port:
-            args += ["--port", str(port)]
-        if user:
-            args += ["-u", user]
-        if passwd:
-            args += ["--password", passwd]
-        if dbname:
-            args += ["-d", dbname]
-        if secure:
-            args += ["--secure"]
+        if dsn:
+            args += [dsn]
+        else:
+            if host:
+                args += ["-h", host]
+            if port:
+                args += ["--port", str(port)]
+            if user:
+                args += ["-u", user]
+            if passwd:
+                args += ["--password", passwd]
+            if dbname:
+                args += ["-d", dbname]
+            if secure:
+                args += ["--secure"]
         args.extend(parameters)
         return args, None
 
