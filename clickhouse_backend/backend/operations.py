@@ -217,7 +217,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             elif internal_type == "IPv6Field":
                 lookup = "IPv6NumToString(%s)"
             elif internal_type == "GenericIPAddressField":
-                lookup = "replaceRegexpOne(IPv6NumToString(%s), '^::ffff:', '')"
+                lookup = "%s"
             elif internal_type in ("EnumField", "Enum8Field", "Enum16Field"):
                 lookup = "toString(%s)"
             else:
