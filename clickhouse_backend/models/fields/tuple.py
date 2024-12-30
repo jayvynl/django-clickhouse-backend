@@ -7,7 +7,7 @@ from django.contrib.postgres.utils import prefix_validation_error
 from django.core import checks, exceptions
 from django.db.models import Field, Func, Value, lookups
 from django.utils.functional import cached_property
-from django.utils.itercompat import is_iterable
+from collections.abc import Iterable
 from django.utils.translation import gettext_lazy as _
 
 from .base import FieldMixin
@@ -38,7 +38,7 @@ class TupleField(FieldMixin, Field):
             "field instances or (field name, field instance) tuples, "
             "and field name must be valid python identifier."
         )
-        if not is_iterable(base_fields) or isinstance(base_fields, str):
+        if not isinstance(base_fields, Iterable) or isinstance(base_fields, str):
             raise invalid_error
 
         fields = []
@@ -192,7 +192,7 @@ class TupleField(FieldMixin, Field):
         return values
 
     def get_db_prep_value(self, value, connection, prepared=False):
-        if is_iterable(value) and not isinstance(value, (str, bytes)):
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
             values = self.call_base_fields(
                 "get_db_prep_value", value, connection, prepared=prepared
             )
@@ -200,7 +200,7 @@ class TupleField(FieldMixin, Field):
         return value
 
     def get_db_prep_save(self, value, connection):
-        if is_iterable(value) and not isinstance(value, (str, bytes)):
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
             values = self.call_base_fields("get_db_prep_save", value, connection)
             return tuple(values)
         return value

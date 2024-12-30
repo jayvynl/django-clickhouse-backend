@@ -5,7 +5,7 @@ from django.contrib.postgres.validators import ArrayMaxLengthValidator
 from django.core import checks, exceptions
 from django.db.models import Field, Func, Value, lookups
 from django.db.models.fields.mixins import CheckFieldDefaultMixin
-from django.utils.itercompat import is_iterable
+from collections.abc import Iterable
 from django.utils.translation import gettext_lazy as _
 
 from .base import FieldMixin
@@ -97,7 +97,7 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
         return "Array(%s)" % self.base_field.cast_db_type(connection)
 
     def get_db_prep_value(self, value, connection, prepared=False):
-        if is_iterable(value) and not isinstance(value, (str, bytes)):
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
             return [
                 self.base_field.get_db_prep_value(i, connection, prepared=prepared)
                 for i in value
@@ -105,7 +105,7 @@ class ArrayField(FieldMixin, CheckFieldDefaultMixin, Field):
         return value
 
     def get_db_prep_save(self, value, connection):
-        if is_iterable(value) and not isinstance(value, (str, bytes)):
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
             return [self.base_field.get_db_prep_save(i, connection) for i in value]
         return value
 
