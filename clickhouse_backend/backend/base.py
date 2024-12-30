@@ -163,6 +163,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         self.migration_cluster = self.settings_dict["OPTIONS"].pop(
             "migration_cluster", None
         )
+        # https://clickhouse-driver.readthedocs.io/en/latest/quickstart.html#streaming-results
+        self.max_block_size = self.settings_dict["OPTIONS"].pop("max_block_size", 65409)
         if not self.settings_dict["NAME"]:
             self.settings_dict["NAME"] = "default"
 
@@ -223,6 +225,12 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     @async_unsafe
     def create_cursor(self, name=None):
         return self.connection.cursor()
+
+    @async_unsafe
+    def chunked_cursor(self):
+        cursor = self._cursor()
+        cursor.cursor.set_stream_results(True, self.max_block_size)
+        return cursor
 
     def _savepoint(self, sid):
         pass

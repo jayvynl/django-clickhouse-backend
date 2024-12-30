@@ -40,9 +40,12 @@ Migration table will be created on this cluster with [Distributed Engine](https:
 - `connections_min` is maximum number of connections can be kept in connection pool, default 10. Set this value to 0 will disable connection pool.
 - `connections_max` is maximum number of connections can be used, default 100. In fact, `connections_max` is maximum numbers of queries one can execute concurrently.
 Because [source code of DBAPI Connection](https://github.com/mymarilyn/clickhouse-driver/blob/0.2.5/clickhouse_driver/dbapi/connection.py#L46) shows that every cursor creates a new connection.
+- `max_block_size` is used for [streaming results](https://clickhouse-driver.readthedocs.io/en/latest/quickstart.html#streaming-results).
 - `dsn` provide connection url, for example `clickhouse://localhost/test?param1=value1&...`. If dsn is provided, all other connection parameters are ignored.
 - All other [clickhouse_driver.connection.Connection](https://clickhouse-driver.readthedocs.io/en/latest/api.html#connection) parameters.
 - `settings` can contain [clickhouse_driver.Client](https://clickhouse-driver.readthedocs.io/en/latest/api.html?highlight=client#clickhouse_driver.Client) settings and [clickhouse settings](https://clickhouse.com/docs/en/operations/settings/settings).
+
+> *Changed in version 1.3.2:* Add `max_block_size`, refer [#108](https://github.com/jayvynl/django-clickhouse-backend/issues/108).
 
 Valid `TEST` keys:
 

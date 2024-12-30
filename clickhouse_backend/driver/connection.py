@@ -116,9 +116,9 @@ class Connection(dbapi_connection.Connection):
     """Connection class with support for connection pool."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         kwargs.setdefault("connections_min", 10)
         kwargs.setdefault("connections_max", 100)
+        super().__init__(*args, **kwargs)
         self.pool = ClickhousePool(
             dsn=self.dsn,
             host=self.host,
