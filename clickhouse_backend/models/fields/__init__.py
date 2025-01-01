@@ -4,7 +4,7 @@ from datetime import datetime
 from django.core import checks, exceptions
 from django.db.models import IntegerChoices, fields
 from django.utils.functional import cached_property
-from django.utils.itercompat import is_iterable
+from collections.abc import Iterable
 from django.utils.translation import gettext_lazy as _
 
 from clickhouse_backend.validators import MaxBytesValidator
@@ -284,7 +284,7 @@ class EnumField(FieldMixin, fields.Field):
                 id="fields.E005",
             )
         ]
-        if not is_iterable(self.choices) or isinstance(self.choices, str):
+        if not isinstance(self.choices, Iterable) or isinstance(self.choices, str):
             return invalid_errors
 
         if not self.choices:

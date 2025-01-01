@@ -1,5 +1,5 @@
 from django.db.models import Func, Value
-from django.utils.itercompat import is_iterable
+from collections.abc import Iterable
 
 __all__ = [
     "Distributed",
@@ -139,7 +139,7 @@ class BaseMergeTree(Engine):
         for key in ["order_by", "primary_key", "partition_by"]:
             value = getattr(self, key)
             if value is not None:
-                if isinstance(value, str) or not is_iterable(value):
+                if isinstance(value, str) or not isinstance(value, Iterable):
                     value = (value,)
                     setattr(self, key, value)
                 elif not isinstance(value, tuple):
