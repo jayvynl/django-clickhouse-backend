@@ -4,6 +4,7 @@
 - fix: pass DSN to clickhouse-client if configured.
 - feat: #108 Queryset.iterator use clickhouse_driver.Client.execute_iter.
 - chore: test for python3.13.
+- refactor: Using collections.abc.Iterable instead of deprecated django.utils.itercompat.is_iterable
 
 ### 1.3.1
 

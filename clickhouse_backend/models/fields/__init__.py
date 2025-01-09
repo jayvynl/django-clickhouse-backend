@@ -1,10 +1,10 @@
 import ipaddress
+from collections.abc import Iterable
 from datetime import datetime
 
 from django.core import checks, exceptions
 from django.db.models import IntegerChoices, fields
 from django.utils.functional import cached_property
-from collections.abc import Iterable
 from django.utils.translation import gettext_lazy as _
 
 from clickhouse_backend.validators import MaxBytesValidator

@@ -1,5 +1,6 @@
-from django.db.models import Func, Value
 from collections.abc import Iterable
+
+from django.db.models import Func, Value
 
 __all__ = [
     "Distributed",

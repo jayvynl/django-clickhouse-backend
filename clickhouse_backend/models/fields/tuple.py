@@ -2,12 +2,12 @@ import collections
 import collections.abc
 import copy
 import json
+from collections.abc import Iterable
 
 from django.contrib.postgres.utils import prefix_validation_error
 from django.core import checks, exceptions
 from django.db.models import Field, Func, Value, lookups
 from django.utils.functional import cached_property
-from collections.abc import Iterable
 from django.utils.translation import gettext_lazy as _
 
 from .base import FieldMixin
