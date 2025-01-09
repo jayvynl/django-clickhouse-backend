@@ -98,3 +98,7 @@ run test for all supported Python version and Django version:
 ```shell
 tox
 ```
+
+### Other
+
+- Don't forget writing [Changelog](CHANGELOG.md)

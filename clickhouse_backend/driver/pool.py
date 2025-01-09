@@ -17,8 +17,8 @@ class ClickhousePool:
         self.dsn = kwargs.pop("dsn", None)
         self.connections_min = kwargs.pop("connections_min", 10)
         self.connections_max = kwargs.pop("connections_max", 20)
-
-        self.connection_args = {"host": kwargs.pop("host", "localhost"), **kwargs}
+        kwargs.setdefault("host", "localhost")
+        self.connection_args = kwargs
         self.closed = False
         self._pool = []
         self._used = {}

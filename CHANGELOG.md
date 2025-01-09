@@ -1,3 +1,10 @@
+### 1.3.2
+
+- feat(aggragation-function): add anyLast function.
+- fix: pass DSN to clickhouse-client if configured.
+- feat: #108 Queryset.iterator use clickhouse_driver.Client.execute_iter.
+- chore: test for python3.13.
+
 ### 1.3.1
 
 - fix: #99 update value containing "where" cause exception.
