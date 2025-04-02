@@ -691,6 +691,77 @@ class ColumnarTestCase(TransactionTestCase):
                     ),
                 )
 
+    @unittest.skipUnless(check_numpy(), "numpy is not installed")
+    def test_use_numpy_but_not_columnar_format(self):
+        sql = """
+            SELECT toDateTime32('2022-01-01 01:00:05', 'UTC'), number, number*2.5
+            FROM system.numbers
+            LIMIT 3
+        """
+        import numpy as np
+
+        with connections["s2r1"].cursor() as cursorWrapper:
+            with cursorWrapper.cursor.set_query_args(
+                columnar=False, use_numpy=True
+            ) as cursor:
+                cursor.execute(sql)
+                np.testing.assert_equal(
+                    cursor.fetchall(),
+                    [
+                        np.array(
+                            [datetime.datetime(2022, 1, 1, 1, 0, 5), 0, 0.0],
+                            dtype=object,
+                        ),
+                        np.array(
+                            [datetime.datetime(2022, 1, 1, 1, 0, 5), 1, 2.5],
+                            dtype=object,
+                        ),
+                        np.array(
+                            [datetime.datetime(2022, 1, 1, 1, 0, 5), 2, 5.0],
+                            dtype=object,
+                        ),
+                    ],
+                )
+
+                cursor.execute(sql)
+                np.testing.assert_equal(
+                    cursor.fetchmany(2),
+                    [
+                        np.array(
+                            [datetime.datetime(2022, 1, 1, 1, 0, 5), 0, 0.0],
+                            dtype="object",
+                        ),
+                        np.array(
+                            [datetime.datetime(2022, 1, 1, 1, 0, 5), 1, 2.5],
+                            dtype="object",
+                        ),
+                    ],
+                )
+
+                actual_results = [
+                    r
+                    for results in iter(lambda: cursor.fetchmany(2), [])
+                    for r in results
+                ]
+                np.testing.assert_equal(
+                    actual_results,
+                    [
+                        np.array(
+                            [datetime.datetime(2022, 1, 1, 1, 0, 5), 2, 5.0],
+                            dtype="object",
+                        ),
+                    ],
+                )
+
+                cursor.execute(sql)
+                np.testing.assert_equal(
+                    cursor.fetchone(),
+                    np.array(
+                        [datetime.datetime(2022, 1, 1, 1, 0, 5), 0, 0.0],
+                        dtype="object",
+                    ),
+                )
+
 
 # These tests aren't conditional because it would require differentiating
 # between MySQL+InnoDB and MySQL+MYISAM (something we currently can't do).
