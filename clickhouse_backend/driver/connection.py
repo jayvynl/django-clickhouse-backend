@@ -73,7 +73,6 @@ connection.Connection.send_query = send_query
 
 
 class Cursor(cursor.Cursor):
-    
     # Whether to return data in columnar format. For backwards-compatibility,
     # let's default to None.
     columnar = None
