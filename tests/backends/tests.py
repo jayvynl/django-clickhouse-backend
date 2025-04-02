@@ -1,5 +1,6 @@
 """Tests related to django.db.backends that haven't been organized."""
 import datetime
+import importlib
 import threading
 import unittest
 import warnings
@@ -558,6 +559,137 @@ class BackendTestCase(TransactionTestCase):
         connection.ensure_connection()
         with self.settings(TIME_ZONE=None, USE_TZ=False):
             connection.init_connection_state()
+
+
+def check_numpy():
+    """Check if numpy is installed."""
+    spec = importlib.util.find_spec("numpy")
+    return spec is not None
+
+
+class ColumnarTestCase(TransactionTestCase):
+    available_apps = ["backends"]
+    databases = {"default", "s2r1"}
+
+    def test_columnar_query(self):
+        sql = """
+            SELECT number, number*2, number*3, number*4, number*5
+            FROM system.numbers
+            LIMIT 10
+        """
+        with connections["s2r1"].cursor() as cursorWrapper:
+            with cursorWrapper.cursor.set_query_args(columnar=True) as cursor:
+                cursor.execute(sql)
+                self.assertEqual(
+                    cursor.fetchall(),
+                    [
+                        (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+                        (0, 2, 4, 6, 8, 10, 12, 14, 16, 18),
+                        (0, 3, 6, 9, 12, 15, 18, 21, 24, 27),
+                        (0, 4, 8, 12, 16, 20, 24, 28, 32, 36),
+                        (0, 5, 10, 15, 20, 25, 30, 35, 40, 45),
+                    ],
+                )
+
+                cursor.execute(sql)
+                self.assertEqual(
+                    cursor.fetchmany(2),
+                    [
+                        (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+                        (0, 2, 4, 6, 8, 10, 12, 14, 16, 18),
+                    ],
+                )
+
+                actual_results = [
+                    r
+                    for results in iter(lambda: cursor.fetchmany(2), [])
+                    for r in results
+                ]
+                self.assertEqual(
+                    actual_results,
+                    [
+                        (0, 3, 6, 9, 12, 15, 18, 21, 24, 27),
+                        (0, 4, 8, 12, 16, 20, 24, 28, 32, 36),
+                        (0, 5, 10, 15, 20, 25, 30, 35, 40, 45),
+                    ],
+                )
+
+                cursor.execute(sql)
+                self.assertEqual(
+                    cursor.fetchone(),
+                    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+                )
+
+    @unittest.skipUnless(check_numpy(), "numpy is not installed")
+    def test_use_numpy_query(self):
+        sql = """
+            SELECT toDateTime32('2022-01-01 01:00:05', 'UTC'), number, number*2.5
+            FROM system.numbers
+            LIMIT 3
+        """
+        import numpy as np
+
+        with connections["s2r1"].cursor() as cursorWrapper:
+            with cursorWrapper.cursor.set_query_args(
+                columnar=True, use_numpy=True
+            ) as cursor:
+                cursor.execute(sql)
+                np.testing.assert_equal(
+                    cursor.fetchall(),
+                    [
+                        np.array(
+                            [
+                                np.datetime64("2022-01-01T01:00:05"),
+                                np.datetime64("2022-01-01T01:00:05"),
+                                np.datetime64("2022-01-01T01:00:05"),
+                            ],
+                            dtype="datetime64[s]",
+                        ),
+                        np.array([0, 1, 2], dtype=np.uint64),
+                        np.array([0, 2.5, 5.0], dtype=np.float64),
+                    ],
+                )
+
+                cursor.execute(sql)
+                np.testing.assert_equal(
+                    cursor.fetchmany(2),
+                    [
+                        np.array(
+                            [
+                                np.datetime64("2022-01-01T01:00:05"),
+                                np.datetime64("2022-01-01T01:00:05"),
+                                np.datetime64("2022-01-01T01:00:05"),
+                            ],
+                            dtype="datetime64[s]",
+                        ),
+                        np.array([0, 1, 2], dtype=np.uint64),
+                    ],
+                )
+
+                actual_results = [
+                    r
+                    for results in iter(lambda: cursor.fetchmany(2), [])
+                    for r in results
+                ]
+                np.testing.assert_equal(
+                    actual_results,
+                    [
+                        np.array([0, 2.5, 5], dtype=np.float64),
+                    ],
+                )
+
+                cursor.execute(sql)
+                np.testing.assert_equal(
+                    cursor.fetchone(),
+                    np.array(
+                        [
+                            np.datetime64("2022-01-01T01:00:05"),
+                            np.datetime64("2022-01-01T01:00:05"),
+                            np.datetime64("2022-01-01T01:00:05"),
+                        ],
+                        dtype="datetime64[s]",
+                    ),
+                )
 
 
 # These tests aren't conditional because it would require differentiating
