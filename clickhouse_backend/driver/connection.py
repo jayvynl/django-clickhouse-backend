@@ -114,7 +114,7 @@ class Cursor(cursor.Cursor):
             self._client.progress_query_result_cls = ProgressQueryResult
 
     @contextmanager
-    def set_query_args(
+    def set_query_execution_args(
         self, columnar: T.Optional[bool] = None, use_numpy: T.Optional[bool] = None
     ):
         original_use_numpy = self.use_numpy

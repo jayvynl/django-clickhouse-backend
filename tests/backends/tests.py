@@ -578,7 +578,7 @@ class ColumnarTestCase(TransactionTestCase):
             LIMIT 10
         """
         with connections["s2r1"].cursor() as cursorWrapper:
-            with cursorWrapper.cursor.set_query_args(columnar=True) as cursor:
+            with cursorWrapper.cursor.set_query_execution_args(columnar=True) as cursor:
                 cursor.execute(sql)
                 self.assertEqual(
                     cursor.fetchall(),
@@ -630,7 +630,7 @@ class ColumnarTestCase(TransactionTestCase):
         import numpy as np
 
         with connections["s2r1"].cursor() as cursorWrapper:
-            with cursorWrapper.cursor.set_query_args(
+            with cursorWrapper.cursor.set_query_execution_args(
                 columnar=True, use_numpy=True
             ) as cursor:
                 cursor.execute(sql)
@@ -701,7 +701,7 @@ class ColumnarTestCase(TransactionTestCase):
         import numpy as np
 
         with connections["s2r1"].cursor() as cursorWrapper:
-            with cursorWrapper.cursor.set_query_args(
+            with cursorWrapper.cursor.set_query_execution_args(
                 columnar=False, use_numpy=True
             ) as cursor:
                 cursor.execute(sql)
