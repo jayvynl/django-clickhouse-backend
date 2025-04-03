@@ -1,3 +1,7 @@
+### 1.4.0
+
+- feat: #119 Allow query results returned in columns and deserialized to `numpy` objects
+
 ### 1.3.2
 
 - feat(aggragation-function): add anyLast function.

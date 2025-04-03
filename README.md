@@ -29,6 +29,7 @@ Read [Documentation](https://github.com/jayvynl/django-clickhouse-backend/blob/m
 - Support most clickhouse data types.
 - Support [SETTINGS in SELECT Query](https://clickhouse.com/docs/en/sql-reference/statements/select/#settings-in-select-query).
 - Support [PREWHERE clause](https://clickhouse.com/docs/en/sql-reference/statements/select/prewhere).
+- Support query results returned in columns and [deserialized to `numpy` objects](https://clickhouse-driver.readthedocs.io/en/latest/features.html#numpy-pandas-support).
 
 **Notes:**
 
@@ -380,6 +381,60 @@ and [distributed table engine](https://clickhouse.com/docs/en/engines/table-engi
 
 The following example assumes that a cluster defined by [docker compose in this repository](https://github.com/jayvynl/django-clickhouse-backend/blob/main/compose.yaml) is used.
 This cluster name is `cluster`, it has 2 shards, every shard has 2 replica.
+
+Query results returned as columns and/or deserialized into `numpy` objects 
+---
+
+`clickhouse-driver` allows results to be returned as columns and/or deserialized into
+`numpy` objects. This backend supports both options by using the context manager, 
+`Cursor.set_query_execution_args()`.
+
+```python
+import numpy as np
+from django.db import connection
+
+sql = """
+    SELECT toDateTime32('2022-01-01 01:00:05', 'UTC'), number, number*2.5
+    FROM system.numbers
+    LIMIT 3
+"""
+with connection.cursor() as cursorWrapper:
+    with cursorWrapper.cursor.set_query_execution_args(
+        columnar=True, use_numpy=True
+    ) as cursor:
+        cursor.execute(sql)
+        np.testing.assert_equal(
+            cursor.fetchall(),
+            [
+                np.array(
+                    [
+                        np.datetime64("2022-01-01T01:00:05"),
+                        np.datetime64("2022-01-01T01:00:05"),
+                        np.datetime64("2022-01-01T01:00:05"),
+                    ],
+                    dtype="datetime64[s]",
+                ),
+                np.array([0, 1, 2], dtype=np.uint64),
+                np.array([0, 2.5, 5.0], dtype=np.float64),
+            ],
+        )
+
+        cursor.execute(sql)
+        np.testing.assert_equal(
+            cursor.fetchmany(2),
+            [
+                np.array(
+                    [
+                        np.datetime64("2022-01-01T01:00:05"),
+                        np.datetime64("2022-01-01T01:00:05"),
+                        np.datetime64("2022-01-01T01:00:05"),
+                    ],
+                    dtype="datetime64[s]",
+                ),
+                np.array([0, 1, 2], dtype=np.uint64),
+            ],
+        )
+```
 
 ### Configuration
 
