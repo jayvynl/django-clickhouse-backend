@@ -6,6 +6,11 @@ from clickhouse_backend.utils.timezone import get_timezone
 from .base import Func
 
 __all__ = [
+    "toStartOfMinute",
+    "toStartOfFiveMinutes",
+    "toStartOfTenMinutes",
+    "toStartOfFifteenMinutes",
+    "toStartOfHour",
     "toYYYYMM",
     "toYYYYMMDD",
     "toYYYYMMDDhhmmss",
@@ -39,3 +44,36 @@ class toYYYYMMDD(toYYYYMM):
 
 class toYYYYMMDDhhmmss(toYYYYMM):
     output_field = fields.UInt64Field()
+
+
+class toStartOfMinute(Func):
+    output_field = models.fields.DateTimeField()
+
+    def __init__(self, *expressions):
+        arity = len(expressions)
+        if arity < 1 or arity > 1:
+            raise TypeError(
+                "'%s' takes 1 argument (%s given)"
+                % (
+                    self.__class__.__name__,
+                    len(expressions),
+                )
+            )
+
+        super().__init__(*expressions)
+
+
+class toStartOfFiveMinutes(toStartOfMinute):
+    pass
+
+
+class toStartOfTenMinutes(toStartOfMinute):
+    pass
+
+
+class toStartOfFifteenMinutes(toStartOfMinute):
+    pass
+
+
+class toStartOfHour(toStartOfMinute):
+    pass
