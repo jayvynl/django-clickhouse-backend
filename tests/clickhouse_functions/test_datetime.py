@@ -17,13 +17,15 @@ class DateTimeTests(TestCase):
             alias="smithj",
             # https://stackoverflow.com/a/18862958
             birthday=pytz.timezone(get_timezone()).localize(
-                datetime(2023, 11, 30, 16), is_dst=False
+                datetime(2023, 11, 30, hour=16, minute=12, second=15), is_dst=False
             ),
         )
         cls.elena = Author.objects.create(
             name="Élena Jordan",
             alias="elena",
-            birthday=pytz.utc.localize(datetime(2023, 11, 30, 16), is_dst=False),
+            birthday=pytz.utc.localize(
+                datetime(2023, 11, 30, hour=16, minute=59, second=59), is_dst=False
+            ),
         )
 
     def test_yyyymm(self):
@@ -50,8 +52,128 @@ class DateTimeTests(TestCase):
         john = Author.objects.annotate(v=models.toYYYYMMDDhhmmss("birthday")).get(
             id=self.john.id
         )
-        self.assertEqual(john.v, 20231130160000)
+        self.assertEqual(john.v, 20231130161215)
         elena = Author.objects.annotate(
             v=models.toYYYYMMDDhhmmss("birthday", "Asia/Shanghai")
         ).get(id=self.elena.id)
-        self.assertEqual(elena.v, 20231201000000)
+        self.assertEqual(elena.v, 20231201005959)
+
+    def test_tostartofminute(self):
+        john = Author.objects.annotate(v=models.toStartOfMinute("birthday")).get(
+            id=self.john.id
+        )
+        self.assertEqual(
+            john.v,
+            datetime(
+                2023,
+                11,
+                30,
+                hour=16,
+                minute=12,
+                second=00,
+            ),
+        )
+
+        elena = Author.objects.annotate(v=models.toStartOfMinute("birthday")).get(
+            id=self.elena.id
+        )
+        self.assertEqual(
+            elena.v,
+            datetime(2023, 11, 30, hour=10, minute=59, second=00),
+        )
+
+    def test_tostartoffiveminutes(self):
+        john = Author.objects.annotate(v=models.toStartOfFiveMinutes("birthday")).get(
+            id=self.john.id
+        )
+        self.assertEqual(
+            john.v,
+            datetime(
+                2023,
+                11,
+                30,
+                hour=16,
+                minute=10,
+                second=00,
+            ),
+        )
+
+        elena = Author.objects.annotate(v=models.toStartOfFiveMinutes("birthday")).get(
+            id=self.elena.id
+        )
+        self.assertEqual(
+            elena.v,
+            datetime(2023, 11, 30, hour=10, minute=55, second=00),
+        )
+
+    def test_tostartoftenminutes(self):
+        john = Author.objects.annotate(v=models.toStartOfTenMinutes("birthday")).get(
+            id=self.john.id
+        )
+        self.assertEqual(
+            john.v,
+            datetime(
+                2023,
+                11,
+                30,
+                hour=16,
+                minute=10,
+                second=00,
+            ),
+        )
+
+        elena = Author.objects.annotate(v=models.toStartOfTenMinutes("birthday")).get(
+            id=self.elena.id
+        )
+        self.assertEqual(
+            elena.v,
+            datetime(2023, 11, 30, hour=10, minute=50, second=00),
+        )
+
+    def test_tostartoffifteenminutes(self):
+        john = Author.objects.annotate(
+            v=models.toStartOfFifteenMinutes("birthday")
+        ).get(id=self.john.id)
+        self.assertEqual(
+            john.v,
+            datetime(
+                2023,
+                11,
+                30,
+                hour=16,
+                minute=00,
+                second=00,
+            ),
+        )
+
+        elena = Author.objects.annotate(
+            v=models.toStartOfFifteenMinutes("birthday")
+        ).get(id=self.elena.id)
+        self.assertEqual(
+            elena.v,
+            datetime(2023, 11, 30, hour=10, minute=45, second=00),
+        )
+
+    def test_tostartofhour(self):
+        john = Author.objects.annotate(v=models.toStartOfHour("birthday")).get(
+            id=self.john.id
+        )
+        self.assertEqual(
+            john.v,
+            datetime(
+                2023,
+                11,
+                30,
+                hour=16,
+                minute=00,
+                second=00,
+            ),
+        )
+
+        elena = Author.objects.annotate(v=models.toStartOfHour("birthday")).get(
+            id=self.elena.id
+        )
+        self.assertEqual(
+            elena.v,
+            datetime(2023, 11, 30, hour=10, minute=00, second=00),
+        )
