@@ -1,11 +1,7 @@
-### 1.5.0
-
-- feat: #125 Add database functions `toStartOfMinute`, `toStartOfFiveMinutes`, `toStartOfTenMinutes`, `toStartOfFifteenMinutes` and `toStartofHour`
-
-
 ### 1.4.0
 
 - feat: #119 Allow query results returned in columns and deserialized to `numpy` objects
+- feat: #125 Add database functions `toStartOfMinute`, `toStartOfFiveMinutes`, `toStartOfTenMinutes`, `toStartOfFifteenMinutes` and `toStartofHour`
 
 ### 1.3.2
 
