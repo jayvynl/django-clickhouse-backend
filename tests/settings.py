@@ -19,6 +19,7 @@ MIDDLEWARE = [
 DATABASES = {
     "default": {
         "ENGINE": "clickhouse_backend.backend",
+        "PASSWORD": "clickhouse_password",
         "OPTIONS": {
             "migration_cluster": "cluster",
             "connections_min": 1,
@@ -35,6 +36,7 @@ DATABASES = {
     },
     "s1r2": {
         "ENGINE": "clickhouse_backend.backend",
+        "PASSWORD": "clickhouse_password",
         "PORT": 9001,
         "OPTIONS": {
             "migration_cluster": "cluster",
@@ -52,6 +54,7 @@ DATABASES = {
     },
     "s2r1": {
         "ENGINE": "clickhouse_backend.backend",
+        "PASSWORD": "clickhouse_password",
         "PORT": 9002,
         "OPTIONS": {
             "migration_cluster": "cluster",

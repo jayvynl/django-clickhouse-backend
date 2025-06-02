@@ -1,5 +1,7 @@
 x-base-service: &base-service
   image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION:-23.6.2.18}
+  environment:
+    CLICKHOUSE_PASSWORD: "clickhouse_password"
   restart: always
   ulimits:
     nofile:
