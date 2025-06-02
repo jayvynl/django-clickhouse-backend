@@ -7,10 +7,12 @@
         <replica>
           <host>node1</host>
           <port>9000</port>
+          <password>clickhouse_password</password>
         </replica>
         <replica>
           <host>node2</host>
           <port>9000</port>
+          <password>clickhouse_password</password>
         </replica>
       </shard>
       <shard>
@@ -18,10 +20,12 @@
         <replica>
           <host>node3</host>
           <port>9000</port>
+          <password>clickhouse_password</password>
         </replica>
         <replica>
           <host>node4</host>
           <port>9000</port>
+          <password>clickhouse_password</password>
         </replica>
       </shard>
     </cluster>
