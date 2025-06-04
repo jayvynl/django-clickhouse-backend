@@ -2,6 +2,7 @@
 
 - feat: #119 Allow query results returned in columns and deserialized to `numpy` objects
 - feat: #125 Add database functions `toStartOfMinute`, `toStartOfFiveMinutes`, `toStartOfTenMinutes`, `toStartOfFifteenMinutes` and `toStartofHour`
+- feat: #122 Django 5.2 Support
 
 ### 1.3.2
 
