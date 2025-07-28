@@ -14,6 +14,7 @@ __all__ = [
     "toYYYYMM",
     "toYYYYMMDD",
     "toYYYYMMDDhhmmss",
+    "toYearWeek",
 ]
 
 
@@ -77,3 +78,21 @@ class toStartOfFifteenMinutes(toStartOfMinute):
 
 class toStartOfHour(toStartOfMinute):
     pass
+
+class toYearWeek(Func):
+    output_field = fields.UInt32Field()
+
+    def __init__(self, *expressions):
+        arity = len(expressions)
+        if arity < 1 or arity > 3:
+            raise TypeError(
+                "'%s' takes between 1 and 3 arguments (%s given)"
+                % (
+                    self.__class__.__name__,
+                    len(expressions),
+                )
+            )
+
+        expressions = (expressions[0], *(models.Value(expr) for expr in expressions[1:]))
+
+        super().__init__(*expressions)

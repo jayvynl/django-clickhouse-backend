@@ -27,6 +27,13 @@ class DateTimeTests(TestCase):
                 datetime(2023, 11, 30, hour=16, minute=59, second=59), is_dst=False
             ),
         )
+        cls.sarah = Author.objects.create(
+            name="Sarah Connor",
+            alias="sconnor",
+            birthday=pytz.utc.localize(
+                datetime(2023, 12, 31, hour=23, minute=30, second=00), is_dst=False
+            ),
+        )
 
     def test_yyyymm(self):
         john = Author.objects.annotate(v=models.toYYYYMM("birthday")).get(
@@ -177,3 +184,19 @@ class DateTimeTests(TestCase):
             elena.v,
             datetime(2023, 11, 30, hour=10, minute=00, second=00),
         )
+    
+    def test_toyearweek(self):
+        sarah = Author.objects.annotate(v=models.toYearWeek("birthday")).get(
+            id=self.sarah.id
+        )
+        self.assertEqual(sarah.v, 202353)
+
+        sarah = Author.objects.annotate(v=models.toYearWeek("birthday", 1)).get(
+            id=self.sarah.id
+        )
+        self.assertEqual(sarah.v, 202352)
+
+        sarah = Author.objects.annotate(v=models.toYearWeek("birthday", 1, "Pacific/Kiritimati")).get(
+            id=self.sarah.id
+        )
+        self.assertEqual(sarah.v, 202401)
