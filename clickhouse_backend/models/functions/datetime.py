@@ -79,6 +79,7 @@ class toStartOfFifteenMinutes(toStartOfMinute):
 class toStartOfHour(toStartOfMinute):
     pass
 
+
 class toYearWeek(Func):
     output_field = fields.UInt32Field()
 
@@ -93,6 +94,9 @@ class toYearWeek(Func):
                 )
             )
 
-        expressions = (expressions[0], *(models.Value(expr) for expr in expressions[1:]))
+        expressions = (
+            expressions[0],
+            *(models.Value(expr) for expr in expressions[1:]),
+        )
 
         super().__init__(*expressions)

@@ -184,7 +184,7 @@ class DateTimeTests(TestCase):
             elena.v,
             datetime(2023, 11, 30, hour=10, minute=00, second=00),
         )
-    
+
     def test_toyearweek(self):
         sarah = Author.objects.annotate(v=models.toYearWeek("birthday")).get(
             id=self.sarah.id
@@ -196,7 +196,7 @@ class DateTimeTests(TestCase):
         )
         self.assertEqual(sarah.v, 202352)
 
-        sarah = Author.objects.annotate(v=models.toYearWeek("birthday", 1, "Pacific/Kiritimati")).get(
-            id=self.sarah.id
-        )
+        sarah = Author.objects.annotate(
+            v=models.toYearWeek("birthday", 1, "Pacific/Kiritimati")
+        ).get(id=self.sarah.id)
         self.assertEqual(sarah.v, 202401)
