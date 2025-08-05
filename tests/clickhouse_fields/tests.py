@@ -1,4 +1,4 @@
-import sys
+import ipaddress
 from decimal import Decimal
 from uuid import uuid4
 
@@ -612,13 +612,10 @@ class IPv6FieldTests(TestCase):
         self.assertNotIn("max_length", kwargs)
 
     def test_value(self):
-        if sys.version_info < (3, 13):
-            v = "::ffff:304:506"
-        else:
-            v = "::ffff:3.4.5.6"
+        v = "::ffff:3.4.5.6"
         o = IPv6Model.objects.create(ipv6=v)
         o.refresh_from_db()
-        self.assertEqual(o.ipv6, v)
+        self.assertEqual(o.ipv6, str(ipaddress.ip_address(v)))
 
     def test_filter(self):
         v = "::ffff:3.4.5.6"
