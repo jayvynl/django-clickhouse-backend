@@ -163,6 +163,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         self.migration_cluster = self.settings_dict["OPTIONS"].pop(
             "migration_cluster", None
         )
+        self.distributed_migrations = self.settings_dict["OPTIONS"].pop(
+            "distributed_migrations", None
+        )
         # https://clickhouse-driver.readthedocs.io/en/latest/quickstart.html#streaming-results
         self.max_block_size = self.settings_dict["OPTIONS"].pop("max_block_size", 65409)
         if not self.settings_dict["NAME"]:
