@@ -206,7 +206,7 @@ class DistributedMigrationTests(MigrationTestBase):
             conn = connections[db]
             self.assertMigrationExists(conn, "0432_ponies", "myapp", deleted=True)
 
-        self.assertMigrationExists(connections['load_balancer'], "myapp", "0432_ponies", deleted=True)
+        self.assertMigrationExists(connections['load_balancer'], "0432_ponies", "myapp", deleted=True)
 
 
 class LoaderTests(TestCase):
