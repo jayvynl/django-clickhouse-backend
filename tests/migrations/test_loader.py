@@ -90,37 +90,29 @@ class DistributedMigrationTests(MigrationTestBase):
             connections["load_balancer"].close()
             del connections["load_balancer"]
 
-    def assertMigrationTablesExists(self, conn):
-        # simulate multiple attempts to read the migration tables
-        i = 5
-        while i:
-            with conn.cursor() as cursor:
-                tables = conn.introspection.table_names(cursor)
-                self.assertIn("django_migrations", tables)
-                self.assertIn("distributed_django_migrations", tables)
-            i -= 1
+    def assertMigrationTablesExists(self):
+        for db in self.databases:
+            conn = connections[db]
+            tables = conn.introspection.table_names()
+            self.assertIn("django_migrations", tables, f"django_migrations table not found in {conn.alias}")
+            self.assertIn("distributed_django_migrations", tables, f"distributed_django_migrations table not found in {conn.alias}")
 
-    def assertMigrationExists(self, conn, name, app, deleted=False, tries=5):
-        # simulate multiple attempts to read a migration from the distributed migration table
-        while tries:
-            with conn.cursor() as cursor:
-                cursor.execute(f"SELECT * FROM distributed_django_migrations where name = '{name}'")
-                res = cursor.fetchall()
+    def assertMigrationExists(self, conn, name, app, deleted=False, tries=10):
+        with conn.cursor() as cursor:
+            cursor.execute(f"SELECT * FROM distributed_django_migrations where name = '{name}'")
+            res = cursor.fetchall()
 
-                try:
-                    self.assertEqual(len(res), 1)
-                except AssertionError:
-                    # handle replication lag
-                    if tries >= 1:
-                        sleep(1)
-                        tries -= 1
-                        continue
-                    raise ValueError(f"Migration {name} for app {app} not found in distributed_django_migrations table")
+            if not res and tries > 1:
+                # sometimes the migration is not immediately visible, wait a bit and try again
+                print(f"Migration {name} not found in {conn.alias}, retrying...")
+                sleep(1)
+                return self.assertMigrationExists(conn, name, app, deleted, tries - 1)
 
-                self.assertEqual(res[0][1], app)
-                self.assertEqual(res[0][2], name)
-                self.assertEqual(res[0][-1], deleted)
-            tries -= 1
+            self.assertEqual(len(res), 1, f"Migration {name} not found in {conn.alias}")
+
+            self.assertEqual(res[0][1], app)
+            self.assertEqual(res[0][2], name)
+            self.assertEqual(res[0][-1], deleted)
 
     def test_distributed_migration_schema_with_existing_migrations(self):
         """
@@ -137,7 +129,7 @@ class DistributedMigrationTests(MigrationTestBase):
             recorder.migration_qs.model._meta.db_table, "distributed_django_migrations"
         )
 
-        self.assertMigrationTablesExists(recorder.connection)
+        self.assertMigrationTablesExists()
 
     def test_distributed_migration_schema_without_migrations(self):
         """
@@ -175,13 +167,13 @@ class DistributedMigrationTests(MigrationTestBase):
 
         recorder.ensure_schema()
 
-        self.assertMigrationTablesExists(recorder.connection)
+        self.assertMigrationTablesExists()
 
     def test_apply_unapply_distributed(self):
         """
         Tests marking migrations as applied/unapplied in a distributed setup.
         """
-        databases = [x for x in self.databases if x != "s1r2"]
+        databases = [x for x in self.databases]
 
         for db in databases:
             conn = connections[db]
@@ -190,6 +182,8 @@ class DistributedMigrationTests(MigrationTestBase):
 
         lb = DatabaseWrapper(deepcopy(self.lb), alias="load_balancer")
         connections["load_balancer"] = lb
+        databases.append("load_balancer")
+
         recorder = MigrationRecorder(lb)
 
         recorder.record_applied("myapp", "0432_ponies")
@@ -198,15 +192,11 @@ class DistributedMigrationTests(MigrationTestBase):
             conn = connections[db]
             self.assertMigrationExists(conn, "0432_ponies", "myapp", deleted=False)
 
-        self.assertMigrationExists(connections['load_balancer'], "myapp", "0432_ponies")
-
         recorder.record_unapplied("myapp", "0432_ponies")
 
         for db in databases:
             conn = connections[db]
             self.assertMigrationExists(conn, "0432_ponies", "myapp", deleted=True)
-
-        self.assertMigrationExists(connections['load_balancer'], "0432_ponies", "myapp", deleted=True)
 
 
 class LoaderTests(TestCase):

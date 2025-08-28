@@ -1,5 +1,6 @@
 ### 1.5.0
 
+- feat: #130: Add `distributed_migrations` database setting to support distributed migration queries.
 - feat: #129: Add `toYearWeek` datetime functionality
 
 ### 1.4.0
