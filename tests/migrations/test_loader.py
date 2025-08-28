@@ -97,16 +97,10 @@ class DistributedMigrationTests(MigrationTestBase):
             self.assertIn("django_migrations", tables, f"django_migrations table not found in {conn.alias}")
             self.assertIn("distributed_django_migrations", tables, f"distributed_django_migrations table not found in {conn.alias}")
 
-    def assertMigrationExists(self, conn, name, app, deleted=False, tries=10):
+    def assertMigrationExists(self, conn, name, app, deleted=False):
         with conn.cursor() as cursor:
             cursor.execute(f"SELECT * FROM distributed_django_migrations where name = '{name}'")
             res = cursor.fetchall()
-
-            if not res and tries > 1:
-                # sometimes the migration is not immediately visible, wait a bit and try again
-                print(f"Migration {name} not found in {conn.alias}, retrying...")
-                sleep(1)
-                return self.assertMigrationExists(conn, name, app, deleted, tries - 1)
 
             self.assertEqual(len(res), 1, f"Migration {name} not found in {conn.alias}")
 
@@ -114,28 +108,7 @@ class DistributedMigrationTests(MigrationTestBase):
             self.assertEqual(res[0][2], name)
             self.assertEqual(res[0][-1], deleted)
 
-    def test_distributed_migration_schema_with_existing_migrations(self):
-        """
-        Tests that migration tables are created in all nodes even if the django_migrations table already exists
-        """
-        db = DatabaseWrapper(deepcopy(self.lb), alias="load_balancer")
-        connections["load_balancer"] = db
-        recorder = MigrationRecorder(db)
-
-        recorder.ensure_schema()
-
-        self.assertEqual(recorder.migration_qs.db, "load_balancer")
-        self.assertEqual(
-            recorder.migration_qs.model._meta.db_table, "distributed_django_migrations"
-        )
-
-        self.assertMigrationTablesExists()
-
-    def test_distributed_migration_schema_without_migrations(self):
-        """
-        Tests that migration tables are created in all nodes when migration tables do not exist
-        """
-
+    def _drop_migrations(self):
         for conn in self.databases:
             recorder = MigrationRecorder(connections[conn])
             self.assertEqual(recorder.migration_qs.db, conn)
@@ -161,6 +134,30 @@ class DistributedMigrationTests(MigrationTestBase):
             self.assertNotIn("django_migrations", tables)
             self.assertNotIn("distributed_django_migrations", tables)
 
+    def test_distributed_migration_schema_with_existing_migrations(self):
+        """
+        Tests that migration tables are created in all nodes even if the django_migrations table already exists
+        """
+        db = DatabaseWrapper(deepcopy(self.lb), alias="load_balancer")
+        connections["load_balancer"] = db
+        recorder = MigrationRecorder(db)
+
+        recorder.ensure_schema()
+
+        self.assertEqual(recorder.migration_qs.db, "load_balancer")
+        self.assertEqual(
+            recorder.migration_qs.model._meta.db_table, "distributed_django_migrations"
+        )
+
+        self.assertMigrationTablesExists()
+
+    def test_distributed_migration_schema_without_migrations(self):
+        """
+        Tests that migration tables are created in all nodes when migration tables do not exist
+        """
+
+        self._drop_migrations()
+
         db = DatabaseWrapper(deepcopy(self.lb), alias="load_balancer")
         connections["load_balancer"] = db
         recorder = MigrationRecorder(db)
@@ -175,10 +172,7 @@ class DistributedMigrationTests(MigrationTestBase):
         """
         databases = [x for x in self.databases]
 
-        for db in databases:
-            conn = connections[db]
-            recorder = MigrationRecorder(conn)
-            recorder.flush()
+        self._drop_migrations()
 
         lb = DatabaseWrapper(deepcopy(self.lb), alias="load_balancer")
         connections["load_balancer"] = lb

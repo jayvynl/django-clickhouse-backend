@@ -62,6 +62,8 @@ services:
       - "127.0.0.1:8127:8123"
       - "127.0.0.1:9004:9000"
     depends_on:
+      node1:
+        condition: service_healthy
       node3:
         condition: service_healthy
     

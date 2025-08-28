@@ -67,7 +67,7 @@ def patch_migration_recorder():
                             apps = Apps()
                             app_label = "migrations"
                             db_table = "django_migrations"
-                            engine = models.MergeTree(order_by=("app", "name"))
+                            engine = models.ReplicatedMergeTree(order_by=("app", "name"))
                             cluster = getattr(self.connection, "migration_cluster")
 
                         def __str__(self):
