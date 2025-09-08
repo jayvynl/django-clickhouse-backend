@@ -132,6 +132,9 @@ def patch_migration_recorder():
                             engine = models.MergeTree(order_by=("app", "name"))
                             cluster = getattr(self.connection, "migration_cluster", None)
 
+                        def __str__(self):
+                            return "Migration %s for %s" % (self.name, self.app)
+
             else:
 
                 class Migration(django_models.Model):
