@@ -36,6 +36,21 @@ def _get_model_table_name(connection):
     return "django_migrations"
 
 
+def _check_replicas(connection):
+    """
+    Check if the connection has replicas configured for the migration cluster.
+    """
+    if hasattr(connection, "has_replicas"):
+        return connection.has_replicas
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"select replica_num from system.clusters where cluster={connection.migration_cluster}"
+        )
+        (replica_count,) = cursor.fetchone()
+    return replica_count >= 1
+
+
 def patch_migrations():
     patch_migration_recorder()
     patch_migration()
@@ -57,6 +72,15 @@ def patch_migration_recorder():
                 # otherwise, create a regular merge tree.
                 if _should_distribute_migrations(self.connection):
 
+                    has_replicas = _check_replicas(self.connection)
+
+                    Engine = models.MergeTree
+                    if has_replicas:
+                        Engine = models.ReplicatedMergeTree
+                        self.connection.has_replicas = True
+                    else:
+                        self.connection.has_replicas = False
+
                     class _Migration(models.ClickhouseModel):
                         app = models.StringField(max_length=255)
                         name = models.StringField(max_length=255)
@@ -67,8 +91,8 @@ def patch_migration_recorder():
                             apps = Apps()
                             app_label = "migrations"
                             db_table = "django_migrations"
-                            engine = models.ReplicatedMergeTree(order_by=("app", "name"))
-                            cluster = getattr(self.connection, "migration_cluster")
+                            engine = Engine(order_by=("app", "name"))
+                            cluster = self.connection.migration_cluster
 
                         def __str__(self):
                             return "Migration %s for %s" % (self.name, self.app)
@@ -84,12 +108,12 @@ def patch_migration_recorder():
                             app_label = "migrations"
                             db_table = _get_model_table_name(self.connection)
                             engine = models.Distributed(
-                                getattr(self.connection, "migration_cluster"),
+                                self.connection.migration_cluster,
                                 currentDatabase(),
                                 _Migration._meta.db_table,
                                 models.Rand(),
                             )
-                            cluster = getattr(self.connection, "migration_cluster")
+                            cluster = self.connection.migration_cluster
 
                     Migration._meta.local_model_class = _Migration
 
@@ -106,7 +130,7 @@ def patch_migration_recorder():
                             app_label = "migrations"
                             db_table = _get_model_table_name(self.connection)
                             engine = models.MergeTree(order_by=("app", "name"))
-                            cluster = getattr(self.connection, "migration_cluster")
+                            cluster = getattr(self.connection, "migration_cluster", None)
 
             else:
 
