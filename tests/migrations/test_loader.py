@@ -94,12 +94,22 @@ class DistributedMigrationTests(MigrationTestBase):
         for db in self.databases:
             conn = connections[db]
             tables = conn.introspection.table_names()
-            self.assertIn("django_migrations", tables, f"django_migrations table not found in {conn.alias}")
-            self.assertIn("distributed_django_migrations", tables, f"distributed_django_migrations table not found in {conn.alias}")
+            self.assertIn(
+                "django_migrations",
+                tables,
+                f"django_migrations table not found in {conn.alias}",
+            )
+            self.assertIn(
+                "distributed_django_migrations",
+                tables,
+                f"distributed_django_migrations table not found in {conn.alias}",
+            )
 
     def assertMigrationExists(self, conn, name, app, deleted=False):
         with conn.cursor() as cursor:
-            cursor.execute(f"SELECT * FROM distributed_django_migrations where name = '{name}'")
+            cursor.execute(
+                f"SELECT * FROM distributed_django_migrations where name = '{name}'"
+            )
             res = cursor.fetchall()
 
             self.assertEqual(len(res), 1, f"Migration {name} not found in {conn.alias}")

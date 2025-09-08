@@ -71,7 +71,6 @@ def patch_migration_recorder():
                 # has distributed migrations enabled and a migration cluster is set.
                 # otherwise, create a regular merge tree.
                 if _should_distribute_migrations(self.connection):
-
                     has_replicas = _check_replicas(self.connection)
 
                     Engine = models.MergeTree
@@ -130,7 +129,9 @@ def patch_migration_recorder():
                             app_label = "migrations"
                             db_table = _get_model_table_name(self.connection)
                             engine = models.MergeTree(order_by=("app", "name"))
-                            cluster = getattr(self.connection, "migration_cluster", None)
+                            cluster = getattr(
+                                self.connection, "migration_cluster", None
+                            )
 
                         def __str__(self):
                             return "Migration %s for %s" % (self.name, self.app)
