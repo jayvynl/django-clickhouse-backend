@@ -76,9 +76,8 @@ def patch_migration_recorder():
                     Engine = models.MergeTree
                     if has_replicas:
                         Engine = models.ReplicatedMergeTree
-                        self.connection.has_replicas = True
-                    else:
-                        self.connection.has_replicas = False
+
+                    self.connection.has_replicas = has_replicas
 
                     class _Migration(models.ClickhouseModel):
                         app = models.StringField(max_length=255)
