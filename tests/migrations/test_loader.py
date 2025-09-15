@@ -2,7 +2,6 @@ import compileall
 import os
 from copy import deepcopy
 from importlib import import_module
-from time import sleep
 
 from django.db import connection, connections
 from django.db.migrations.exceptions import (
