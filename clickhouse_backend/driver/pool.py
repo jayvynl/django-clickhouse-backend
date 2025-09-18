@@ -105,6 +105,11 @@ class ClickhousePool:
                     raise InterfaceError("trying to put unkeyed client")
             if len(self._pool) < self.connections_min and not close:
                 # TODO: verify connection still valid
+
+                # If the connection is currently executing a query, it shouldn't be reused.
+                # Explicitly disconnect it instead.
+                if client.connection.is_query_executing:
+                    client.disconnect()
                 if client.connection.connected:
                     self._pool.append(client)
             else:
