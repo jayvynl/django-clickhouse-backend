@@ -30,6 +30,11 @@ class IterationTests(TestCase):
         )
 
     def test_connection_not_reused_when_iteration_interrupted(self):
+        """
+        This test demonstrates that if a queryset is iterated over and the
+        iteration is interrupted (e.g. via a break statement), the connection
+        used for that iteration is disconnected and not returned to the pool.
+        """
         pool = connection.connection.pool
 
         connection_count_before = len(pool._pool)
