@@ -525,6 +525,34 @@ Extra settings explanation:
   Do not hardcode database name when you define replicated table or distributed table.
   Because test database name is different from deployed database name.
 
+#### Clickhouse cluster behind a load balancer
+
+If your clickhouse cluster is running behind a load balancer, you can optionally set `distributed_migrations` to `True` under database OPTIONS. 
+Then a distributed migration table will be created on all nodes of the cluster, and all migration operations will be performed on this 
+distributed migrations table instead of a local migrations table. Otherwise, sequentially running migrations will have no effect on other nodes.
+
+Configuration example:
+
+```python
+DATABASES = {
+    "default": {
+        "HOST": "clickhouse-load-balancer",
+        "PORT": 9000,
+        "ENGINE": "clickhouse_backend.backend",
+        "OPTIONS": {
+            "migration_cluster": "cluster",
+            "distributed_migrations": True,
+            "settings": {
+                "mutations_sync": 2,
+                "insert_distributed_sync": 1,
+                "insert_quorum": 2,
+                "alter_sync": 2,
+            },
+        },
+    }
+}
+```
+
 ### Model
 
 `cluster` in `Meta` class will make models being created on cluster.

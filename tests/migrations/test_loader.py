@@ -1,5 +1,6 @@
 import compileall
 import os
+from copy import deepcopy
 from importlib import import_module
 
 from django.db import connection, connections
@@ -13,6 +14,7 @@ from django.db.migrations.recorder import MigrationRecorder
 from django.test import TestCase, modify_settings, override_settings
 
 from clickhouse_backend import compat
+from clickhouse_backend.backend.base import DatabaseWrapper
 
 from .test_base import MigrationTestBase
 
@@ -49,6 +51,155 @@ class RecorderTests(TestCase):
             {(x, y) for (x, y) in recorder.applied_migrations() if x == "myapp"},
             set(),
         )
+
+
+class DistributedMigrationTests(MigrationTestBase):
+    databases = ("default", "s2r1", "s1r2")
+
+    lb = {
+        "ENGINE": "clickhouse_backend.backend",
+        "HOST": "localhost",
+        "USER": "default",
+        "PASSWORD": "clickhouse_password",
+        "PORT": 9004,
+        "NAME": "test_default",
+        "OPTIONS": {
+            "distributed_migrations": True,
+            "migration_cluster": "cluster",
+            "connections_min": 1,
+            "settings": {
+                "mutations_sync": 2,
+                "insert_distributed_sync": 1,
+                "insert_quorum": 2,
+                "alter_sync": 2,
+                "allow_suspicious_low_cardinality_types": 1,
+                "allow_experimental_object_type": 1,
+            },
+        },
+        "TEST": {"cluster": "cluster", "managed": False},
+        "TIME_ZONE": None,
+        "AUTOCOMMIT": True,
+        "CONN_MAX_AGE": 0,
+        "CONN_HEALTH_CHECKS": True,
+    }
+
+    def tearDown(self):
+        if "load_balancer" in connections:
+            # Remove the load balancer connection to avoid conflicts with other tests
+            connections["load_balancer"].close()
+            del connections["load_balancer"]
+
+    def assertMigrationTablesExists(self):
+        for db in self.databases:
+            conn = connections[db]
+            tables = conn.introspection.table_names()
+            self.assertIn(
+                "django_migrations",
+                tables,
+                f"django_migrations table not found in {conn.alias}",
+            )
+            self.assertIn(
+                "distributed_django_migrations",
+                tables,
+                f"distributed_django_migrations table not found in {conn.alias}",
+            )
+
+    def assertMigrationExists(self, conn, name, app, deleted=False):
+        with conn.cursor() as cursor:
+            cursor.execute(
+                f"SELECT * FROM distributed_django_migrations where name = '{name}'"
+            )
+            res = cursor.fetchall()
+
+            self.assertEqual(len(res), 1, f"Migration {name} not found in {conn.alias}")
+
+            self.assertEqual(res[0][1], app)
+            self.assertEqual(res[0][2], name)
+            self.assertEqual(res[0][-1], deleted)
+
+    def _drop_migrations(self):
+        for conn in self.databases:
+            recorder = MigrationRecorder(connections[conn])
+            self.assertEqual(recorder.migration_qs.db, conn)
+            self.assertEqual(
+                recorder.migration_qs.model._meta.db_table, "django_migrations"
+            )
+            with recorder.connection.cursor() as cursor:
+                cursor.execute("DROP TABLE IF EXISTS django_migrations")
+                cursor.execute("DROP TABLE IF EXISTS distributed_django_migrations")
+                tables = recorder.connection.introspection.table_names(cursor)
+                self.assertNotIn("django_migrations", tables)
+                self.assertNotIn("distributed_django_migrations", tables)
+
+        # node4 can throw error when trying to create django_migrations table, even if other nodes are ok
+        db = deepcopy(self.lb)
+        db["PORT"] = 9003
+        del db["OPTIONS"]["distributed_migrations"]
+        recorder = MigrationRecorder(DatabaseWrapper(db, alias="node4"))
+        with recorder.connection.cursor() as cursor:
+            cursor.execute("DROP TABLE IF EXISTS django_migrations")
+            cursor.execute("DROP TABLE IF EXISTS distributed_django_migrations")
+            tables = recorder.connection.introspection.table_names(cursor)
+            self.assertNotIn("django_migrations", tables)
+            self.assertNotIn("distributed_django_migrations", tables)
+
+    def test_distributed_migration_schema_with_existing_migrations(self):
+        """
+        Tests that migration tables are created in all nodes even if the django_migrations table already exists
+        """
+        db = DatabaseWrapper(deepcopy(self.lb), alias="load_balancer")
+        connections["load_balancer"] = db
+        recorder = MigrationRecorder(db)
+
+        recorder.ensure_schema()
+
+        self.assertEqual(recorder.migration_qs.db, "load_balancer")
+        self.assertEqual(
+            recorder.migration_qs.model._meta.db_table, "distributed_django_migrations"
+        )
+
+        self.assertMigrationTablesExists()
+
+    def test_distributed_migration_schema_without_migrations(self):
+        """
+        Tests that migration tables are created in all nodes when migration tables do not exist
+        """
+
+        self._drop_migrations()
+
+        db = DatabaseWrapper(deepcopy(self.lb), alias="load_balancer")
+        connections["load_balancer"] = db
+        recorder = MigrationRecorder(db)
+
+        recorder.ensure_schema()
+
+        self.assertMigrationTablesExists()
+
+    def test_apply_unapply_distributed(self):
+        """
+        Tests marking migrations as applied/unapplied in a distributed setup.
+        """
+        databases = [x for x in self.databases]
+
+        self._drop_migrations()
+
+        lb = DatabaseWrapper(deepcopy(self.lb), alias="load_balancer")
+        connections["load_balancer"] = lb
+        databases.append("load_balancer")
+
+        recorder = MigrationRecorder(lb)
+
+        recorder.record_applied("myapp", "0432_ponies")
+
+        for db in databases:
+            conn = connections[db]
+            self.assertMigrationExists(conn, "0432_ponies", "myapp", deleted=False)
+
+        recorder.record_unapplied("myapp", "0432_ponies")
+
+        for db in databases:
+            conn = connections[db]
+            self.assertMigrationExists(conn, "0432_ponies", "myapp", deleted=True)
 
 
 class LoaderTests(TestCase):
