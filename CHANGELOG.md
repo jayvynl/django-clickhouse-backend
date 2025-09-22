@@ -1,5 +1,5 @@
 ### 1.5.0
-- feat: add `argMax` aggregation https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/argmax
+- feat: #134: add `argMax` aggregation https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/argmax
 - feat: #133: Fix simultaneous queries error when iteration is interrupted
 - feat: #130: Add `distributed_migrations` database setting to support distributed migration queries.
 - feat: #129: Add `toYearWeek` datetime functionality
