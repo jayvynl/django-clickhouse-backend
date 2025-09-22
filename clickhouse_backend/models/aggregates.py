@@ -1,4 +1,4 @@
-from django.db.models import aggregates
+from django.db.models import aggregates, fields
 from django.db.models.expressions import Star
 
 from clickhouse_backend.models.fields import UInt64Field
@@ -67,3 +67,24 @@ class uniqTheta(uniq):
 
 class anyLast(Aggregate):
     pass
+
+
+class ArgMax(Aggregate):
+    function = "argMax"
+    name = "ArgMax"
+    arity = 2
+
+    def __init__(self, value_expr, order_by_expr, **extra):
+        if "output_field" not in extra:
+            # Infer output_field from value_expr
+            if hasattr(value_expr, "output_field"):
+                extra["output_field"] = value_expr.output_field
+            else:
+                # Fallback: assume CharField
+                extra["output_field"] = fields.CharField()
+        expressions = [value_expr, order_by_expr]
+        super().__init__(*expressions, **extra)
+
+    def as_sql(self, compiler, connection, **extra_context):
+        self.extra["template"] = "%(function)s(%(expressions)s)"
+        return super().as_sql(compiler, connection, **extra_context)

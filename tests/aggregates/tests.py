@@ -10,6 +10,7 @@ from clickhouse_backend.models import (
     uniqHLL12,
     uniqTheta,
 )
+from clickhouse_backend.models.aggregates import ArgMax
 
 from .models import WatchSeries
 
@@ -169,6 +170,20 @@ class AggregatesTestCase(TestCase):
 
         # Use bulk_create to insert the list of objects in a single query
         WatchSeries.objects.bulk_create(watch_series_list)
+
+    def test_argMax(self):
+        result = (
+            WatchSeries.objects.values("show")
+            .annotate(episode=ArgMax("episode", "date_id"))
+            .order_by("show")
+        )
+
+        expected_result = [
+            {"show": "Bridgerton", "episode": "S1E1"},
+            {"show": "Game of Thrones", "episode": "S1E1"},
+        ]
+
+        self.assertQuerysetEqual(result, expected_result, transform=dict)
 
     def _test_uniq(self, cls_uniq):
         result = (
