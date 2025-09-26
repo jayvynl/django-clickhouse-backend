@@ -122,6 +122,8 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
         refcounts_before = self.query.alias_refcount.copy()
         try:
             combinator = self.query.combinator
+            sample_fraction = self.query.sample_fraction
+            sample_offset = self.query.sample_offset
             if compat.dj_ge42:
                 extra_select, order_by, group_by = self.pre_sql_setup(
                     with_col_aliases=with_col_aliases or bool(combinator),
@@ -202,6 +204,13 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
                 if from_:
                     result += ["FROM", *from_]
                 params.extend(f_params)
+
+                if sample_fraction:
+                    if sample_offset:
+                        sample_sql = "SAMPLE %s OFFSET %s" % (sample_fraction, sample_offset)
+                    else:
+                        sample_sql = "SAMPLE %s" % sample_fraction
+                    result.append(sample_sql)
 
                 if prewhere:
                     result.append("PREWHERE %s" % prewhere)
