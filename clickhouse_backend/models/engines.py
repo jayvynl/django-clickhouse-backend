@@ -128,6 +128,7 @@ class BaseMergeTree(Engine):
         order_by=None,
         partition_by=None,
         primary_key=None,
+        sample_by=None,
         **settings,
     ):
         assert (
@@ -136,8 +137,9 @@ class BaseMergeTree(Engine):
         self.order_by = order_by
         self.primary_key = primary_key
         self.partition_by = partition_by
+        self.sample_by = sample_by
 
-        for key in ["order_by", "primary_key", "partition_by"]:
+        for key in ["order_by", "primary_key", "partition_by", "sample_by"]:
             value = getattr(self, key)
             if value is not None:
                 if isinstance(value, str) or not isinstance(value, Iterable):
