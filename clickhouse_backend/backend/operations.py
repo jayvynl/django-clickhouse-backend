@@ -46,6 +46,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     explain_types = {
         "AST",
         "SYNTAX",
+        "QUERY TREE",
         "PLAN",
         "PIPELINE",
         "ESTIMATE",
@@ -342,7 +343,7 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         if format:
             supported_formats = self.supported_output_formats
-            normalized_format = format.upper()
+            normalized_format = format # case-sensitive
             if normalized_format not in supported_formats:
                 msg = "%s is not a recognized format." % normalized_format
                 if supported_formats:
