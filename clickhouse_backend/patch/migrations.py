@@ -45,7 +45,7 @@ def _check_replicas(connection):
 
     with connection.cursor() as cursor:
         cursor.execute(
-            f"select replica_num from system.clusters where cluster={connection.migration_cluster}"
+            f"select replica_num from system.clusters where cluster='{connection.migration_cluster}'"
         )
         (replica_count,) = cursor.fetchone()
     return replica_count >= 1
