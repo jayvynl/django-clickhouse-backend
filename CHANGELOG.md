@@ -1,4 +1,5 @@
 ### 1.5.0
+- feat: #139: Fix to replicas query when using default as cluster name
 - feat: #133: Fix simultaneous queries error when iteration is interrupted
 - feat: #130: Add `distributed_migrations` database setting to support distributed migration queries.
 - feat: #129: Add `toYearWeek` datetime functionality
