@@ -2,6 +2,7 @@ import compileall
 import os
 from copy import deepcopy
 from importlib import import_module
+from unittest.mock import patch
 
 from django.db import connection, connections
 from django.db.migrations.exceptions import (
@@ -15,6 +16,7 @@ from django.test import TestCase, modify_settings, override_settings
 
 from clickhouse_backend import compat
 from clickhouse_backend.backend.base import DatabaseWrapper
+from clickhouse_backend.patch.migrations import _check_replicas, _get_replicas
 
 from .test_base import MigrationTestBase
 
@@ -200,6 +202,28 @@ class DistributedMigrationTests(MigrationTestBase):
         for db in databases:
             conn = connections[db]
             self.assertMigrationExists(conn, "0432_ponies", "myapp", deleted=True)
+
+    def test_checking_cluster_replicas(self):
+        """
+        Tests checking cluster replicas for migrations
+        """
+        db = DatabaseWrapper(deepcopy(self.lb), alias="load_balancer")
+        connections["load_balancer"] = db
+
+        for db in self.databases:
+            wrapper = connections[db]
+            conn = wrapper.client.connection
+            has_clusters = _check_replicas(conn)
+            self.assertEqual(has_clusters, True)
+
+        with connections['default'].cursor() as cursor:
+            # testing "default" cluster name on query
+            replicas = _get_replicas('default', cursor)
+            self.assertFalse(replicas)
+
+            # testing migration_cluster query
+            replicas = _get_replicas(self.lb['OPTIONS']['migration_cluster'], cursor)
+            self.assertEqual(replicas, 1)
 
 
 class LoaderTests(TestCase):
