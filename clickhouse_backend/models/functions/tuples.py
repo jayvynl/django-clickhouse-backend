@@ -29,16 +29,20 @@ class tupleElement(Func):
         if len(expressions) == 2:
             expressions = (
                 expressions[0],
-                Value(expressions[1] + 1)
-                if isinstance(expressions[1], int)
-                else expressions[1],
+                (
+                    Value(expressions[1] + 1)
+                    if isinstance(expressions[1], int)
+                    else expressions[1]
+                ),
             )
         elif len(expressions) == 3:
             expressions = (
                 expressions[0],
-                Value(expressions[1] + 1)
-                if isinstance(expressions[1], int)
-                else expressions[1],
+                (
+                    Value(expressions[1] + 1)
+                    if isinstance(expressions[1], int)
+                    else expressions[1]
+                ),
                 expressions[2],
             )
         else:

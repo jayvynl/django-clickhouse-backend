@@ -279,7 +279,7 @@ class EnumField(FieldMixin, fields.Field):
 
         invalid_errors = [
             checks.Error(
-                "'choices' must be an iterable containing " "(int, str) tuples.",
+                "'choices' must be an iterable containing (int, str) tuples.",
                 obj=self,
                 id="fields.E005",
             )

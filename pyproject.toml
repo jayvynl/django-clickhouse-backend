@@ -46,5 +46,5 @@ dynamic = ["version", "readme"]
 version = {attr = "clickhouse_backend.__version__"}
 readme = {file = ["README.md"], content-type = "text/markdown"}
 
-[tool.isort]
-profile = "black"
+[tool.ruff]
+line-length = 88

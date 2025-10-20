@@ -130,9 +130,9 @@ class BaseMergeTree(Engine):
         primary_key=None,
         **settings,
     ):
-        assert (
-            order_by is not None or primary_key is not None
-        ), "At least one of order_by or primary_key must be provided"
+        assert order_by is not None or primary_key is not None, (
+            "At least one of order_by or primary_key must be provided"
+        )
         self.order_by = order_by
         self.primary_key = primary_key
         self.partition_by = partition_by

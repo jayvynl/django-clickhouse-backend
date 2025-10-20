@@ -166,18 +166,22 @@ class TupleField(FieldMixin, Field):
 
     def db_type(self, connection):
         base_type = ", ".join(
-            "%s %s" % (field[0], field[1].db_type(connection))
-            if self.is_named_tuple
-            else field.db_type(connection)
+            (
+                "%s %s" % (field[0], field[1].db_type(connection))
+                if self.is_named_tuple
+                else field.db_type(connection)
+            )
             for field in self.base_fields
         )
         return "Tuple(%s)" % base_type
 
     def cast_db_type(self, connection):
         base_type = ", ".join(
-            "%s %s" % (field[0], field[1].cast_db_type(connection))
-            if self.is_named_tuple
-            else field.cast_db_type(connection)
+            (
+                "%s %s" % (field[0], field[1].cast_db_type(connection))
+                if self.is_named_tuple
+                else field.cast_db_type(connection)
+            )
             for field in self.base_fields
         )
         return "Tuple(%s)" % base_type

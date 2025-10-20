@@ -21,40 +21,32 @@ How to Contribute Source Code
 
 1. Clone the forked repository and cd into it.
 
-2. Install [tox](https://tox.wiki/).
+2. Install [tox](https://tox.wiki/):
    ```shell
    pip install tox
    ```
 
-3. Start ClickHouse cluster.
+3. Install [pre-commit](https://pre-commit.com/):
+   ```shell
+   pip install pre-commit
+   ```
+
+4. Start ClickHouse cluster.
    Docker and docker compose are required.
    ```shell
    docker compose up -d
    ```
 
-4. Install dependencies.
+5. Install dependencies.
    ```shell
    pip install -e .
    ```
 
 ### Code Style
 
-This project use:
-
-- [isort](https://github.com/PyCQA/isort#readme) to automate import sorting.
-- [black](https://black.readthedocs.io/en/stable/) to format code.
-- [flake8](https://pypi.org/project/flake8/) to lint code.
-
-If tox is installed, code formatting can be run as:
-
+This project uses Ruff with pre-commit, and to run it manually:
 ```shell
-tox -e format
-```
-
-code linting can be run as:
-
-```shell
-tox -e lint
+pre-commit run -a
 ```
 
 ### Code Conventions

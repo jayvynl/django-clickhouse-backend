@@ -1,4 +1,5 @@
 """Tests related to django.db.backends that haven't been organized."""
+
 import datetime
 import importlib
 import threading
@@ -87,7 +88,7 @@ class LastExecutedQueryTest(TestCase):
 
     def test_query_encoding(self):
         """last_executed_query() returns a string."""
-        data = RawData.objects.filter(raw_data=b"\x00\x46  \xFE").extra(
+        data = RawData.objects.filter(raw_data=b"\x00\x46  \xfe").extra(
             select={"föö": 1}
         )
         sql, params = data.query.sql_with_params()

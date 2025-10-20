@@ -35,7 +35,7 @@ class Index:
             raise ValueError("Index.fields must be a list or tuple.")
         if not expressions and not fields:
             raise ValueError(
-                "At least one field or expression is required to define an " "index."
+                "At least one field or expression is required to define an index."
             )
         if expressions and fields:
             raise ValueError(
@@ -160,10 +160,12 @@ class Index:
         return "<%s:%s%s%s%s>" % (
             self.__class__.__name__,
             "" if not self.fields else " fields='%s'" % ", ".join(self.fields),
-            ""
-            if not self.expressions
-            else " expressions='%s'"
-            % ", ".join([str(expression) for expression in self.expressions]),
+            (
+                ""
+                if not self.expressions
+                else " expressions='%s'"
+                % ", ".join([str(expression) for expression in self.expressions])
+            ),
             " type=%s" % self.type,
             " granularity=%s" % self.granularity,
         )

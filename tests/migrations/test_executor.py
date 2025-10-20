@@ -407,9 +407,9 @@ class ExecutorTests(MigrationTestBase):
             migrations_apps = executor.loader.project_state(
                 ("migrations", "0001_initial"),
             ).apps
-            global_apps.get_app_config("migrations").models[
-                "author"
-            ] = migrations_apps.get_model("migrations", "author")
+            global_apps.get_app_config("migrations").models["author"] = (
+                migrations_apps.get_model("migrations", "author")
+            )
 
             connection.introspection.table_names = old_table_names
             del global_apps.get_app_config("migrations").models["author"]
