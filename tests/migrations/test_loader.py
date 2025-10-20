@@ -2,7 +2,6 @@ import compileall
 import os
 from copy import deepcopy
 from importlib import import_module
-from unittest.mock import patch
 
 from django.db import connection, connections
 from django.db.migrations.exceptions import (
@@ -216,13 +215,13 @@ class DistributedMigrationTests(MigrationTestBase):
             has_clusters = _check_replicas(conn)
             self.assertEqual(has_clusters, True)
 
-        with connections['default'].cursor() as cursor:
+        with connections["default"].cursor() as cursor:
             # testing "default" cluster name on query
-            replicas = _get_replicas('default', cursor)
+            replicas = _get_replicas("default", cursor)
             self.assertFalse(replicas)
 
             # testing migration_cluster query
-            replicas = _get_replicas(self.lb['OPTIONS']['migration_cluster'], cursor)
+            replicas = _get_replicas(self.lb["OPTIONS"]["migration_cluster"], cursor)
             self.assertEqual(replicas, 1)
 
 
