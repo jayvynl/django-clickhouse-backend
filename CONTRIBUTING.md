@@ -29,6 +29,7 @@ How to Contribute Source Code
 3. Install [pre-commit](https://pre-commit.com/):
    ```shell
    pip install pre-commit
+   pre-commit install --install-hooks
    ```
 
 4. Start ClickHouse cluster.
