@@ -160,12 +160,10 @@ class Index:
         return "<%s:%s%s%s%s>" % (
             self.__class__.__name__,
             "" if not self.fields else " fields='%s'" % ", ".join(self.fields),
-            (
-                ""
-                if not self.expressions
-                else " expressions='%s'"
-                % ", ".join([str(expression) for expression in self.expressions])
-            ),
+            ""
+            if not self.expressions
+            else " expressions='%s'"
+            % ", ".join([str(expression) for expression in self.expressions]),
             " type=%s" % self.type,
             " granularity=%s" % self.granularity,
         )
