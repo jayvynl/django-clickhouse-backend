@@ -1,14 +1,24 @@
 name: Test before PR
 
 on:
-  workflow_run:
-    workflows:
-      - "Pre-commit"
-    types:
-      - completed
+  pull_request:
+    branches: ["main"]
 
 jobs:
+  lint:
+    runs-on: ubuntu-22.04
+    name: Linting on Python
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+      - name: Set up Python3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Lint with pre-commit
+        uses: pre-commit/action@v3.0.1
   test:
+    needs: lint
     uses: ./.github/workflows/base-test.yml
     # https://docs.github.com/en/actions/using-workflows/reusing-workflows#passing-inputs-and-secrets-to-a-reusable-workflow
     secrets: inherit
