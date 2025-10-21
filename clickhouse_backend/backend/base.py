@@ -73,9 +73,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "ClickhouseDateField": "Date",
         "Date32Field": "Date32",
         "ClickhouseDateTimeField": "DateTime('UTC')" if settings.USE_TZ else "DateTime",
-        "DateTime64Field": "DateTime64(%(precision)s, 'UTC')"
-        if settings.USE_TZ
-        else "DateTime64(%(precision)s)",
+        "DateTime64Field": "DateTime64(%(precision)s, 'UTC')" if settings.USE_TZ else "DateTime64(%(precision)s)",
         "EnumField": "Enum",
         "Enum8Field": "Enum8",
         "Enum16Field": "Enum16",

@@ -1,8 +1,11 @@
 name: Test before PR
 
 on:
-  pull_request:
-    branches: ["main"]
+  workflow_run:
+    workflows:
+      - "Pre-commit"
+    types:
+      - completed
 
 jobs:
   test:
