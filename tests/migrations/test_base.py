@@ -266,16 +266,18 @@ class OperationTestBase(MigrationTestBase):
         model_options = {
             "swappable": "TEST_SWAP_MODEL",
             # RemovedInDjango51Warning.
-            "indexes": [
-                Index(
-                    fields=("weight", "pink"),
-                    name="weight_pink_idx",
-                    type=Set(100),
-                    granularity=10,
-                )
-            ]
-            if index_together
-            else [],
+            "indexes": (
+                [
+                    Index(
+                        fields=("weight", "pink"),
+                        name="weight_pink_idx",
+                        type=Set(100),
+                        granularity=10,
+                    )
+                ]
+                if index_together
+                else []
+            ),
         }
         if options:
             model_options["permissions"] = [("can_groom", "Can groom")]

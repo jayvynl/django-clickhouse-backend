@@ -1,6 +1,7 @@
 """
 Tests for Function expressions.
 """
+
 from clickhouse_backend import models
 
 
