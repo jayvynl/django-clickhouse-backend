@@ -1,4 +1,4 @@
-from django.db.models import aggregates, fields
+from django.db.models import aggregates
 from django.db.models.expressions import Star
 
 from clickhouse_backend.models.fields import UInt64Field
