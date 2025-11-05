@@ -69,12 +69,13 @@ class anyLast(Aggregate):
     pass
 
 
-class ArgMax(Aggregate):
+class argMax(Aggregate):
     function = "argMax"
-    name = "ArgMax"
+    name = "argMax"
     arity = 2
 
     def __init__(self, value_expr, order_by_expr, **extra):
+        # Infer output_field type if not provided
         if "output_field" not in extra:
             # Infer output_field from value_expr
             if hasattr(value_expr, "output_field"):
