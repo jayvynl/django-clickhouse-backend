@@ -11,6 +11,7 @@ __all__ = [
     "uniqHLL12",
     "uniqTheta",
     "anyLast",
+    "argMax",
 ]
 
 
@@ -70,22 +71,7 @@ class anyLast(Aggregate):
 
 
 class argMax(Aggregate):
-    function = "argMax"
-    name = "argMax"
     arity = 2
 
-    def __init__(self, value_expr, order_by_expr, **extra):
-        # Infer output_field type if not provided
-        if "output_field" not in extra:
-            # Infer output_field from value_expr
-            if hasattr(value_expr, "output_field"):
-                extra["output_field"] = value_expr.output_field
-            else:
-                # Fallback: assume CharField
-                extra["output_field"] = fields.CharField()
-        expressions = [value_expr, order_by_expr]
-        super().__init__(*expressions, **extra)
-
-    def as_sql(self, compiler, connection, **extra_context):
-        self.extra["template"] = "%(function)s(%(expressions)s)"
-        return super().as_sql(compiler, connection, **extra_context)
+    def _resolve_output_field(self):
+        return self.get_source_fields()[0]

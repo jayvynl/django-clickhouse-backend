@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import Q, F
 from django.test import TestCase
 
 from clickhouse_backend.models import (
@@ -10,7 +10,8 @@ from clickhouse_backend.models import (
     uniqHLL12,
     uniqTheta,
 )
-from clickhouse_backend.models.aggregates import ArgMax
+
+from clickhouse_backend.models.aggregates import argMax
 
 from .models import WatchSeries
 
@@ -174,13 +175,29 @@ class AggregatesTestCase(TestCase):
     def test_argMax(self):
         result = (
             WatchSeries.objects.values("show")
-            .annotate(episode=ArgMax("episode", "date_id"))
+            .annotate(episode=argMax("episode", "date_id"))
             .order_by("show")
         )
 
         expected_result = [
             {"show": "Bridgerton", "episode": "S1E1"},
             {"show": "Game of Thrones", "episode": "S1E1"},
+        ]
+
+        self.assertQuerysetEqual(result, expected_result, transform=dict)
+
+    def test_argMax_output_field(self):
+        result = (
+            WatchSeries.objects.values("show")
+            .annotate(date=argMax("date_id", "episode"))
+            .annotate(week=F("date__week"), week_day=F("date__week_day"))
+            .values("show", "week", "week_day")
+            .order_by("show")
+        )
+
+        expected_result = [
+            {"show": "Bridgerton", "week": 20, "week_day": 6},
+            {"show": "Game of Thrones", "week": 20, "week_day": 5},
         ]
 
         self.assertQuerysetEqual(result, expected_result, transform=dict)
