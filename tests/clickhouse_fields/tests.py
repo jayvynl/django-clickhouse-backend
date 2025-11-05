@@ -466,7 +466,7 @@ class EnumFieldTests(TestCase):
 
     def test_invalid_choices(self):
         for field_class in self.field_classes:
-            msg = "'choices' must be an iterable containing " "(int, str) tuples."
+            msg = "'choices' must be an iterable containing (int, str) tuples."
             field = field_class(choices=[(1, "a"), ("b", 2)], name="field")
             self.assertEqual(field.check()[0].msg, msg)
             field = field_class(choices=[(1, b"a\xff"), (2, 3.0)], name="field")

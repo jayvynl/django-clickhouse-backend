@@ -44,11 +44,18 @@ def _check_replicas(connection):
         return connection.has_replicas
 
     with connection.cursor() as cursor:
-        cursor.execute(
-            f"select replica_num from system.clusters where cluster={connection.migration_cluster}"
-        )
-        (replica_count,) = cursor.fetchone()
+        replica_count = _get_replicas(connection.migration_cluster, cursor)
     return replica_count >= 1
+
+
+def _get_replicas(cluster_name, cursor):
+    cursor.execute(
+        "select replica_num from system.clusters where cluster=%s", [cluster_name]
+    )
+    res = cursor.fetchone()
+    if not res:
+        return 0
+    return res[0]
 
 
 def patch_migrations():

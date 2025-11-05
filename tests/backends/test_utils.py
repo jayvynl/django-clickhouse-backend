@@ -1,4 +1,5 @@
 """Tests for django.db.backends.utils"""
+
 from decimal import Decimal, Rounded
 
 from django.db.backends.utils import format_number, split_identifier, truncate_name

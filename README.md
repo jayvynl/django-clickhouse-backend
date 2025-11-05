@@ -7,7 +7,7 @@ Django ClickHouse Database Backend
 [![GitHub licence](https://img.shields.io/github/license/jayvynl/django-clickhouse-backend)](https://github.com/jayvynl/django-clickhouse-backend/blob/main/LICENSE)
 [![GitHub Action: Test](https://github.com/jayvynl/django-clickhouse-backend/actions/workflows/test-main.yml/badge.svg)](https://github.com/jayvynl/django-clickhouse-backend/actions/workflows/test-main.yml)
 [![Coverage Status](https://coveralls.io/repos/github/jayvynl/django-clickhouse-backend/badge.svg?branch=main)](https://coveralls.io/github/jayvynl/django-clickhouse-backend?branch=main)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Code style](https://camo.githubusercontent.com/051a04ae958f4a1a5d6444df4cdc520305eef93d5028e6d4c7cd16efa3136cd4/68747470733a2f2f696d672e736869656c64732e696f2f656e64706f696e743f75726c3d68747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f61737472616c2d73682f727566662f6d61696e2f6173736574732f62616467652f76322e6a736f6e)](https://github.com/astral-sh/ruff-pre-commit)
 
 Django clickhouse backend is a [django database backend](https://docs.djangoproject.com/en/5.1/ref/databases/) for
 [clickhouse](https://clickhouse.com/docs/en/home/) database. This project allows using django ORM to interact with
