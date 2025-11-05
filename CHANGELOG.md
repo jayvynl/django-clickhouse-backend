@@ -1,4 +1,6 @@
 ### 1.5.0
+- feat: #140: Adding pre-commit with ruff as linter and code formatter. 
+- fix: #139: Fix to replicas query when using default as cluster name
 - feat: #134: add `argMax` aggregation https://clickhouse.com/docs/sql-reference/aggregate-functions/reference/argmax
 - feat: #133: Fix simultaneous queries error when iteration is interrupted
 - feat: #130: Add `distributed_migrations` database setting to support distributed migration queries.
