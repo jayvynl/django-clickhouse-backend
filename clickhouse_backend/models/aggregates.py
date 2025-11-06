@@ -11,6 +11,7 @@ __all__ = [
     "uniqHLL12",
     "uniqTheta",
     "anyLast",
+    "argMax",
 ]
 
 
@@ -67,3 +68,10 @@ class uniqTheta(uniq):
 
 class anyLast(Aggregate):
     pass
+
+
+class argMax(Aggregate):
+    arity = 2
+
+    def _resolve_output_field(self):
+        return self.get_source_fields()[0]
