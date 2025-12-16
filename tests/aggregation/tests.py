@@ -36,7 +36,7 @@ from .models import Author, Book, Publisher, Store
 
 
 class NowUTC(Now):
-    template = "CURRENT_TIMESTAMP"
+    template = "now64()"
     output_field = DateTimeField()
 
     def as_sql(self, compiler, connection, **extra_context):

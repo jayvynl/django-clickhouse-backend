@@ -1,4 +1,5 @@
 from clickhouse_backend import models
+from clickhouse_backend import compat
 
 
 class ColumnTypes(models.ClickhouseModel):
@@ -45,3 +46,12 @@ class ColumnTypes(models.ClickhouseModel):
         ),
     )
     json = models.JSONField()
+
+
+if compat.dj_ge42:
+
+    class DbComment(models.ClickhouseModel):
+        rank = models.Int32Field(db_comment="'Rank' column comment")
+
+        class Meta:
+            db_table_comment = "Custom table comment"

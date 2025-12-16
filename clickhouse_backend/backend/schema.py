@@ -69,6 +69,13 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
 
     sql_create_constraint = "ALTER TABLE %(table)s %(on_cluster)s ADD %(constraint)s"
 
+    sql_alter_column_comment = (
+        "ALTER TABLE %(table)s %(on_cluster)s COMMENT COLUMN %(column)s %(comment)s"
+    )
+    sql_alter_table_comment = (
+        "ALTER TABLE %(table)s %(on_cluster)s MODIFY COMMENT %(comment)s"
+    )
+
     def delete_model(self, model):
         """Delete a model from the database."""
         # Handle auto-created intermediary models
@@ -187,13 +194,20 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if sql is None:
             return None, None
         if field.null and "Nullable" not in sql:  # Compatible with django fields.
-            sql = "Nullable(%s)" % sql
-        if include_default:
+            sql = f"Nullable({sql})"
+        # Add database default.
+        if compat.field_has_db_default(field):
+            default_sql, default_params = self.db_default_sql(field)
+            sql = f"{sql} DEFAULT {default_sql}"
+            params.extend(default_params)
+        elif include_default:
             default_value = self.effective_default(field)
             if default_value is not None:
-                column_default = " DEFAULT " + self._column_default_sql(field)
-                sql += column_default
+                sql = f"{sql} DEFAULT {self._column_default_sql(field)}"
                 params.append(default_value)
+        if compat.field_db_comment(field):
+            sql = f"{sql} COMMENT %s"
+            params.append(field.db_comment)
         return sql, params
 
     def _model_indexes_sql(self, model):
@@ -267,6 +281,16 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 result.append(f"{setting}={self.quote_value(value)}")
             yield "SETTINGS %s" % ", ".join(result)
 
+    def alter_db_table_comment(self, model, old_db_table_comment, new_db_table_comment):
+        self.execute(
+            self.sql_alter_table_comment
+            % {
+                "table": self.quote_name(model._meta.db_table),
+                "comment": self.quote_value(new_db_table_comment or ""),
+                "on_cluster": self._get_on_cluster(model),
+            }
+        )
+
     def add_field(self, model, field):
         """
         Create a field on a model. Usually involves adding a column, but may
@@ -302,7 +326,10 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         self.execute(sql, params)
         # Drop the default if we need to
         # (Django usually does not use in-database defaults)
-        if self.effective_default(field) is not None:
+        if (
+            not compat.field_has_db_default(field)
+            and self.effective_default(field) is not None
+        ):
             # Update existing rows with default value
             sql_update_default = (
                 "ALTER TABLE %(table)s %(on_cluster)s UPDATE %(column)s = %(default)s "
@@ -378,6 +405,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             yield self._field_data_type(field.base_field)
 
     def _field_should_be_altered(self, old_field, new_field):
+        if not old_field.concrete and not new_field.concrete:
+            return False
         _, old_path, old_args, old_kwargs = old_field.deconstruct()
         _, new_path, new_args, new_kwargs = new_field.deconstruct()
         # Don't alter when:
@@ -423,26 +452,34 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         for attr in non_database_attrs:
             old_kwargs.pop(attr, None)
             new_kwargs.pop(attr, None)
+
+        if (
+            not new_field.many_to_many
+            and old_field.remote_field
+            and new_field.remote_field
+            and old_field.remote_field.model._meta.db_table
+            == new_field.remote_field.model._meta.db_table
+        ):
+            old_kwargs.pop("to", None)
+            new_kwargs.pop("to", None)
+        # db_default can take many form but result in the same SQL.
+        if (
+            compat.dj_ge5
+            and old_kwargs.get("db_default")
+            and new_kwargs.get("db_default")
+            and self.db_default_sql(old_field) == self.db_default_sql(new_field)
+        ):
+            old_kwargs.pop("db_default")
+            new_kwargs.pop("db_default")
         return self.quote_name(old_field.column) != self.quote_name(
             new_field.column
         ) or (old_path, old_args, old_kwargs) != (new_path, new_args, new_kwargs)
 
-    def _alter_column_type_sql(
-        self,
-        model,
-        old_field,
-        new_field,
-        new_type,
-        old_collation=None,
-        new_collation=None,
-    ):
-        """Django4.2 add old_collation, new_collation"""
-        if compat.dj_ge42:
-            return super()._alter_column_type_sql(
-                model, old_field, new_field, new_type, old_collation, new_collation
-            )
-        else:
-            return super()._alter_column_type_sql(model, old_field, new_field, new_type)
+    def _get_column_type(self, field):
+        column_type = field.db_type(connection=self.connection)
+        if field.null and "Nullable" not in column_type:
+            column_type = f"Nullable({column_type})"
+        return column_type
 
     def _alter_column_null_sql(self, model, old_field, new_field):
         """
@@ -452,9 +489,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         as required by new_field, or None if no changes are required.
         """
         # Compatible for django fields.
-        new_type = new_field.db_parameters(connection=self.connection)["type"]
-        if new_field.null and "Nullable" not in new_type:
-            new_type = f"Nullable({new_type})"
+        new_type = self._get_column_type(new_field)
         return (
             self.sql_alter_column_type
             % {
@@ -504,13 +539,42 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         actions = []
         null_actions = []
         post_actions = []
-        # Type change?
-        if old_type != new_type:
+        # Only if we have a default and there is a change from NULL to NOT NULL
+        four_way_default_alteration = (
+            new_field.has_default() or compat.field_has_db_default(new_field)
+        ) and (old_field.null and not new_field.null)
+        # Type or comment change?
+        if old_type != new_type or compat.field_db_comment(
+            old_field
+        ) != compat.field_db_comment(new_field):
+            # Should not alter nullable before null values updated.
+            if four_way_default_alteration:
+                new_field.null = True
+                new_type_backup = new_type
+                new_type = self._get_column_type(new_field)
             fragment, other_actions = self._alter_column_type_sql(
                 model, old_field, new_field, new_type
             )
+            if four_way_default_alteration:
+                new_field.null = False
+                new_type = new_type_backup
             actions.append(fragment)
             post_actions.extend(other_actions)
+
+        if compat.field_has_db_default(new_field):
+            if (
+                not compat.field_has_db_default(old_field)
+                or new_field.db_default != old_field.db_default
+            ):
+                actions.append(
+                    self._alter_column_database_default_sql(model, old_field, new_field)
+                )
+        elif compat.field_has_db_default(old_field):
+            actions.append(
+                self._alter_column_database_default_sql(
+                    model, old_field, new_field, drop=True
+                )
+            )
         # When changing a column NULL constraint to NOT NULL with a given
         # default value, we need to perform 4 steps:
         #  1. Add a default for new incoming writes
@@ -519,14 +583,14 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         #  4. Drop the default again.
         # Default change?
         needs_database_default = False
-        if old_field.null and not new_field.null:
+        if (
+            old_field.null
+            and not new_field.null
+            and not compat.field_has_db_default(new_field)
+        ):
             old_default = self.effective_default(old_field)
             new_default = self.effective_default(new_field)
-            if hasattr(self, "skip_default_on_alter"):
-                skip = self.skip_default_on_alter(new_field)
-            else:
-                skip = self.skip_default(new_field)
-            if not skip and old_default != new_default and new_default is not None:
+            if old_default != new_default and new_default is not None:
                 needs_database_default = True
                 actions.append(
                     self._alter_column_default_sql(model, old_field, new_field)
@@ -536,21 +600,15 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             fragment = self._alter_column_null_sql(model, old_field, new_field)
             if fragment:
                 null_actions.append(fragment)
-        # Only if we have a default and there is a change from NULL to NOT NULL
-        four_way_default_alteration = new_field.has_default() and (
-            old_field.null and not new_field.null
-        )
         if actions or null_actions:
             if not four_way_default_alteration:
                 # If we don't have to do a 4-way default alteration we can
                 # directly run a (NOT) NULL alteration
                 actions = actions + null_actions
-            # Combine actions together if we can (e.g. postgres)
-            if self.connection.features.supports_combined_alters and actions:
+            # Combine actions together
+            if actions:
                 sql, params = tuple(zip(*actions))
-                actions = [(", ".join(sql), sum(params, []))]
-            # Apply those actions
-            for sql, params in actions:
+                sql, params = (", ".join(sql), sum(params, []))
                 self.execute(
                     self.sql_alter_column
                     % {
@@ -564,16 +622,21 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 from clickhouse_backend.models import Distributed
 
                 if not isinstance(self._get_engine(model), Distributed):
+                    if not compat.field_has_db_default(new_field):
+                        default_sql = "%s"
+                        params = [new_default]
+                    else:
+                        default_sql, params = self.db_default_sql(new_field)
                     # Update existing rows with default value
                     self.execute(
                         self.sql_update_with_default
                         % {
                             "table": self.quote_name(model._meta.db_table),
                             "column": self.quote_name(new_field.column),
-                            "default": "%s",
+                            "default": default_sql,
                             "on_cluster": self._get_on_cluster(model),
                         },
-                        [new_default],
+                        params,
                     )
                 # Since we didn't run a NOT NULL change before we need to do it
                 # now
@@ -651,9 +714,26 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 "on_cluster": self._get_on_cluster(model),
             }
             self.execute(sql, params)
-        # Reset connection if required
-        if self.connection.features.connection_persists_old_columns:
-            self.connection.close()
+
+    def _alter_column_type_sql(self, model, old_field, new_field, new_type):
+        if compat.dj_ge42:
+            return super()._alter_column_type_sql(
+                model, old_field, new_field, new_type, "", ""
+            )
+        else:
+            return super()._alter_column_type_sql(model, old_field, new_field, new_type)
+
+    def _alter_column_comment_sql(self, model, new_field, new_type, new_db_comment):
+        return (
+            self.sql_alter_column_comment
+            % {
+                "table": self.quote_name(model._meta.db_table),
+                "column": self.quote_name(new_field.column),
+                "comment": self._comment_sql(new_db_comment),
+                "on_cluster": self._get_on_cluster(model),
+            },
+            [],
+        )
 
     def _create_index_sql(
         self,
@@ -668,6 +748,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         granularity=None,
         expressions=None,
         inline=False,
+        **kwargs,
     ):
         """
         Return the SQL statement to create the index for one or several fields

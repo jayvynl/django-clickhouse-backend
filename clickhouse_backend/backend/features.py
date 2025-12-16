@@ -52,11 +52,23 @@ class DatabaseFeatures(BaseDatabaseFeatures):
 
     # Map fields which some backends may not be able to differentiate to the
     # field it's introspected as.
+
     introspected_field_types = {
         "AutoField": "Int64Field",
         "BigAutoField": "Int64Field",
+        "BigIntegerField": "Int64Field",
+        "BinaryField": "StringField",
+        "BooleanField": "BoolField",
+        "CharField": "FixedStringField",
+        # "DurationField": "DurationField",
         "GenericIPAddressField": "IPv6Field",
+        "IntegerField": "Int32Field",
+        "PositiveBigIntegerField": "UInt64Field",
+        "PositiveIntegerField": "UInt32Field",
+        "PositiveSmallIntegerField": "UInt16Field",
         "SmallAutoField": "Int64Field",
+        "SmallIntegerField": "Int16Field",
+        # "TimeField": "TimeField",
     }
 
     # https://clickhouse.com/docs/en/sql-reference/statements/alter/index/
@@ -122,7 +134,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # Does the backend support column and table comments?
     supports_comments = True
     # Does the backend support column comments in ADD COLUMN statements?
-    supports_comments_inline = False
+    supports_comments_inline = True
 
     # SQL template override for tests.aggregation.tests.NowUTC
     test_now_utc_template = "now64()"

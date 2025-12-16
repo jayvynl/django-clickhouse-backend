@@ -7,6 +7,7 @@ This is a basic model with only two non-primary-key fields.
 import uuid
 
 from django.db import models
+from clickhouse_backend import compat
 
 
 class Article(models.Model):
@@ -54,12 +55,14 @@ class ChildPrimaryKeyWithDefault(PrimaryKeyWithDefault):
     pass
 
 
-class DjangoArticle(models.Model):
-    headline = models.CharField(max_length=100, default="Default headline")
-    pub_date = models.DateTimeField()
+class PrimaryKeyWithFalseyDefault(models.Model):
+    uuid = models.IntegerField(primary_key=True, default=0)
 
-    class Meta:
-        ordering = ("pub_date", "headline")
 
-    def __str__(self):
-        return self.headline
+if compat.dj_ge5:
+
+    class PrimaryKeyWithDbDefault(models.Model):
+        uuid = models.IntegerField(primary_key=True, db_default=1)
+
+    class PrimaryKeyWithFalseyDbDefault(models.Model):
+        uuid = models.IntegerField(primary_key=True, db_default=0)
