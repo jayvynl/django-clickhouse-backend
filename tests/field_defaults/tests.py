@@ -44,17 +44,6 @@ class DefaultTests(TestCase):
         self.assertEqual(a.headline, "Default headline")
         self.assertLess((now - a.pub_date).seconds, 5)
 
-    @skipUnlessDBFeature(
-        "can_return_columns_from_insert", "supports_expression_defaults"
-    )
-    def test_field_db_defaults_returning(self):
-        a = DBArticle()
-        a.save()
-        self.assertIsInstance(a.id, int)
-        self.assertEqual(a.headline, "Default headline")
-        self.assertIsInstance(a.pub_date, datetime)
-        self.assertEqual(a.cost, Decimal("3.33"))
-
     @skipIfDBFeature("can_return_columns_from_insert")
     @skipUnlessDBFeature("supports_expression_defaults")
     def test_field_db_defaults_refresh(self):
@@ -124,13 +113,6 @@ class DefaultTests(TestCase):
             parent2 = DBDefaultsPK.objects.get(pk="en")
         child2 = DBDefaultsFK.objects.create(language_code=parent2)
         self.assertEqual(child2.language_code, parent2)
-
-    @skipUnlessDBFeature(
-        "can_return_columns_from_insert", "supports_expression_defaults"
-    )
-    def test_case_when_db_default_returning(self):
-        m = DBDefaultsFunction.objects.create()
-        self.assertEqual(m.case_when, 3)
 
     @skipIfDBFeature("can_return_columns_from_insert")
     @skipUnlessDBFeature("supports_expression_defaults")

@@ -7,6 +7,7 @@ from django.db.models.fields.related import (
     RelatedField,
     create_many_to_many_intermediary_model,
 )
+from clickhouse_backend import compat
 
 
 class CustomManyToManyField(RelatedField):
@@ -56,12 +57,15 @@ class CustomManyToManyField(RelatedField):
             raise ValueError(
                 "Cannot specify a db_table if an intermediary model is used."
             )
-        super().__init__(
-            related_name=related_name,
-            related_query_name=related_query_name,
-            limit_choices_to=limit_choices_to,
-            **kwargs,
-        )
+        if compat.dj_ge4:
+            super().__init__(
+                related_name=related_name,
+                related_query_name=related_query_name,
+                limit_choices_to=limit_choices_to,
+                **kwargs,
+            )
+        else:
+            super().__init__(**kwargs)
 
     def contribute_to_class(self, cls, name, **kwargs):
         if self.remote_field.symmetrical and (

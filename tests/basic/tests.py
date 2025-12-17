@@ -159,6 +159,7 @@ class ModelInstanceCreationTests(TestCase):
         with self.assertNumQueries(1):
             PrimaryKeyWithDbDefault().save()
 
+    @skipUnless(compat.dj_ge52, "Before Django5.2 the save will trig 2 queries")
     def test_save_primary_with_falsey_default(self):
         with self.assertNumQueries(1):
             PrimaryKeyWithFalseyDefault().save()

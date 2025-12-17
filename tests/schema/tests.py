@@ -1,7 +1,7 @@
 import datetime
 import itertools
 from copy import copy
-from unittest import mock
+from unittest import mock, skipUnless
 
 from django.core.management.color import no_style
 from django.db import (
@@ -58,6 +58,7 @@ from .models import (
     UniqueTest,
     new_apps,
 )
+from clickhouse_backend import compat
 
 
 class SchemaTests(TransactionTestCase):
@@ -1062,6 +1063,10 @@ class SchemaTests(TransactionTestCase):
         with connection.schema_editor() as editor:
             editor.alter_field(Author, Author._meta.get_field("name"), new_field)
 
+    @skipUnless(
+        compat.dj_ge5,
+        "https://docs.djangoproject.com/en/5.0/releases/5.0/#database-computed-default-values",
+    )
     @isolate_apps("schema")
     def test_rename_keep_db_default(self):
         """Renaming a field shouldn't affect a database default."""
@@ -1087,6 +1092,10 @@ class SchemaTests(TransactionTestCase):
         columns = self.column_classes(AuthorDbDefault)
         self.assertEqual(columns["renamed_year"][1].default, "1985")
 
+    @skipUnless(
+        compat.dj_ge5,
+        "https://docs.djangoproject.com/en/5.0/releases/5.0/#database-computed-default-values",
+    )
     @isolate_apps("schema")
     def test_add_field_both_defaults_preserves_db_default(self):
         class Author(Model):
@@ -1104,6 +1113,10 @@ class SchemaTests(TransactionTestCase):
         columns = self.column_classes(Author)
         self.assertEqual(columns["birth_year"][1].default, "1988")
 
+    @skipUnless(
+        compat.dj_ge5,
+        "https://docs.djangoproject.com/en/5.0/releases/5.0/#database-computed-default-values",
+    )
     @isolate_apps("schema")
     def test_add_text_field_with_db_default(self):
         class Author(Model):
@@ -1117,6 +1130,10 @@ class SchemaTests(TransactionTestCase):
         columns = self.column_classes(Author)
         self.assertIn("(missing)", columns["description"][1].default)
 
+    @skipUnless(
+        compat.dj_ge5,
+        "https://docs.djangoproject.com/en/5.0/releases/5.0/#database-computed-default-values",
+    )
     @isolate_apps("schema")
     def test_db_default_equivalent_sql_noop(self):
         class Author(Model):
@@ -1510,9 +1527,14 @@ class SchemaTests(TransactionTestCase):
         with connection.schema_editor() as editor:
             editor.create_model(Author)
         # Add the custom check constraint
-        constraint = CheckConstraint(
-            condition=Q(height__gte=0), name="author_height_gte_0_check"
-        )
+        if compat.dj_ge51:
+            constraint = CheckConstraint(
+                condition=Q(height__gte=0), name="author_height_gte_0_check"
+            )
+        else:
+            constraint = CheckConstraint(
+                check=Q(height__gte=0), name="author_height_gte_0_check"
+            )
         Author._meta.constraints = [constraint]
         with connection.schema_editor() as editor:
             editor.add_constraint(Author, constraint)
@@ -1555,9 +1577,14 @@ class SchemaTests(TransactionTestCase):
             editor.add_constraint(Book, constraint)
 
     def test_composed_check_constraint_with_fk(self):
-        constraint = CheckConstraint(
-            condition=Q(author__gt=0), name="book_author_check"
-        )
+        if compat.dj_ge51:
+            constraint = CheckConstraint(
+                condition=Q(author__gt=0), name="book_author_check"
+            )
+        else:
+            constraint = CheckConstraint(
+                check=Q(author__gt=0), name="book_author_check"
+            )
         self._test_composed_constraint_with_fk(constraint)
 
     @isolate_apps("schema")
@@ -1898,6 +1925,10 @@ class SchemaTests(TransactionTestCase):
         with connection.schema_editor() as editor:
             editor.add_field(Author, new_field)
 
+    @skipUnless(
+        compat.dj_ge42,
+        "https://docs.djangoproject.com/en/4.2/releases/4.2/#comments-on-columns-and-tables",
+    )
     @skipUnlessDBFeature("supports_comments")
     def test_add_db_comment_charfield(self):
         comment = "Custom comment"
@@ -1911,6 +1942,10 @@ class SchemaTests(TransactionTestCase):
             comment,
         )
 
+    @skipUnless(
+        compat.dj_ge42,
+        "https://docs.djangoproject.com/en/4.2/releases/4.2/#comments-on-columns-and-tables",
+    )
     @skipUnlessDBFeature("supports_comments")
     def test_add_db_comment_and_default_charfield(self):
         comment = "Custom comment with default"
@@ -1932,6 +1967,10 @@ class SchemaTests(TransactionTestCase):
             for row in cursor.fetchall():
                 self.assertEqual(row[0], "Joe Doe")
 
+    @skipUnless(
+        compat.dj_ge42,
+        "https://docs.djangoproject.com/en/4.2/releases/4.2/#comments-on-columns-and-tables",
+    )
     @skipUnlessDBFeature("supports_comments")
     def test_alter_db_comment(self):
         with connection.schema_editor() as editor:
@@ -1967,6 +2006,10 @@ class SchemaTests(TransactionTestCase):
             [None, ""],
         )
 
+    @skipUnless(
+        compat.dj_ge42,
+        "https://docs.djangoproject.com/en/4.2/releases/4.2/#comments-on-columns-and-tables",
+    )
     def test_alter_db_comment_foreign_key(self):
         with connection.schema_editor() as editor:
             editor.create_model(Author)
@@ -1983,6 +2026,10 @@ class SchemaTests(TransactionTestCase):
             comment,
         )
 
+    @skipUnless(
+        compat.dj_ge42,
+        "https://docs.djangoproject.com/en/4.2/releases/4.2/#comments-on-columns-and-tables",
+    )
     @skipUnlessDBFeature("supports_comments")
     def test_alter_field_type_preserve_comment(self):
         with connection.schema_editor() as editor:
@@ -2012,6 +2059,10 @@ class SchemaTests(TransactionTestCase):
             comment,
         )
 
+    @skipUnless(
+        compat.dj_ge42,
+        "https://docs.djangoproject.com/en/4.2/releases/4.2/#comments-on-columns-and-tables",
+    )
     @isolate_apps("schema")
     @skipUnlessDBFeature("supports_comments")
     def test_db_comment_table(self):
@@ -2048,6 +2099,10 @@ class SchemaTests(TransactionTestCase):
             [None, ""],
         )
 
+    @skipUnless(
+        compat.dj_ge42,
+        "https://docs.djangoproject.com/en/4.2/releases/4.2/#comments-on-columns-and-tables",
+    )
     @isolate_apps("schema")
     def test_db_comments_from_abstract_model(self):
         class AbstractModelWithDbComments(Model):

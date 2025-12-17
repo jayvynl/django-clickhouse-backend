@@ -147,6 +147,9 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_over_clause = True
     supports_frame_range_fixed_distance = True
     only_supports_unbounded_with_preceding_and_following = False
+    insert_test_table_with_defaults = (
+        "INSERT INTO {} VALUES (DEFAULT, DEFAULT, DEFAULT)"
+    )
 
     @cached_property
     def supports_transactions(self):

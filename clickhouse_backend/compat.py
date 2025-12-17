@@ -7,6 +7,8 @@ dj_ge4 = django.VERSION >= (4,)
 dj_ge41 = django.VERSION >= (4, 1)
 dj_ge42 = django.VERSION >= (4, 2)
 dj_ge5 = django.VERSION >= (5,)
+dj_ge51 = django.VERSION >= (5, 1)
+dj_ge52 = django.VERSION >= (5, 2)
 
 
 def db_table_comment(model: models.Model) -> str:
@@ -30,4 +32,8 @@ def field_has_db_default(field: models.Field) -> bool:
 
     https://docs.djangoproject.com/en/5.0/releases/5.0/#database-computed-default-values
     """
-    return dj_ge5 and field.has_db_default()
+    if dj_ge52:
+        return field.has_db_default()
+    if dj_ge5:
+        return field.db_default is not models.NOT_PROVIDED
+    return False
