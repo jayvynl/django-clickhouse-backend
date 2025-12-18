@@ -164,10 +164,7 @@ class ModelInstanceCreationTests(TestCase):
         with self.assertNumQueries(1):
             PrimaryKeyWithFalseyDefault().save()
 
-    @skipUnless(
-        compat.dj_ge5,
-        "https://docs.djangoproject.com/en/5.0/releases/5.0/#database-computed-default-values",
-    )
+    @skipUnless(compat.dj_ge52, "Before Django5.2 the save will trig 2 queries")
     def test_save_primary_with_falsey_db_default(self):
         from .models import PrimaryKeyWithFalseyDbDefault
 
