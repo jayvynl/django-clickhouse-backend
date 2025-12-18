@@ -10,6 +10,8 @@ from clickhouse_backend import compat
 
 RUNTESTS_DIR = os.path.abspath(os.path.dirname(__file__))
 SKIP_DIRS = ["unsupported"]
+if not compat.dj_ge5:
+    SKIP_DIRS.append("field_defaults")
 
 
 def get_test_modules():

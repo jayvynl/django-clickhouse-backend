@@ -1,22 +1,21 @@
 import threading
 from datetime import datetime, timedelta
-from unittest import mock
+from unittest import mock, skipUnless
 
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import DEFAULT_DB_ALIAS, DatabaseError, connections, models
 from django.db.models.query import MAX_GET_RESULTS, EmptyQuerySet
 from django.test import TestCase, TransactionTestCase, skipUnlessDBFeature
 from django.utils.translation import gettext_lazy
-
 from clickhouse_backend import compat
 
 from .models import (
     Article,
     ArticleSelectOnSave,
     ChildPrimaryKeyWithDefault,
-    DjangoArticle,
     FeaturedArticle,
     PrimaryKeyWithDefault,
+    PrimaryKeyWithFalseyDefault,
     SelfRef,
 )
 
@@ -146,16 +145,31 @@ class ModelInstanceCreationTests(TestCase):
     def test_save_parent_primary_with_default(self):
         # An UPDATE attempt is skipped when an inherited primary key has
         # default.
-        #
-        if compat.dj_ge42:
-            # Django 4.2 add BEGIN and COMMIT debug queries.
-            # https://github.com/django/django/blob/a18e0f44d5692b656bd8ea178e830ebdc80a000d/django/db/backends/base/base.py#L496
-            # https://github.com/django/django/blob/a18e0f44d5692b656bd8ea178e830ebdc80a000d/django/db/backends/base/base.py#L312
-            num_queries = 4
-        else:
-            num_queries = 2
-        with self.assertNumQueries(num_queries):
+        with self.assertNumQueries(2):
             ChildPrimaryKeyWithDefault().save()
+
+    @skipUnless(
+        compat.dj_ge5,
+        "https://docs.djangoproject.com/en/5.0/releases/5.0/#database-computed-default-values",
+    )
+    def test_save_primary_with_db_default(self):
+        from .models import PrimaryKeyWithDbDefault
+
+        # An UPDATE attempt is skipped when a primary key has db_default.
+        with self.assertNumQueries(1):
+            PrimaryKeyWithDbDefault().save()
+
+    @skipUnless(compat.dj_ge52, "Before Django5.2 the save will trig 2 queries")
+    def test_save_primary_with_falsey_default(self):
+        with self.assertNumQueries(1):
+            PrimaryKeyWithFalseyDefault().save()
+
+    @skipUnless(compat.dj_ge52, "Before Django5.2 the save will trig 2 queries")
+    def test_save_primary_with_falsey_db_default(self):
+        from .models import PrimaryKeyWithFalseyDbDefault
+
+        with self.assertNumQueries(1):
+            PrimaryKeyWithFalseyDbDefault().save()
 
 
 class ModelTest(TestCase):
@@ -815,7 +829,7 @@ class ModelRefreshTests(TestCase):
 
 class DjangoModelTests(TestCase):
     def test_saving_an_object_again_does_not_create_a_new_object(self):
-        a = DjangoArticle(headline="original", pub_date=datetime(2014, 5, 16))
+        a = Article(headline="original", pub_date=datetime(2014, 5, 16))
         a.save()
         current_id = a.id
 

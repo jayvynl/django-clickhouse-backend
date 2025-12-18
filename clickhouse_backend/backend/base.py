@@ -52,6 +52,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "SlugField": "String",
         "TextField": "String",
         "UUIDField": "UUID",
+        "BoolField": "Bool",
         "BooleanField": "Bool",
         # Clickhouse fields.
         "Int8Field": "Int8",
@@ -235,6 +236,14 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         cursor.cursor.set_stream_results(True, self.max_block_size)
         return cursor
 
+    def set_autocommit(
+        self, autocommit, force_begin_transaction_with_broken_autocommit=False
+    ):
+        self.autocommit = autocommit
+
+    def commit(self):
+        pass
+
     def _savepoint(self, sid):
         pass
 
@@ -242,9 +251,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         pass
 
     def _savepoint_commit(self, sid):
-        pass
-
-    def _set_autocommit(self, autocommit):
         pass
 
     def _close(self):
