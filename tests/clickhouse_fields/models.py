@@ -129,7 +129,3 @@ class IPv6Model(models.ClickhouseModel):
 
 class IPModel(models.ClickhouseModel):
     ip = models.GenericIPAddressField(null=True, low_cardinality=True, unpack_ipv4=True)
-
-
-class JSONModel(models.ClickhouseModel):
-    json = models.JSONField()

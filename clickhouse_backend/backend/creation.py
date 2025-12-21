@@ -3,6 +3,8 @@ import sys
 from clickhouse_driver.errors import ErrorCodes
 from django.db.backends.base.creation import BaseDatabaseCreation
 from django.db.backends.utils import strip_quotes
+from django.conf import settings
+from django.utils.module_loading import import_string
 
 
 class DatabaseCreation(BaseDatabaseCreation):
@@ -42,6 +44,7 @@ class DatabaseCreation(BaseDatabaseCreation):
         test_settings = self.connection.settings_dict["TEST"]
         if "fake_transaction" in test_settings:
             self.connection.fake_transaction = test_settings["fake_transaction"]
+        self.mark_expected_failures_and_skips()
 
     def _create_test_db(self, verbosity, autoclobber, keepdb=False):
         """
@@ -126,3 +129,29 @@ class DatabaseCreation(BaseDatabaseCreation):
             sql = f"{sql} {on_cluster} SYNC"
         with self._nodb_cursor() as cursor:
             cursor.execute(sql)
+
+    def mark_expected_failures_and_skips(self):
+        """
+        Mark tests in Django's test suite which are expected failures on this
+        database and test which should be skipped on this database.
+        """
+        # Only load unittest if we're actually testing.
+        from unittest import expectedFailure, skip
+
+        for test_name in self.connection.features.django_test_expected_failures:
+            test_case_name, _, test_method_name = test_name.rpartition(".")
+            test_app = test_name.split(".")[0]
+            # Importing a test app that isn't installed raises RuntimeError.
+            if test_app in settings.INSTALLED_APPS:
+                test_case = import_string(test_case_name)
+                test_method = getattr(test_case, test_method_name)
+                setattr(test_case, test_method_name, expectedFailure(test_method))
+        for reason, tests in self.connection.features.django_test_skips.items():
+            for test_name in tests:
+                test_case_name, _, test_method_name = test_name.rpartition(".")
+                test_app = test_name.split(".")[0]
+                # Importing a test app that isn't installed raises RuntimeError.
+                if test_app in settings.INSTALLED_APPS:
+                    test_case = import_string(test_case_name)
+                    test_method = getattr(test_case, test_method_name)
+                    setattr(test_case, test_method_name, skip(reason)(test_method))

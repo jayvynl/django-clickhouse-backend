@@ -1,8 +1,7 @@
 from django.test import TestCase
+from django.db import connection
 
 from clickhouse_backend import models
-
-from .models import JSONModel
 
 
 class JsonFieldTests(TestCase):
@@ -17,16 +16,25 @@ class JsonFieldTests(TestCase):
         name, path, args, kwargs = field.deconstruct()
         self.assertEqual(path, "clickhouse_backend.models.JSONField")
 
-    def test_value(self):
+    def test_query(self):
+        class JSONModel(models.ClickhouseModel):
+            json = models.JSONField()
+
+        with connection.schema_editor() as editor:
+            editor.create_model(JSONModel)
+
         v = {"a": [1, 2, 3], "b": [{"c": 1}, {"c": 2}], "c": {"d": "e"}}
         o = JSONModel.objects.create(json=v)
         o.refresh_from_db()
         self.assertEqual(o.json, v)
 
-    def test_filter(self):
+        # test filter
         v = {"a": [1, 2, 3], "b": [{"c": 1}, {"d": 2}], "c": {"d": "e"}}
         JSONModel.objects.create(json=v)
         self.assertTrue(JSONModel.objects.filter(json__a=[1, 2, 3]).exists())
         self.assertTrue(JSONModel.objects.filter(json__b__0__c=1).exists())
         self.assertTrue(JSONModel.objects.filter(json__c__d="e").exists())
         self.assertTrue(JSONModel.objects.filter(json__c={"d": "e"}).exists())
+
+        with connection.schema_editor() as editor:
+            editor.delete_model(JSONModel)

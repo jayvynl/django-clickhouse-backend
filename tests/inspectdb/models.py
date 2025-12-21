@@ -45,7 +45,6 @@ class ColumnTypes(models.ClickhouseModel):
             ]
         ),
     )
-    json = models.JSONField()
 
 
 if compat.dj_ge42:

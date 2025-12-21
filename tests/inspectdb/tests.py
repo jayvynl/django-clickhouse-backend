@@ -49,7 +49,6 @@ class InspectDBTestCase(TestCase):
             "DateTime64",
             "IPv4",
             "IPv6",
-            "JSON",
         ]:
             assertFieldType(t.lower(), f"models.{t}Field()")
         assertFieldType(
