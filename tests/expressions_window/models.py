@@ -15,10 +15,3 @@ class Employee(models.ClickhouseModel):
     age = models.Int32Field(blank=False, null=False)
     classification = ForeignKey("Classification", on_delete=CASCADE, null=True)
     bonus = models.DecimalField(decimal_places=2, max_digits=15, null=True)
-
-
-class Detail(models.ClickhouseModel):
-    value = models.JSONField()
-
-    class Meta:
-        required_db_features = {"supports_json_field"}

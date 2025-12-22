@@ -39,7 +39,8 @@ from django.test.utils import CaptureQueriesContext
 
 from clickhouse_backend import compat
 
-from .models import Classification, Detail, Employee
+from .models import Classification, Employee
+from clickhouse_backend.models import ClickhouseModel, JSONField
 
 
 @skipUnlessDBFeature("supports_over_clause")
@@ -1065,6 +1066,15 @@ class WindowFunctionTests(TestCase):
 
     @skipUnlessDBFeature("supports_json_field")
     def test_key_transform(self):
+        class Detail(ClickhouseModel):
+            value = JSONField()
+
+            class Meta:
+                required_db_features = {"supports_json_field"}
+
+        with connection.schema_editor() as editor:
+            editor.create_model(Detail)
+
         Detail.objects.bulk_create(
             [
                 Detail(value={"department": "IT", "name": "Smith", "salary": 37000}),
@@ -1108,6 +1118,9 @@ class WindowFunctionTests(TestCase):
                         entry.department_sum,
                     ),
                 )
+
+        with connection.schema_editor() as editor:
+            editor.delete_model(Detail)
 
     def test_invalid_start_value_range(self):
         msg = "start argument must be a negative integer, zero, or None, but got '3'."

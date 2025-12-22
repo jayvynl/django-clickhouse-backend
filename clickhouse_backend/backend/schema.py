@@ -510,6 +510,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         new_db_params,
         strict=False,
     ):
+        old_type = self._get_column_type(old_field)
+        new_type = self._get_column_type(new_field)
         # Change check constraints?
         if old_db_params["check"] and (
             old_db_params["check"] != new_db_params["check"]
@@ -537,7 +539,6 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                     )
         # Next, start accumulating actions to do
         actions = []
-        null_actions = []
         post_actions = []
         # Only if we have a default and there is a change from NULL to NOT NULL
         four_way_default_alteration = (
@@ -595,61 +596,49 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 actions.append(
                     self._alter_column_default_sql(model, old_field, new_field)
                 )
-        # Nullability change?
-        if old_field.null != new_field.null:
-            fragment = self._alter_column_null_sql(model, old_field, new_field)
-            if fragment:
-                null_actions.append(fragment)
-        if actions or null_actions:
-            if not four_way_default_alteration:
-                # If we don't have to do a 4-way default alteration we can
-                # directly run a (NOT) NULL alteration
-                actions = actions + null_actions
-            # Combine actions together
-            if actions:
-                sql, params = tuple(zip(*actions))
-                sql, params = (", ".join(sql), sum(params, []))
+        if actions:
+            sql, params = tuple(zip(*actions))
+            sql, params = (", ".join(sql), sum(params, []))
+            self.execute(
+                self.sql_alter_column
+                % {
+                    "table": self.quote_name(model._meta.db_table),
+                    "changes": sql,
+                    "on_cluster": self._get_on_cluster(model),
+                },
+                params,
+            )
+        if four_way_default_alteration:
+            from clickhouse_backend.models import Distributed
+
+            if not isinstance(self._get_engine(model), Distributed):
+                if not compat.field_has_db_default(new_field):
+                    default_sql = "%s"
+                    params = [new_default]
+                else:
+                    default_sql, params = self.db_default_sql(new_field)
+                # Update existing rows with default value
                 self.execute(
-                    self.sql_alter_column
+                    self.sql_update_with_default
                     % {
                         "table": self.quote_name(model._meta.db_table),
-                        "changes": sql,
+                        "column": self.quote_name(new_field.column),
+                        "default": default_sql,
                         "on_cluster": self._get_on_cluster(model),
                     },
                     params,
                 )
-            if four_way_default_alteration:
-                from clickhouse_backend.models import Distributed
-
-                if not isinstance(self._get_engine(model), Distributed):
-                    if not compat.field_has_db_default(new_field):
-                        default_sql = "%s"
-                        params = [new_default]
-                    else:
-                        default_sql, params = self.db_default_sql(new_field)
-                    # Update existing rows with default value
-                    self.execute(
-                        self.sql_update_with_default
-                        % {
-                            "table": self.quote_name(model._meta.db_table),
-                            "column": self.quote_name(new_field.column),
-                            "default": default_sql,
-                            "on_cluster": self._get_on_cluster(model),
-                        },
-                        params,
-                    )
-                # Since we didn't run a NOT NULL change before we need to do it
-                # now
-                for sql, params in null_actions:
-                    self.execute(
-                        self.sql_alter_column
-                        % {
-                            "table": self.quote_name(model._meta.db_table),
-                            "changes": sql,
-                            "on_cluster": self._get_on_cluster(model),
-                        },
-                        params,
-                    )
+            # Since we didn't run a NOT NULL change before we need to do it now
+            sql, params = self._alter_column_null_sql(model, old_field, new_field)
+            self.execute(
+                self.sql_alter_column
+                % {
+                    "table": self.quote_name(model._meta.db_table),
+                    "changes": sql,
+                    "on_cluster": self._get_on_cluster(model),
+                },
+                params,
+            )
         if post_actions:
             for sql, params in post_actions:
                 self.execute(sql, params)

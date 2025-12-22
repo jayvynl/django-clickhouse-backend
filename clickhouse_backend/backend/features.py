@@ -154,3 +154,26 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     @cached_property
     def supports_transactions(self):
         return self.fake_transaction
+
+    @cached_property
+    def django_test_skips(self):
+        if self.connection.get_database_version() >= (25, 11):
+            return {
+                "ClickHouse 25.11 remove deprecated Object('json') type.": {
+                    "clickhouse_fields.test_jsonfield.JsonFieldTests.test_query",
+                    "expressions_window.tests.WindowFunctionTests.test_key_transform",
+                }
+            }
+        return {}
+
+    @cached_property
+    def django_test_expected_failures(self):
+        # DB::Exception: Cannot convert column 'height' from nullable type Nullable(UInt32) to non-nullable type UInt32.
+        # Please specify `DEFAULT` expression in ALTER MODIFY COLUMN statement.
+        # A bug in ClickHouse 25.11, they force a `DEFAULT` expression when alter column type from nullable to non-nullable.
+        if self.connection.get_database_version() >= (25, 11):
+            return {
+                "schema.tests.SchemaTests.test_alter_null_to_not_null_keeping_default",
+                "schema.tests.SchemaTests.test_alter",
+            }
+        return set()
