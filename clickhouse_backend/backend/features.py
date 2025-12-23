@@ -157,14 +157,26 @@ class DatabaseFeatures(BaseDatabaseFeatures):
 
     @cached_property
     def django_test_skips(self):
-        if self.connection.get_database_version() >= (25, 11):
-            return {
-                "ClickHouse 25.11 remove deprecated Object('json') type.": {
-                    "clickhouse_fields.test_jsonfield.JsonFieldTests.test_query",
-                    "expressions_window.tests.WindowFunctionTests.test_key_transform",
+        skips = {}
+        version = self.connection.get_database_version()
+        if version >= (25, 11):
+            skips.update(
+                {
+                    "ClickHouse 25.11 remove deprecated Object('json') type.": {
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_query",
+                        "expressions_window.tests.WindowFunctionTests.test_key_transform",
+                    }
                 }
-            }
-        return {}
+            )
+        if version < (25, 1):
+            skips.update(
+                {
+                    "ClickHouse 25.1 add generateSerialID function.": {
+                        "clickhouse_functions.test_other.OtherTests.test_generateSerialID",
+                    }
+                }
+            )
+        return skips
 
     @cached_property
     def django_test_expected_failures(self):
