@@ -10,10 +10,20 @@ class OtherTests(TestCase):
     def setUpTestData(cls):
         cls.john = Author.objects.create(name="John Smith")
 
-    def test_currentdatabase(self):
+    def test_currentDatabase(self):
         john = Author.objects.annotate(v=models.currentDatabase()).get(id=self.john.id)
         self.assertEqual(john.v, "test_default")
 
-    def test_hostname(self):
+    def test_hostName(self):
         john = Author.objects.annotate(v=models.hostName()).get(id=self.john.id)
         self.assertTrue(john.v)
+
+    def test_generateSerialID(self):
+        john = Author.objects.annotate(
+            v=models.generateSerialID("test_generateSerialID")
+        ).get(id=self.john.id)
+        self.assertIsInstance(john.v, int)
+        john = Author.objects.annotate(
+            v=models.generateSerialID(models.currentDatabase(), 100)
+        ).get(id=self.john.id)
+        self.assertIsInstance(john.v, int)
