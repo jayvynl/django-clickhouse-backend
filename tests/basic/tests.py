@@ -175,27 +175,32 @@ class ModelInstanceCreationTests(TestCase):
         compat.dj_ge5,
         "https://docs.djangoproject.com/en/5.0/releases/5.0/#database-computed-default-values",
     )
-    def test_primary_with_serial(self):
-        from .models import SerialPk
+    def test_save_primary_with_db_default_regress(self):
+        from .models import PrimaryKeyWithDbDefault
 
         # specify value
-        o1 = SerialPk(id=-1)
+        o1 = PrimaryKeyWithDbDefault(uuid=-1)
         o1.save()
-        self.assertEqual(o1.id, -1)
+        self.assertEqual(o1.uuid, -1)
         o1.refresh_from_db()
-        self.assertEqual(o1.id, -1)
+        self.assertEqual(o1.uuid, -1)
         # default value
-        o2 = SerialPk()
+        o2 = PrimaryKeyWithDbDefault()
         o2.save()
-        self.assertEqual(SerialPk.objects.count(), 2)
+        self.assertEqual(PrimaryKeyWithDbDefault.objects.count(), 2)
         # batch create
-        o3, o4 = SerialPk.objects.bulk_create([SerialPk(id=-2), SerialPk()])
-        self.assertEqual(o3.id, -2)
-        self.assertEqual(SerialPk.objects.count(), 4)
+        o3, _ = PrimaryKeyWithDbDefault.objects.bulk_create(
+            [PrimaryKeyWithDbDefault(uuid=-2), PrimaryKeyWithDbDefault()]
+        )
+        self.assertEqual(o3.uuid, -2)
+        self.assertEqual(PrimaryKeyWithDbDefault.objects.count(), 4)
         # batch create over 1000
-        batch = SerialPk.objects.bulk_create([SerialPk() for _ in range(1001)])
+        # https://github.com/jayvynl/django-clickhouse-backend/issues/136
+        batch = PrimaryKeyWithDbDefault.objects.bulk_create(
+            [PrimaryKeyWithDbDefault() for _ in range(1001)]
+        )
         self.assertEqual(len(batch), 1001)
-        self.assertEqual(SerialPk.objects.count(), 1005)
+        self.assertEqual(PrimaryKeyWithDbDefault.objects.count(), 1005)
 
 
 class ModelTest(TestCase):

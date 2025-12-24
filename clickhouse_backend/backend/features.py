@@ -173,7 +173,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
                 {
                     "ClickHouse 25.1 add generateSerialID function.": {
                         "clickhouse_functions.test_other.OtherTests.test_generateSerialID",
-                        "basic.tests.ModelInstanceCreationTests.test_primary_with_serial",
                     }
                 }
             )
