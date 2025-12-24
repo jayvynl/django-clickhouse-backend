@@ -8,6 +8,7 @@ import uuid
 
 from django.db import models
 from clickhouse_backend import compat
+from clickhouse_backend.models import generateSerialID
 
 
 class Article(models.Model):
@@ -66,3 +67,9 @@ if compat.dj_ge5:
 
     class PrimaryKeyWithFalseyDbDefault(models.Model):
         uuid = models.IntegerField(primary_key=True, db_default=0)
+
+    class SerialPk(models.Model):
+        id = models.IntegerField(
+            primary_key=True, db_default=generateSerialID("basic_serialpk")
+        )
+        content = models.TextField(default="")
