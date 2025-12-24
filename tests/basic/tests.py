@@ -171,6 +171,37 @@ class ModelInstanceCreationTests(TestCase):
         with self.assertNumQueries(1):
             PrimaryKeyWithFalseyDbDefault().save()
 
+    @skipUnless(
+        compat.dj_ge5,
+        "https://docs.djangoproject.com/en/5.0/releases/5.0/#database-computed-default-values",
+    )
+    def test_save_primary_with_db_default_regress(self):
+        from .models import PrimaryKeyWithDbDefault
+
+        # specify value
+        o1 = PrimaryKeyWithDbDefault(uuid=-1)
+        o1.save()
+        self.assertEqual(o1.uuid, -1)
+        o1.refresh_from_db()
+        self.assertEqual(o1.uuid, -1)
+        # default value
+        o2 = PrimaryKeyWithDbDefault()
+        o2.save()
+        self.assertEqual(PrimaryKeyWithDbDefault.objects.count(), 2)
+        # batch create
+        o3, _ = PrimaryKeyWithDbDefault.objects.bulk_create(
+            [PrimaryKeyWithDbDefault(uuid=-2), PrimaryKeyWithDbDefault()]
+        )
+        self.assertEqual(o3.uuid, -2)
+        self.assertEqual(PrimaryKeyWithDbDefault.objects.count(), 4)
+        # batch create over 1000
+        # https://github.com/jayvynl/django-clickhouse-backend/issues/136
+        batch = PrimaryKeyWithDbDefault.objects.bulk_create(
+            [PrimaryKeyWithDbDefault() for _ in range(1001)]
+        )
+        self.assertEqual(len(batch), 1001)
+        self.assertEqual(PrimaryKeyWithDbDefault.objects.count(), 1005)
+
 
 class ModelTest(TestCase):
     def test_objects_attribute_is_only_available_on_the_class_itself(self):

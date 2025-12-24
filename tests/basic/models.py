@@ -63,6 +63,7 @@ if compat.dj_ge5:
 
     class PrimaryKeyWithDbDefault(models.Model):
         uuid = models.IntegerField(primary_key=True, db_default=1)
+        content = models.TextField(default="")
 
     class PrimaryKeyWithFalseyDbDefault(models.Model):
         uuid = models.IntegerField(primary_key=True, db_default=0)

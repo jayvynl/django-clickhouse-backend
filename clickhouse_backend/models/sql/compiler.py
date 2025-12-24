@@ -301,6 +301,46 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
             for obj in self.query.objs:
                 setattr(obj, opts.pk.attname, id_worker.get_id())
 
+        # Check db_default
+        if any(compat.field_has_db_default(field) for field in fields):
+            from django.db.models.expressions import DatabaseDefault
+
+            other_fields = []
+            db_default_fields = []
+            for field in fields:
+                if compat.field_has_db_default(field):
+                    db_default_fields.append(field)
+                else:
+                    other_fields.append(field)
+            fields = other_fields
+
+            # 1. Too many rows should not use mix of const values and db default values, so only check first object.
+            if len(self.query.objs) > MAX_ROWS_INSERT_USE_EXPRESSION:
+                first_obj = self.query.objs[0]
+                for field in db_default_fields:
+                    # Field with db_default can be omitted.
+                    if isinstance(
+                        self.prepare_value(field, self.pre_save_val(field, first_obj)),
+                        DatabaseDefault,
+                    ):
+                        continue
+                    fields.append(field)
+            else:
+                for field in db_default_fields:
+                    # Field with db_default can be omitted.
+                    if all(
+                        isinstance(
+                            self.prepare_value(field, self.pre_save_val(field, obj)),
+                            DatabaseDefault,
+                        )
+                        for obj in self.query.objs
+                    ):
+                        continue
+                    fields.append(field)
+                # Fields should not be empty.
+                if not fields:
+                    fields.append(db_default_fields[0])
+
         result = [
             "%s %s(%s)"
             % (
@@ -330,7 +370,7 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
 
         # If value rows count exceed limitation, raw data is asserted.
         # Refer https://clickhouse-driver.readthedocs.io/en/latest/quickstart.html#inserting-data
-        if len(value_rows) >= MAX_ROWS_INSERT_USE_EXPRESSION:
+        if len(value_rows) > MAX_ROWS_INSERT_USE_EXPRESSION:
             result.append("VALUES")
             params = value_rows
         else:
