@@ -38,7 +38,8 @@ classifiers = [
 ]
 dependencies = [
     "django>=3.2",
-    "clickhouse-driver==0.2.9",
+    "clickhouse-driver==0.2.9; python_version < '3.9'",
+    "clickhouse-driver==0.2.10; python_version >= '3.9'",
 ]
 dynamic = ["version", "readme"]
 
