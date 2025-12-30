@@ -191,7 +191,7 @@ class Event(models.ClickhouseModel):
     ip_nullable = models.GenericIPAddressField(null=True)
     port = models.UInt16Field(default=0)
     protocol = models.StringField(default="", low_cardinality=True)
-    content = models.JSONField(default=dict)
+    content = models.StringField(default="")
     timestamp = models.DateTime64Field(default=timezone.now)
     created_at = models.DateTime64Field(auto_now_add=True)
     action = models.EnumField(choices=Action.choices, default=Action.PASS)
@@ -369,6 +369,8 @@ from django.test import TestCase
 
 
 class TestEvent(TestCase):
+    databases = {"default", "clickhouse"}
+
     def test_spam(self):
         assert Event.objects.count() == 0
 ```
