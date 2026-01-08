@@ -333,7 +333,7 @@ class MapHasKey(lookups.FieldGetDbPrepValueMixin, lookups.Lookup):
     def as_clickhouse(self, compiler, connection):
         lhs, lhs_params = self.process_lhs(compiler, connection)
         rhs, rhs_params = self.process_rhs(compiler, connection)
-        params = tuple(lhs_params) + tuple(rhs_params)
+        params = (*lhs_params, *rhs_params)
         return "mapContains(%s, %s)" % (lhs, rhs), params
 
 
@@ -379,7 +379,7 @@ class KeyTransform(lookups.Transform):
     def as_sql(self, compiler, connection):
         lhs, params = compiler.compile(self.lhs)
         key = self.key_field.get_db_prep_value(self.key, connection)
-        return "%s[%%s]" % lhs, params + [key]
+        return "%s[%%s]" % lhs, (*params, key)
 
     @property
     def output_field(self):

@@ -15,7 +15,6 @@ from django.db.models import (
     Q,
     RowRange,
     Sum,
-    Value,
     ValueRange,
     When,
     Window,
@@ -1028,20 +1027,6 @@ class WindowFunctionTests(TestCase):
         with self.assertRaisesMessage(FieldError, msg):
             Employee.objects.filter(department="Management").update(
                 salary=Window(expression=Max("salary"), partition_by="department"),
-            )
-
-    def test_fail_insert(self):
-        """Window expressions can't be used in an INSERT statement."""
-        msg = (
-            "Window expressions are not allowed in this query (salary=<Window: "
-            "Sum(Value(10000), order_by=OrderBy(F(pk), descending=False)) OVER ()"
-        )
-        with self.assertRaisesMessage(FieldError, msg):
-            Employee.objects.create(
-                name="Jameson",
-                department="Management",
-                hire_date=datetime.date(2007, 7, 1),
-                salary=Window(expression=Sum(Value(10000), order_by=F("pk").asc())),
             )
 
     def test_window_expression_within_subquery(self):

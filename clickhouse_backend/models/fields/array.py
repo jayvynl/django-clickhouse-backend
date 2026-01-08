@@ -237,7 +237,7 @@ class ArrayLookup(ArrayRHSMixin, lookups.FieldGetDbPrepValueMixin, lookups.Looku
         sql = "%s(%s, %s)" % (
             (self.function, rhs, lhs) if self.swap_args else (self.function, lhs, rhs)
         )
-        params = tuple(lhs_params) + tuple(rhs_params)
+        params = (*lhs_params, *rhs_params)
         return sql, params
 
 
@@ -291,7 +291,7 @@ class IndexTransform(lookups.Transform):
 
     def as_sql(self, compiler, connection):
         lhs, params = compiler.compile(self.lhs)
-        return "%s[%%s]" % lhs, params + [self.index]
+        return "%s[%%s]" % lhs, (*params, self.index)
 
     @property
     def output_field(self):
@@ -317,7 +317,7 @@ class SliceTransform(lookups.Transform):
 
     def as_sql(self, compiler, connection):
         lhs, params = compiler.compile(self.lhs)
-        return "arraySlice({}, %s, %s)".format(lhs), params + [self.offset, self.length]
+        return "arraySlice({}, %s, %s)".format(lhs), (*params, self.offset, self.length)
 
 
 class SliceTransformFactory:
