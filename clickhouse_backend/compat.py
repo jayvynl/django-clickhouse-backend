@@ -9,6 +9,7 @@ dj_ge42 = django.VERSION >= (4, 2)
 dj_ge5 = django.VERSION >= (5,)
 dj_ge51 = django.VERSION >= (5, 1)
 dj_ge52 = django.VERSION >= (5, 2)
+dj_ge6 = django.VERSION >= (6,)
 
 
 def db_table_comment(model: models.Model) -> str:

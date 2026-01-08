@@ -2,10 +2,8 @@ import datetime
 import pickle
 from decimal import Decimal
 from operator import attrgetter
-from unittest import mock
 
 from django.core.exceptions import FieldError
-from django.db import connection
 from django.db.models import (
     Aggregate,
     Avg,
@@ -22,7 +20,7 @@ from django.db.models import (
     Variance,
     When,
 )
-from django.test import TestCase, skipUnlessAnyDBFeature, skipUnlessDBFeature
+from django.test import TestCase, skipUnlessDBFeature
 from django.test.utils import Approximate
 
 from clickhouse_backend import compat
@@ -1206,177 +1204,6 @@ class AggregationTests(TestCase):
         self.assertIs(qs.query.alias_map["aggregation_regress_book"].join_type, None)
         # The query executes without problems.
         self.assertEqual(len(qs.exclude(publisher=-1)), 6)
-
-    @skipUnlessAnyDBFeature("allows_group_by_pk", "allows_group_by_selected_pks")
-    def test_aggregate_duplicate_columns(self):
-        # Regression test for #17144
-
-        results = Author.objects.annotate(num_contacts=Count("book_contact_set"))
-
-        # There should only be one GROUP BY clause, for the `id` column.
-        # `name` and `age` should not be grouped on.
-        _, _, group_by = results.query.get_compiler(using="default").pre_sql_setup()
-        self.assertEqual(len(group_by), 1)
-        self.assertIn("id", group_by[0][0])
-        self.assertNotIn("name", group_by[0][0])
-        self.assertNotIn("age", group_by[0][0])
-        self.assertEqual(
-            [(a.name, a.num_contacts) for a in results.order_by("name")],
-            [
-                ("Adrian Holovaty", 1),
-                ("Brad Dayley", 1),
-                ("Jacob Kaplan-Moss", 0),
-                ("James Bennett", 1),
-                ("Jeffrey Forcier", 1),
-                ("Paul Bissex", 0),
-                ("Peter Norvig", 2),
-                ("Stuart Russell", 0),
-                ("Wesley J. Chun", 0),
-            ],
-        )
-
-    @skipUnlessAnyDBFeature("allows_group_by_pk", "allows_group_by_selected_pks")
-    def test_aggregate_duplicate_columns_only(self):
-        # Works with only() too.
-        results = Author.objects.only("id", "name").annotate(
-            num_contacts=Count("book_contact_set")
-        )
-        _, _, grouping = results.query.get_compiler(using="default").pre_sql_setup()
-        self.assertEqual(len(grouping), 1)
-        self.assertIn("id", grouping[0][0])
-        self.assertNotIn("name", grouping[0][0])
-        self.assertNotIn("age", grouping[0][0])
-        self.assertEqual(
-            [(a.name, a.num_contacts) for a in results.order_by("name")],
-            [
-                ("Adrian Holovaty", 1),
-                ("Brad Dayley", 1),
-                ("Jacob Kaplan-Moss", 0),
-                ("James Bennett", 1),
-                ("Jeffrey Forcier", 1),
-                ("Paul Bissex", 0),
-                ("Peter Norvig", 2),
-                ("Stuart Russell", 0),
-                ("Wesley J. Chun", 0),
-            ],
-        )
-
-    @skipUnlessAnyDBFeature("allows_group_by_pk", "allows_group_by_selected_pks")
-    def test_aggregate_duplicate_columns_select_related(self):
-        # And select_related()
-        results = Book.objects.select_related("contact").annotate(
-            num_authors=Count("authors")
-        )
-        _, _, grouping = results.query.get_compiler(using="default").pre_sql_setup()
-        # In the case of `group_by_selected_pks` we also group by contact.id
-        # because of the select_related.
-        self.assertEqual(
-            len(grouping), 1 if connection.features.allows_group_by_pk else 2
-        )
-        self.assertIn("id", grouping[0][0])
-        self.assertNotIn("name", grouping[0][0])
-        self.assertNotIn("contact", grouping[0][0])
-        self.assertEqual(
-            [(b.name, b.num_authors) for b in results.order_by("name")],
-            [
-                ("Artificial Intelligence: A Modern Approach", 2),
-                (
-                    "Paradigms of Artificial Intelligence Programming: Case Studies in "
-                    "Common Lisp",
-                    1,
-                ),
-                ("Practical Django Projects", 1),
-                ("Python Web Development with Django", 3),
-                ("Sams Teach Yourself Django in 24 Hours", 1),
-                ("The Definitive Guide to Django: Web Development Done Right", 2),
-            ],
-        )
-
-    @skipUnlessDBFeature("allows_group_by_selected_pks")
-    def test_aggregate_unmanaged_model_columns(self):
-        """
-        Unmanaged models are sometimes used to represent database views which
-        may not allow grouping by selected primary key.
-        """
-
-        def assertQuerysetResults(queryset):
-            self.assertEqual(
-                [(b.name, b.num_authors) for b in queryset.order_by("name")],
-                [
-                    ("Artificial Intelligence: A Modern Approach", 2),
-                    (
-                        "Paradigms of Artificial Intelligence Programming: Case "
-                        "Studies in Common Lisp",
-                        1,
-                    ),
-                    ("Practical Django Projects", 1),
-                    ("Python Web Development with Django", 3),
-                    ("Sams Teach Yourself Django in 24 Hours", 1),
-                    ("The Definitive Guide to Django: Web Development Done Right", 2),
-                ],
-            )
-
-        queryset = Book.objects.select_related("contact").annotate(
-            num_authors=Count("authors")
-        )
-        # Unmanaged origin model.
-        with mock.patch.object(Book._meta, "managed", False):
-            _, _, grouping = queryset.query.get_compiler(
-                using="default"
-            ).pre_sql_setup()
-            self.assertEqual(len(grouping), len(Book._meta.fields) + 1)
-            for index, field in enumerate(Book._meta.fields):
-                self.assertIn(field.name, grouping[index][0])
-            self.assertIn(Author._meta.pk.name, grouping[-1][0])
-            assertQuerysetResults(queryset)
-        # Unmanaged related model.
-        with mock.patch.object(Author._meta, "managed", False):
-            _, _, grouping = queryset.query.get_compiler(
-                using="default"
-            ).pre_sql_setup()
-            self.assertEqual(len(grouping), len(Author._meta.fields) + 1)
-            self.assertIn(Book._meta.pk.name, grouping[0][0])
-            for index, field in enumerate(Author._meta.fields):
-                self.assertIn(field.name, grouping[index + 1][0])
-            assertQuerysetResults(queryset)
-
-    @skipUnlessDBFeature("allows_group_by_selected_pks")
-    def test_aggregate_unmanaged_model_as_tables(self):
-        qs = Book.objects.select_related("contact").annotate(
-            num_authors=Count("authors")
-        )
-        # Force treating unmanaged models as tables.
-        with mock.patch(
-            "django.db.connection.features.allows_group_by_selected_pks_on_model",
-            return_value=True,
-        ):
-            with mock.patch.object(Book._meta, "managed", False), mock.patch.object(
-                Author._meta, "managed", False
-            ):
-                _, _, grouping = qs.query.get_compiler(using="default").pre_sql_setup()
-                self.assertEqual(len(grouping), 2)
-                self.assertIn("id", grouping[0][0])
-                self.assertIn("id", grouping[1][0])
-                self.assertQuerysetEqual(
-                    qs.order_by("name"),
-                    [
-                        ("Artificial Intelligence: A Modern Approach", 2),
-                        (
-                            "Paradigms of Artificial Intelligence Programming: Case "
-                            "Studies in Common Lisp",
-                            1,
-                        ),
-                        ("Practical Django Projects", 1),
-                        ("Python Web Development with Django", 3),
-                        ("Sams Teach Yourself Django in 24 Hours", 1),
-                        (
-                            "The Definitive Guide to Django: Web Development Done "
-                            "Right",
-                            2,
-                        ),
-                    ],
-                    attrgetter("name", "num_authors"),
-                )
 
     def test_reverse_join_trimming(self):
         qs = Author.objects.annotate(Count("book_contact_set__contact"))

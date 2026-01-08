@@ -1119,6 +1119,8 @@ class AggregateTestCase(TestCase):
                 "function": self.function.lower(),
                 "expressions": sql,
                 "distinct": "",
+                "filter": "",
+                "order_by": "",
             }
             substitutions.update(self.extra)
             return self.template % substitutions, params
@@ -1154,7 +1156,13 @@ class AggregateTestCase(TestCase):
 
         # test overriding all parts of the template
         def be_evil(self, compiler, connection):
-            substitutions = {"function": "MAX", "expressions": "2", "distinct": ""}
+            substitutions = {
+                "function": "MAX",
+                "expressions": "2",
+                "distinct": "",
+                "filter": "",
+                "order_by": "",
+            }
             substitutions.update(self.extra)
             return self.template % substitutions, ()
 

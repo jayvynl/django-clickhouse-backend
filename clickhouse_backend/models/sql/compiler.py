@@ -387,10 +387,10 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
 
     def execute_sql(self, returning_fields=None):
         as_sql = self.as_sql()
-        self.returning_fields = returning_fields
         with self.connection.cursor() as cursor:
             for sql, params in as_sql:
                 cursor.execute(sql, params)
+        return []
 
 
 class SQLDeleteCompiler(ClickhouseMixin, compiler.SQLDeleteCompiler):

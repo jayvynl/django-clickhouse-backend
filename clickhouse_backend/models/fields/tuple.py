@@ -362,7 +362,7 @@ class IndexTransform(lookups.Transform):
 
     def as_clickhouse(self, compiler, connection):
         lhs, params = compiler.compile(self.lhs)
-        params.append(self.index)
+        params = (*params, self.index)
         return f"tupleElement({lhs}, %s)", params
 
     @property
