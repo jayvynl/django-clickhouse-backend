@@ -19,6 +19,8 @@ class Query(query.Query):
             super().__init__(model, where, alias_cols)
         self.setting_info = {}
         self.prewhere = query.WhereNode()
+        self.sample_fraction = None
+        self.sample_offset = None
 
     def sql_with_params(self):
         """Choose the right db when database router is used."""
@@ -28,6 +30,8 @@ class Query(query.Query):
         obj = super().clone()
         obj.setting_info = self.setting_info.copy()
         obj.prewhere = self.prewhere.clone()
+        obj.sample_fraction = self.sample_fraction
+        obj.sample_offset = self.sample_offset
         return obj
 
     def explain(self, using, format=None, type=None, **settings):
@@ -35,6 +39,10 @@ class Query(query.Query):
         q.explain_info = ExplainInfo(format, type, settings)
         compiler = q.get_compiler(using=using)
         return "\n".join(compiler.explain_query())
+
+    def add_sample(self, sample_fraction, sample_offset):
+        self.sample_fraction = sample_fraction
+        self.sample_offset = sample_offset
 
     def add_prewhere(self, q_object):
         """
