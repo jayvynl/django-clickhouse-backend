@@ -504,18 +504,16 @@ class OperationTests(OperationTestBase):
                 ),
             ]
         else:
-            constraints = (
-                [
-                    CheckConstraint(
-                        check=Q(pink__gt=2),
-                        name="test_remove_constraint_pony_pink_gt_2",
-                    ),
-                    CheckConstraint(
-                        check=Q(pink__lt=100),
-                        name="test_remove_constraint_pony_pink_lt_100",
-                    ),
-                ],
-            )
+            constraints = [
+                CheckConstraint(
+                    check=Q(pink__gt=2),
+                    name="test_remove_constraint_pony_pink_gt_2",
+                ),
+                CheckConstraint(
+                    check=Q(pink__lt=100),
+                    name="test_remove_constraint_pony_pink_lt_100",
+                ),
+            ]
         project_state = self.set_up_distributed_model(
             "test_removeconstraint",
             constraints=constraints,
