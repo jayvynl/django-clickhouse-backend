@@ -405,7 +405,9 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             yield self._field_data_type(field.base_field)
 
     def _field_should_be_altered(self, old_field, new_field):
-        if not old_field.concrete and not new_field.concrete:
+        if (not (old_field.concrete or old_field.many_to_many)) and (
+            not (new_field.concrete or new_field.many_to_many)
+        ):
             return False
         _, old_path, old_args, old_kwargs = old_field.deconstruct()
         _, new_path, new_args, new_kwargs = new_field.deconstruct()
@@ -471,9 +473,19 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         ):
             old_kwargs.pop("db_default")
             new_kwargs.pop("db_default")
-        return self.quote_name(old_field.column) != self.quote_name(
-            new_field.column
-        ) or (old_path, old_args, old_kwargs) != (new_path, new_args, new_kwargs)
+        if (
+            old_field.concrete
+            and new_field.concrete
+            and (self.quote_name(old_field.column) != self.quote_name(new_field.column))
+        ):
+            return True
+        if (
+            old_field.many_to_many
+            and new_field.many_to_many
+            and old_field.name != new_field.name
+        ):
+            return True
+        return (old_path, old_args, old_kwargs) != (new_path, new_args, new_kwargs)
 
     def _get_column_type(self, field):
         column_type = field.db_type(connection=self.connection)

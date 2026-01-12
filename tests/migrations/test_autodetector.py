@@ -279,6 +279,10 @@ class AutodetectorTests(BaseAutodetectorTests):
         {
             "constraints": [
                 models.CheckConstraint(
+                    condition=models.Q(name__contains="Bob"), name="name_contains_bob"
+                )
+                if compat.dj_ge51
+                else models.CheckConstraint(
                     check=models.Q(name__contains="Bob"), name="name_contains_bob"
                 )
             ]
@@ -2443,9 +2447,14 @@ class AutodetectorTests(BaseAutodetectorTests):
         )
         self.assertNumberMigrations(changes, "testapp", 1)
         self.assertOperationTypes(changes, "testapp", 0, ["AddConstraint"])
-        added_constraint = models.CheckConstraint(
-            check=models.Q(name__contains="Bob"), name="name_contains_bob"
-        )
+        if compat.dj_ge51:
+            added_constraint = models.CheckConstraint(
+                condition=models.Q(name__contains="Bob"), name="name_contains_bob"
+            )
+        else:
+            added_constraint = models.CheckConstraint(
+                check=models.Q(name__contains="Bob"), name="name_contains_bob"
+            )
         self.assertOperationAttributes(
             changes, "testapp", 0, 0, model_name="author", constraint=added_constraint
         )
@@ -3587,6 +3596,11 @@ class AutodetectorTests(BaseAutodetectorTests):
                 {
                     "constraints": [
                         models.CheckConstraint(
+                            condition=models.Q(_order__gt=1),
+                            name="book_order_gt_1",
+                        )
+                        if compat.dj_ge51
+                        else models.CheckConstraint(
                             check=models.Q(_order__gt=1),
                             name="book_order_gt_1",
                         ),

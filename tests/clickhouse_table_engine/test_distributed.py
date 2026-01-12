@@ -399,9 +399,14 @@ class OperationTests(OperationTestBase):
     def test_add_constraint(self):
         project_state = self.set_up_distributed_model("test_addconstraint")
         gt_check = Q(pink__gt=2)
-        gt_constraint = CheckConstraint(
-            check=gt_check, name="test_add_constraint_pony_pink_gt_2"
-        )
+        if compat.dj_ge51:
+            gt_constraint = CheckConstraint(
+                condition=gt_check, name="test_add_constraint_pony_pink_gt_2"
+            )
+        else:
+            gt_constraint = CheckConstraint(
+                check=gt_check, name="test_add_constraint_pony_pink_gt_2"
+            )
         gt_operation = migrations.AddConstraint("Pony", gt_constraint)
         self.assertEqual(
             gt_operation.describe(),
@@ -429,9 +434,14 @@ class OperationTests(OperationTestBase):
             Pony.objects.create(pink=1, weight=1.0)
         # Add another one.
         lt_check = Q(pink__lt=100)
-        lt_constraint = CheckConstraint(
-            check=lt_check, name="test_add_constraint_pony_pink_lt_100"
-        )
+        if compat.dj_ge51:
+            lt_constraint = CheckConstraint(
+                condition=lt_check, name="test_add_constraint_pony_pink_lt_100"
+            )
+        else:
+            lt_constraint = CheckConstraint(
+                check=lt_check, name="test_add_constraint_pony_pink_lt_100"
+            )
         lt_operation = migrations.AddConstraint("Pony", lt_constraint)
         lt_operation.state_forwards("test_addconstraint", new_state)
         self.assertEqual(
@@ -462,9 +472,14 @@ class OperationTests(OperationTestBase):
 
         # Test distributed table
         gt_check = Q(pink__gt=2)
-        gt_constraint = CheckConstraint(
-            check=gt_check, name="test_add_constraint_ponydistributed_pink_gt_2"
-        )
+        if compat.dj_ge51:
+            gt_constraint = CheckConstraint(
+                condition=gt_check, name="test_add_constraint_ponydistributed_pink_gt_2"
+            )
+        else:
+            gt_constraint = CheckConstraint(
+                check=gt_check, name="test_add_constraint_ponydistributed_pink_gt_2"
+            )
         gt_operation = migrations.AddConstraint("PonyDistributed", gt_constraint)
         # Test the state alteration
         new_state = project_state.clone()
@@ -477,9 +492,19 @@ class OperationTests(OperationTestBase):
                 )
 
     def test_remove_constraint(self):
-        project_state = self.set_up_distributed_model(
-            "test_removeconstraint",
-            constraints=[
+        if compat.dj_ge51:
+            constraints = [
+                CheckConstraint(
+                    condition=Q(pink__gt=2),
+                    name="test_remove_constraint_pony_pink_gt_2",
+                ),
+                CheckConstraint(
+                    condition=Q(pink__lt=100),
+                    name="test_remove_constraint_pony_pink_lt_100",
+                ),
+            ]
+        else:
+            constraints = [
                 CheckConstraint(
                     check=Q(pink__gt=2),
                     name="test_remove_constraint_pony_pink_gt_2",
@@ -488,7 +513,10 @@ class OperationTests(OperationTestBase):
                     check=Q(pink__lt=100),
                     name="test_remove_constraint_pony_pink_lt_100",
                 ),
-            ],
+            ]
+        project_state = self.set_up_distributed_model(
+            "test_removeconstraint",
+            constraints=constraints,
         )
         gt_operation = migrations.RemoveConstraint(
             "Pony", "test_remove_constraint_pony_pink_gt_2"
