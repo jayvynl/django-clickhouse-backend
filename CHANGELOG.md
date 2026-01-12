@@ -1,3 +1,15 @@
+### 1.6.0
+* Feat db comment db default by @jayvynl in https://github.com/jayvynl/django-clickhouse-backend/pull/146
+* tests: fix tests of Object(json) by @jayvynl in https://github.com/jayvynl/django-clickhouse-backend/pull/147
+* feat: add generateSerialID by @jayvynl in https://github.com/jayvynl/django-clickhouse-backend/pull/148
+* fix(#136): DatabaseDefault object appears in SQL when bulk_create() b… by @jayvynl in https://github.com/jayvynl/django-clickhouse-backend/pull/149
+* depends(#141): Update clickhouse-driver to version 0.2.10 by @jayvynl in https://github.com/jayvynl/django-clickhouse-backend/pull/150
+* feat: Support python3.14 by @jayvynl in https://github.com/jayvynl/django-clickhouse-backend/pull/151
+* docs(README.md): fix example in README.md, #142 #143 by @jayvynl in https://github.com/jayvynl/django-clickhouse-backend/pull/152
+* feat(#145): support Django6.0 by @jayvynl in https://github.com/jayvynl/django-clickhouse-backend/pull/153
+
+**Full Changelog**: https://github.com/jayvynl/django-clickhouse-backend/compare/v1.5.0...1.6.0
+
 ### 1.5.0
 - feat: #140: Adding pre-commit with ruff as linter and code formatter. 
 - fix: #139: Fix to replicas query when using default as cluster name
