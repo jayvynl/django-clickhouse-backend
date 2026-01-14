@@ -11,6 +11,7 @@ __all__ = [
     "toStartOfTenMinutes",
     "toStartOfFifteenMinutes",
     "toStartOfHour",
+    "toStartOfDay",
     "toYYYYMM",
     "toYYYYMMDD",
     "toYYYYMMDDhhmmss",
@@ -77,6 +78,10 @@ class toStartOfFifteenMinutes(toStartOfMinute):
 
 
 class toStartOfHour(toStartOfMinute):
+    pass
+
+
+class toStartOfDay(toStartOfMinute):
     pass
 
 
