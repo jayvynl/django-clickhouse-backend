@@ -20,8 +20,8 @@ class TestMigrationTable(TestCase):
 
         with connection.cursor() as cursor:
             cursor.execute("ALTER table django_migrations DROP COLUMN deleted")
-            # One query for tables, the other query add deleted column.
-            with self.assertNumQueries(2):
+            # One query for tables, second one for the check, the third query to add deleted column.
+            with self.assertNumQueries(3):
                 recorder.has_table()
 
             fields = connection.introspection.get_table_description(
@@ -29,6 +29,13 @@ class TestMigrationTable(TestCase):
             )
             self.assertIn("deleted", {field.name for field in fields})
 
-            # Result will be cached.
+            # invalidate cache
+            recorder._has_table = False
+
+            # now only two queries - one for tables, second one for the check.
+            with self.assertNumQueries(2):
+                recorder.has_table()
+
+            # results are cached
             with self.assertNumQueries(0):
                 recorder.has_table()

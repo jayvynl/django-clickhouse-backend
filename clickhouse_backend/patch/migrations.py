@@ -169,10 +169,19 @@ def patch_migration_recorder():
                 tables = self.connection.introspection.table_names(cursor)
                 self._has_table = table in tables
                 if self._has_table and self.connection.vendor == "clickhouse":
-                    # fix https://github.com/jayvynl/django-clickhouse-backend/issues/51
-                    cursor.execute(
-                        f"ALTER table {table} ADD COLUMN IF NOT EXISTS deleted Bool"
-                    )
+                    cursor.execute(f"""SELECT EXISTS(
+                        SELECT 1
+                        FROM system.columns
+                        WHERE database = currentDatabase()
+                          AND table = '{table}'
+                          AND name = 'deleted'
+                    );""")
+                    (django_migrations_deleted_exists,) = cursor.fetchone()
+                    if not django_migrations_deleted_exists:
+                        # fix https://github.com/jayvynl/django-clickhouse-backend/issues/51
+                        cursor.execute(
+                            f"ALTER table {table} ADD COLUMN IF NOT EXISTS deleted Bool"
+                        )
         return self._has_table
 
     def ensure_schema(self):
