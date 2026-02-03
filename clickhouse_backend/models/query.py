@@ -31,6 +31,11 @@ class QuerySet(query.QuerySet):
         clone._query.add_prewhere(Q(*args, **kwargs))
         return clone
 
+    def sample(self, sample_fraction, sample_offset=None):
+        clone = self._chain()
+        clone._query.add_sample(sample_fraction, sample_offset)
+        return clone
+
     def datetimes(self, field_name, kind, order="ASC", tzinfo=None):
         """
         Return a list of datetime objects representing all available
