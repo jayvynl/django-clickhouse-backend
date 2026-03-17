@@ -21,8 +21,8 @@ services:
       - "node1:/var/lib/clickhouse/"
       - "./clickhouse-config/node1/:/etc/clickhouse-server/config.d/"
     ports:
-      - "127.0.0.1:8123:8123"
-      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:8150:8123"
+      - "127.0.0.1:9050:9000"
   node2:
     <<: *base-service
     container_name: clickhouse-node2
@@ -30,8 +30,8 @@ services:
       - "node2:/var/lib/clickhouse/"
       - "./clickhouse-config/node2/:/etc/clickhouse-server/config.d/"
     ports:
-      - "127.0.0.1:8124:8123"
-      - "127.0.0.1:9001:9000"
+      - "127.0.0.1:8151:8123"
+      - "127.0.0.1:9051:9000"
   node3:
     <<: *base-service
     container_name: clickhouse-node3
@@ -39,8 +39,8 @@ services:
       - "node3:/var/lib/clickhouse/"
       - "./clickhouse-config/node3/:/etc/clickhouse-server/config.d/"
     ports:
-      - "127.0.0.1:8125:8123"
-      - "127.0.0.1:9002:9000"
+      - "127.0.0.1:8152:8123"
+      - "127.0.0.1:9052:9000"
   node4:
     <<: *base-service
     container_name: clickhouse-node4
@@ -48,8 +48,8 @@ services:
       - "node4:/var/lib/clickhouse/"
       - "./clickhouse-config/node4/:/etc/clickhouse-server/config.d/"
     ports:
-      - "127.0.0.1:8126:8123"
-      - "127.0.0.1:9003:9000"
+      - "127.0.0.1:8153:8123"
+      - "127.0.0.1:9053:9000"
 
   haproxy:
     image: haproxy:latest
@@ -59,8 +59,8 @@ services:
     volumes:
       - "./proxy-config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg"
     ports:
-      - "127.0.0.1:8127:8123"
-      - "127.0.0.1:9004:9000"
+      - "127.0.0.1:8154:8123"
+      - "127.0.0.1:9054:9000"
     depends_on:
       node1:
         condition: service_healthy

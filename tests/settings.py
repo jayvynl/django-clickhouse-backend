@@ -20,6 +20,7 @@ DATABASES = {
     "default": {
         "ENGINE": "clickhouse_backend.backend",
         "PASSWORD": "clickhouse_password",
+        "PORT": 9050,
         "OPTIONS": {
             "migration_cluster": "cluster",
             "connections_min": 1,
@@ -37,7 +38,7 @@ DATABASES = {
     "s1r2": {
         "ENGINE": "clickhouse_backend.backend",
         "PASSWORD": "clickhouse_password",
-        "PORT": 9001,
+        "PORT": 9051,
         "OPTIONS": {
             "migration_cluster": "cluster",
             "connections_min": 1,
@@ -55,7 +56,7 @@ DATABASES = {
     "s2r1": {
         "ENGINE": "clickhouse_backend.backend",
         "PASSWORD": "clickhouse_password",
-        "PORT": 9002,
+        "PORT": 9052,
         "OPTIONS": {
             "migration_cluster": "cluster",
             "connections_min": 1,
