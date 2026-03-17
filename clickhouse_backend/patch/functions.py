@@ -1,9 +1,6 @@
 from django.db.models import functions
 
-__all__ = [
-    "patch_functions",
-    "patch_random",
-]
+__all__ = ["patch_functions", "patch_random"]
 
 
 def patch_functions():
@@ -12,6 +9,9 @@ def patch_functions():
 
 
 def patch_now():
+    if hasattr(functions.Now, "as_clickhouse"):
+        return
+
     def as_clickhouse(self, compiler, connection, **extra_context):
         return functions.Now.as_sql(
             self, compiler, connection, template="now64()", **extra_context
@@ -21,6 +21,9 @@ def patch_now():
 
 
 def patch_random():
+    if hasattr(functions.Random, "as_clickhouse"):
+        return
+
     def as_clickhouse(self, compiler, connection, **extra_context):
         return functions.Random.as_sql(
             self, compiler, connection, function="rand64", **extra_context

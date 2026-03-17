@@ -2,11 +2,7 @@ from django.db import models
 
 from .json import patch_jsonfield
 
-__all__ = [
-    "patch_fields",
-    "patch_auto_field",
-    "patch_jsonfield",
-]
+__all__ = ["patch_fields", "patch_auto_field", "patch_jsonfield"]
 
 
 def patch_fields():
@@ -16,6 +12,9 @@ def patch_fields():
 
 def patch_auto_field():
     def rel_db_type_decorator(cls):
+        if getattr(cls.rel_db_type, "_clickhouse_patched", False):
+            return cls
+
         old_func = cls.rel_db_type
 
         def rel_db_type(self, connection):
@@ -23,6 +22,7 @@ def patch_auto_field():
                 return self.db_type(connection)
             return old_func(self, connection)
 
+        rel_db_type._clickhouse_patched = True
         cls.rel_db_type = rel_db_type
         return cls
 

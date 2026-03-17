@@ -16,4 +16,6 @@ def key_transform_as_clickhouse(self, compiler, connection):
 
 
 def patch_jsonfield():
+    if hasattr(json.KeyTransform, "as_clickhouse"):
+        return
     json.KeyTransform.as_clickhouse = key_transform_as_clickhouse
