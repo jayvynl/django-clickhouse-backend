@@ -12,6 +12,13 @@ __all__ = [
     "uniqTheta",
     "anyLast",
     "argMax",
+    "argMin",
+    "argMinIf",
+    "groupArray",
+    "groupUniqArray",
+    "groupArrayIfAgg",
+    "arrayAggDistinct",
+    "if_combinator",
 ]
 
 
@@ -75,3 +82,47 @@ class argMax(Aggregate):
 
     def _resolve_output_field(self):
         return self.get_source_fields()[0]
+
+
+class argMin(Aggregate):
+    arity = 2
+
+    def _resolve_output_field(self):
+        return self.get_source_fields()[0]
+
+
+class groupArray(Aggregate):
+    def get_group_by_cols(self):
+        return []
+
+
+class groupUniqArray(Aggregate):
+    def get_group_by_cols(self):
+        return []
+
+
+def if_combinator(base_cls):
+    attrs = {"__module__": base_cls.__module__}
+    if hasattr(base_cls, "arity") and isinstance(base_cls.arity, int):
+        attrs["arity"] = base_cls.arity + 1
+    return type(base_cls.__name__ + "If", (base_cls,), attrs)
+
+
+argMinIf = if_combinator(argMin)
+
+
+class groupArrayIfAgg(Aggregate):
+    function = "groupArrayIf"
+
+    def __init__(self, *expressions, **extra):
+        super().__init__(*expressions, **extra)
+
+    def _resolve_output_field(self):
+        return self.get_source_fields()[0]
+
+    def get_group_by_cols(self):
+        return []
+
+
+class arrayAggDistinct(Aggregate):
+    function = "groupArrayDistinct"

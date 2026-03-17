@@ -8,6 +8,7 @@ __all__ = [
     "currentDatabase",
     "hostName",
     "generateSerialID",
+    "countMatches",
 ]
 
 
@@ -42,3 +43,8 @@ class generateSerialID(Func):
         if isinstance(expressions[0], str):
             expressions = (Value(expressions[0]), *expressions[1:])
         super().__init__(*expressions)
+
+
+class countMatches(Func):
+    function = "countMatches"
+    output_field = fields.Int32Field()

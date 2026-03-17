@@ -1,4 +1,5 @@
 import ipaddress
+import math
 from decimal import Decimal
 from uuid import uuid4
 
@@ -26,6 +27,7 @@ from .models import (
     IPModel,
     IPv4Model,
     IPv6Model,
+    NaNFloatModel,
     StringModel,
     UUIDModel,
 )
@@ -184,6 +186,74 @@ class FloatFieldTests(TestCase):
         FloatModel.objects.create(float64=123.456)
         self.assertFalse(FloatModel.objects.filter(float64__lt=100).exists())
         self.assertTrue(FloatModel.objects.filter(float64__gt=Decimal("100")).exists())
+
+
+class ComparableNaNTests(TestCase):
+    def test_nan_equals_nan(self):
+        nan = models.ComparableNaN("NaN")
+        self.assertEqual(nan, float("nan"))
+
+    def test_nan_equals_comparable_nan(self):
+        nan1 = models.ComparableNaN("NaN")
+        nan2 = models.ComparableNaN("NaN")
+        self.assertEqual(nan1, nan2)
+
+    def test_nan_not_equals_number(self):
+        nan = models.ComparableNaN("NaN")
+        self.assertNotEqual(nan, 0.0)
+        self.assertNotEqual(nan, 1.0)
+
+    def test_nan_not_equals_none(self):
+        nan = models.ComparableNaN("NaN")
+        self.assertNotEqual(nan, None)
+
+    def test_nan_is_float(self):
+        nan = models.ComparableNaN("NaN")
+        self.assertIsInstance(nan, float)
+        self.assertTrue(math.isnan(nan))
+
+    def test_nan_hashable(self):
+        nan = models.ComparableNaN("NaN")
+        {nan: "value"}
+
+
+class NaNFloatFieldTests(TestCase):
+    def test_deconstruct_nan_default_float32(self):
+        field = models.NaNFloat32Field(default=float("nan"))
+        _, _, _, kwargs = field.deconstruct()
+        self.assertIsInstance(kwargs["default"], models.ComparableNaN)
+        self.assertTrue(math.isnan(kwargs["default"]))
+
+    def test_deconstruct_nan_default_float64(self):
+        field = models.NaNFloat64Field(default=float("nan"))
+        _, _, _, kwargs = field.deconstruct()
+        self.assertIsInstance(kwargs["default"], models.ComparableNaN)
+        self.assertTrue(math.isnan(kwargs["default"]))
+
+    def test_deconstruct_non_nan_default_unchanged(self):
+        field = models.NaNFloat32Field(default=0.0)
+        _, _, _, kwargs = field.deconstruct()
+        self.assertEqual(kwargs["default"], 0.0)
+        self.assertNotIsInstance(kwargs["default"], models.ComparableNaN)
+
+    def test_deconstruct_stability(self):
+        field = models.NaNFloat32Field(default=float("nan"))
+        _, _, _, kwargs1 = field.deconstruct()
+        _, _, _, kwargs2 = field.deconstruct()
+        self.assertEqual(kwargs1["default"], kwargs2["default"])
+
+    def test_value(self):
+        o = NaNFloatModel.objects.create()
+        o.refresh_from_db()
+        self.assertTrue(math.isnan(o.nan_float32))
+        self.assertTrue(math.isnan(o.nan_float64))
+        self.assertEqual(o.regular_float32, 0.0)
+
+    def test_deconstruct_path(self):
+        field = models.NaNFloat32Field()
+        _, path, _, _ = field.deconstruct()
+        self.assertTrue(path.startswith("clickhouse_backend.models."))
+        self.assertNotIn("fields.", path)
 
 
 class DecimalFieldTests(TestCase):

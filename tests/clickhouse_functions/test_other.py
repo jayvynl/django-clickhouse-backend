@@ -1,3 +1,4 @@
+from django.db.models import Value
 from django.test import TestCase
 
 from clickhouse_backend import models
@@ -27,3 +28,10 @@ class OtherTests(TestCase):
             v=models.generateSerialID(models.currentDatabase(), 100)
         ).get(id=self.john.id)
         self.assertIsInstance(john.v, int)
+
+    def test_countMatches(self):
+        john = Author.objects.annotate(
+            v=models.countMatches("name", Value("[aeiou]"))
+        ).get(id=self.john.id)
+        self.assertIsInstance(john.v, int)
+        self.assertGreater(john.v, 0)

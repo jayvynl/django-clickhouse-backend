@@ -1,4 +1,5 @@
 import ipaddress
+import math
 from collections.abc import Iterable
 from datetime import datetime
 
@@ -50,6 +51,9 @@ __all__ = [  # noqa: F405
     "TupleField",
     "MapField",
     "JSONField",
+    "ComparableNaN",
+    "NaNFloat32Field",
+    "NaNFloat64Field",
 ]
 
 
@@ -73,6 +77,39 @@ class Float64Field(FieldMixin, fields.FloatField):
 
     def get_internal_type(self):
         return "Float64Field"
+
+
+class ComparableNaN(float):
+    """A float subclass where NaN == NaN is True.
+
+    Python's float('nan') != float('nan'), which causes Django's migration
+    framework to detect a spurious change on every makemigrations run when
+    NaN is used as a field default. This subclass fixes that by overriding
+    __eq__ to treat all NaN values as equal.
+    """
+
+    def __eq__(self, other):
+        return other is not None and isinstance(other, float) and math.isnan(other)
+
+    def __hash__(self):
+        return super().__hash__()
+
+
+class _NaNFloatFieldMixin:
+    def deconstruct(self):
+        name, path, args, kwargs = super().deconstruct()
+        default = kwargs.get("default")
+        if default is not None and isinstance(default, float) and math.isnan(default):
+            kwargs["default"] = ComparableNaN("NaN")
+        return name, path, args, kwargs
+
+
+class NaNFloat32Field(_NaNFloatFieldMixin, Float32Field):
+    pass
+
+
+class NaNFloat64Field(_NaNFloatFieldMixin, Float64Field):
+    pass
 
 
 class DecimalField(FieldMixin, fields.DecimalField):

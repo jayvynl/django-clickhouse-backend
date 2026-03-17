@@ -11,7 +11,16 @@ from clickhouse_backend.models import (
     uniqTheta,
 )
 
-from clickhouse_backend.models.aggregates import argMax
+from clickhouse_backend.models.aggregates import (
+    argMax,
+    argMin,
+    argMinIf,
+    groupArray,
+    groupUniqArray,
+    groupArrayIfAgg,
+    arrayAggDistinct,
+    if_combinator,
+)
 
 from .models import WatchSeries
 
@@ -277,3 +286,114 @@ class AggregatesTestCase(TestCase):
         )
 
         self.assertQuerysetEqual(result, self.expected_result_any_last, transform=dict)
+
+    def test_argMin(self):
+        result = (
+            WatchSeries.objects.values("show")
+            .annotate(episode=argMin("episode", "date_id"))
+            .order_by("show")
+        )
+
+        expected_result = [
+            {"show": "Bridgerton", "episode": "S1E1"},
+            {"show": "Game of Thrones", "episode": "S1E1"},
+        ]
+
+        self.assertQuerysetEqual(result, expected_result, transform=dict)
+
+    def test_argMin_output_field(self):
+        result = (
+            WatchSeries.objects.values("show")
+            .annotate(date=argMin("date_id", "episode"))
+            .annotate(week=F("date__week"), week_day=F("date__week_day"))
+            .values("show", "week", "week_day")
+            .order_by("show")
+        )
+
+        expected_result = [
+            {"show": "Bridgerton", "week": 20, "week_day": 5},
+            {"show": "Game of Thrones", "week": 20, "week_day": 5},
+        ]
+
+        self.assertQuerysetEqual(result, expected_result, transform=dict)
+
+    def test_argMinIf(self):
+        result = (
+            WatchSeries.objects.values("show")
+            .annotate(episode=argMinIf("episode", "date_id", Q(episode="S1E1")))
+            .order_by("show")
+        )
+
+        expected_result = [
+            {"show": "Bridgerton", "episode": "S1E1"},
+            {"show": "Game of Thrones", "episode": "S1E1"},
+        ]
+
+        self.assertQuerysetEqual(result, expected_result, transform=dict)
+
+    def test_groupArray(self):
+        result = list(
+            WatchSeries.objects.values("show")
+            .annotate(episodes=groupArray("episode"))
+            .order_by("show")
+        )
+
+        self.assertEqual(len(result), 2)
+        for row in result:
+            self.assertIsInstance(row["episodes"], list)
+            self.assertTrue(len(row["episodes"]) > 0)
+
+    def test_groupUniqArray(self):
+        result = list(
+            WatchSeries.objects.values("show")
+            .annotate(episodes=groupUniqArray("episode"))
+            .order_by("show")
+        )
+
+        self.assertEqual(len(result), 2)
+        for row in result:
+            self.assertIsInstance(row["episodes"], list)
+            episodes = sorted(row["episodes"])
+            self.assertEqual(episodes, sorted(set(episodes)))
+
+    def test_groupArrayIfAgg(self):
+        result = list(
+            WatchSeries.objects.values("show")
+            .annotate(episodes=groupArrayIfAgg("episode", Q(episode="S1E1")))
+            .order_by("show")
+        )
+
+        self.assertEqual(len(result), 2)
+        for row in result:
+            self.assertIsInstance(row["episodes"], list)
+            for ep in row["episodes"]:
+                self.assertEqual(ep, "S1E1")
+
+    def test_arrayAggDistinct(self):
+        result = list(
+            WatchSeries.objects.values("show")
+            .annotate(episodes=arrayAggDistinct("episode"))
+            .order_by("show")
+        )
+
+        self.assertEqual(len(result), 2)
+        for row in result:
+            self.assertIsInstance(row["episodes"], list)
+            self.assertEqual(sorted(row["episodes"]), sorted(set(row["episodes"])))
+
+    def test_if_combinator_factory(self):
+        uniqIf = if_combinator(uniq)
+        self.assertEqual(uniqIf.__name__, "uniqIf")
+
+        result = (
+            WatchSeries.objects.values("show")
+            .annotate(uid_count=uniqIf("uid", Q(episode="S1E1")))
+            .order_by("show")
+        )
+
+        expected_result = [
+            {"show": "Bridgerton", "uid_count": 4},
+            {"show": "Game of Thrones", "uid_count": 3},
+        ]
+
+        self.assertQuerysetEqual(result, expected_result, transform=dict)

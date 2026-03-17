@@ -119,6 +119,12 @@ class MapModel(models.ClickhouseModel):
     )
 
 
+class NaNFloatModel(models.ClickhouseModel):
+    nan_float32 = models.NaNFloat32Field(default=float("nan"))
+    nan_float64 = models.NaNFloat64Field(default=float("nan"))
+    regular_float32 = models.NaNFloat32Field(default=0.0)
+
+
 class IPv4Model(models.ClickhouseModel):
     ipv4 = models.IPv4Field(null=True, low_cardinality=True)
 
