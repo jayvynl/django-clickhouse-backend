@@ -42,6 +42,10 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # https://github.com/google/re2/wiki/Syntax
     supports_regex_backreferencing = False
 
+    # ClickHouse does not support positional GROUP BY references (e.g., GROUP BY 1).
+    # Setting this to False forces Django to always emit full column expressions.
+    allows_group_by_select_index = False
+
     # Can date/datetime lookups be performed using a string?
     supports_date_lookup_using_string = True
 

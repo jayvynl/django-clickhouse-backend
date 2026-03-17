@@ -7,6 +7,30 @@ from django.test.utils import CaptureQueriesContext
 from . import models
 
 
+class DeleteWithAnnotationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.a1, cls.a2 = models.Author.objects.bulk_create(
+            [models.Author(name="a1", num=1), models.Author(name="a2", num=2)]
+        )
+        models.Book.objects.bulk_create(
+            [
+                models.Book(name="b1", author=cls.a1),
+                models.Book(name="b2", author=cls.a1),
+                models.Book(name="b3", author=cls.a2),
+            ]
+        )
+
+    def test_delete_with_annotation_filter(self):
+        """DELETE with annotation-based filter should not generate positional GROUP BY."""
+        # a1 has 2 books, a2 has 1. Delete authors with more than 1 book.
+        models.Author.objects.annotate(book_count=Count("books")).filter(
+            book_count__gt=1
+        ).delete()
+        self.assertEqual(models.Author.objects.count(), 1)
+        self.assertEqual(models.Author.objects.get().name, "a2")
+
+
 class QueriesTests(TestCase):
     @classmethod
     def setUpTestData(cls):
