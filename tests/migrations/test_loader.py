@@ -62,7 +62,7 @@ class DistributedMigrationTests(MigrationTestBase):
         "HOST": "localhost",
         "USER": "default",
         "PASSWORD": "clickhouse_password",
-        "PORT": 9004,
+        "PORT": 9054,
         "NAME": "test_default",
         "OPTIONS": {
             "distributed_migrations": True,
@@ -134,7 +134,7 @@ class DistributedMigrationTests(MigrationTestBase):
 
         # node4 can throw error when trying to create django_migrations table, even if other nodes are ok
         db = deepcopy(self.lb)
-        db["PORT"] = 9003
+        db["PORT"] = 9053
         del db["OPTIONS"]["distributed_migrations"]
         recorder = MigrationRecorder(DatabaseWrapper(db, alias="node4"))
         with recorder.connection.cursor() as cursor:
