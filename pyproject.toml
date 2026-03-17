@@ -3,12 +3,12 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "django-clickhouse-backend"
+name = "django-clickhousedb"
 authors = [
-    {name = "Lin Zhiwen", email = "zhiwenlin1116@gmail.com"},
+    {name = "?", email = "?"},
 ]
 description = "Django clickHouse database backend"
-urls = {Homepage = "https://github.com/jayvynl/django-clickhouse-backend"}
+urls = {Homepage = "https://github.com/gto-wizard/django-clickhousedb"}
 requires-python = ">=3.7, <4"
 keywords = ["Django", "ClickHouse", "database", "backend", "engine", "driver"]
 license = {text = "MIT"}
