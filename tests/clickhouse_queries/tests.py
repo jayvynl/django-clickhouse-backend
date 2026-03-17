@@ -1,7 +1,8 @@
-from django.db import NotSupportedError
+from django.db import NotSupportedError, connection
 from django.db.models import Count, Window
 from django.db.models.functions import Rank
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from . import models
 
@@ -74,3 +75,38 @@ class QueriesTests(TestCase):
                     rank=Window(Rank(), partition_by="author", order_by="name")
                 ).prewhere(rank__gt=1)
             )
+
+
+class SettingsInsertTests(TestCase):
+    def test_bulk_create_with_settings_succeeds(self):
+        models.Author.objects.settings(max_insert_threads=4).bulk_create(
+            [
+                models.Author(name="s1", num=1),
+                models.Author(name="s2", num=2),
+            ]
+        )
+        self.assertEqual(models.Author.objects.filter(name__in=["s1", "s2"]).count(), 2)
+
+    def test_bulk_create_with_settings_generates_settings_sql(self):
+        with CaptureQueriesContext(connection) as ctx:
+            models.Author.objects.settings(max_insert_threads=4).bulk_create(
+                [
+                    models.Author(name="s3", num=3),
+                ]
+            )
+        insert_sqls = [q["sql"] for q in ctx.captured_queries if "INSERT" in q["sql"]]
+        self.assertTrue(insert_sqls, "No INSERT query captured")
+        sql = insert_sqls[0]
+        self.assertIn("SETTINGS", sql)
+        self.assertIn("max_insert_threads", sql)
+
+    def test_bulk_create_without_settings_omits_settings_sql(self):
+        with CaptureQueriesContext(connection) as ctx:
+            models.Author.objects.bulk_create(
+                [
+                    models.Author(name="s4", num=4),
+                ]
+            )
+        insert_sqls = [q["sql"] for q in ctx.captured_queries if "INSERT" in q["sql"]]
+        self.assertTrue(insert_sqls, "No INSERT query captured")
+        self.assertNotIn("SETTINGS", insert_sqls[0])

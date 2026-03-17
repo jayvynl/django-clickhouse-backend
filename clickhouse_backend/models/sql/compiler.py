@@ -348,7 +348,7 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
                 **self.query.setting_info
             )
             qv = self.connection.schema_editor().quote_value
-            result.append((setting_sql % map(qv, setting_params)) % ())
+            result.append(setting_sql % tuple(map(qv, setting_params)))
 
         # If value rows count exceed limitation, raw data is asserted.
         # Refer https://clickhouse-driver.readthedocs.io/en/latest/quickstart.html#inserting-data
