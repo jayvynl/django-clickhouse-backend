@@ -1,10 +1,8 @@
 import re
-from unittest import skipUnless
 from io import StringIO
 
 from django.core.management import call_command
 from django.test import TestCase
-from clickhouse_backend import compat
 
 
 class InspectDBTestCase(TestCase):
@@ -75,10 +73,6 @@ class InspectDBTestCase(TestCase):
             "models.MapField(models.FixedStringField(low_cardinality=True, max_bytes=10), models.TupleField([models.Int8Field(low_cardinality=True, null=True, blank=True), models.ArrayField(models.Int8Field(low_cardinality=True, null=True, blank=True))]))",
         )
 
-    @skipUnless(
-        compat.dj_ge42,
-        "https://docs.djangoproject.com/en/4.2/releases/4.2/#comments-on-columns-and-tables",
-    )
     def test_db_comments(self):
         out = StringIO()
         call_command("inspectdb", "inspectdb_dbcomment", stdout=out)

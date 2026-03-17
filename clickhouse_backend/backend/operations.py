@@ -2,7 +2,6 @@ from django.apps import apps
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.utils.functional import cached_property
 
-from clickhouse_backend import compat
 from clickhouse_backend.driver import JSON
 from clickhouse_backend.driver.client import insert_pattern
 from clickhouse_backend.utils.timezone import get_timezone
@@ -152,10 +151,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             sql = "toDayOfWeek(%s)" % sql
         else:
             sql = "to%s(%s)" % (lookup_type.capitalize(), sql)
-        if compat.dj_ge41:
-            return sql, args[0]
-        else:
-            return sql
+        return sql, args[0]
 
     def date_trunc_sql(self, lookup_type, sql, *args):
         # https://clickhouse.com/docs/en/sql-reference/functions/date-time-functions#tostartofyear
@@ -165,19 +161,13 @@ class DatabaseOperations(BaseDatabaseOperations):
         if lookup_type != "day":
             sql = f"toStartOf{lookup_type.capitalize()}({sql})"
 
-        if compat.dj_ge41:
-            return sql, ex[0]
-        else:
-            return sql
+        return sql, ex[0]
 
     def datetime_cast_date_sql(self, sql, *args):
         *ex, tzname = args
         tzname = tzname or get_timezone()
         sql = "toDate(%s, '%s')" % (sql, tzname)
-        if compat.dj_ge41:
-            return sql, ex[0]
-        else:
-            return sql
+        return sql, ex[0]
 
     def datetime_extract_sql(self, lookup_type, sql, *args):
         *ex, tzname = args
@@ -192,10 +182,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             sql = "date_trunc('%s', %s, '%s')" % (lookup_type, sql, tzname)
         else:
             sql = "date_trunc('%s', %s)" % (lookup_type, sql)
-        if compat.dj_ge41:
-            return sql, ex[0]
-        else:
-            return sql
+        return sql, ex[0]
 
     def distinct_sql(self, fields, params):
         if fields:

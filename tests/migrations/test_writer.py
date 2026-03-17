@@ -33,8 +33,6 @@ from django.utils.deconstruct import deconstructible
 from django.utils.functional import SimpleLazyObject
 from django.utils.translation import gettext_lazy as _
 
-from clickhouse_backend import compat
-
 from .models import FoodManager, FoodQuerySet
 
 
@@ -738,14 +736,12 @@ class WriterTests(SimpleTestCase):
     def test_serialize_type_none(self):
         self.assertSerializedEqual(type(None))
 
-    if compat.dj_ge4:
-
-        def test_serialize_type_model(self):
-            self.assertSerializedEqual(models.Model)
-            self.assertSerializedResultEqual(
-                MigrationWriter.serialize(models.Model),
-                ("('models.Model', {'from django.db import models'})", set()),
-            )
+    def test_serialize_type_model(self):
+        self.assertSerializedEqual(models.Model)
+        self.assertSerializedResultEqual(
+            MigrationWriter.serialize(models.Model),
+            ("('models.Model', {'from django.db import models'})", set()),
+        )
 
     def test_simple_migration(self):
         """

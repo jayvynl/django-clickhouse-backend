@@ -3,8 +3,6 @@ from django.db.models import Count, Window
 from django.db.models.functions import Rank
 from django.test import TestCase
 
-from clickhouse_backend import compat
-
 from . import models
 
 
@@ -66,15 +64,13 @@ class QueriesTests(TestCase):
                 )
             )
 
-    if compat.dj_ge42:
-
-        def test_prewhere_window(self):
-            with self.assertRaisesMessage(
-                NotSupportedError,
-                "Window function is disallowed in the prewhere clause.",
-            ):
-                list(
-                    models.Book.objects.annotate(
-                        rank=Window(Rank(), partition_by="author", order_by="name")
-                    ).prewhere(rank__gt=1)
-                )
+    def test_prewhere_window(self):
+        with self.assertRaisesMessage(
+            NotSupportedError,
+            "Window function is disallowed in the prewhere clause.",
+        ):
+            list(
+                models.Book.objects.annotate(
+                    rank=Window(Rank(), partition_by="author", order_by="name")
+                ).prewhere(rank__gt=1)
+            )
