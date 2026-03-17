@@ -1,5 +1,6 @@
 from django.db.models import F, Q, query
 from django.db.models.functions import Trunc
+from django.db.models.sql import InsertQuery
 
 from clickhouse_backend.models import fields, sql
 
@@ -45,7 +46,6 @@ class QuerySet(query.QuerySet):
         self._for_write = True
         if using is None:
             using = self.db
-        from django.db.models.sql import InsertQuery
 
         query = InsertQuery(
             self.model,
