@@ -6,12 +6,17 @@ from django.db.models.sql.constants import INNER
 from django.db.models.sql.datastructures import BaseTable, Join
 from django.db.models.sql.where import AND
 
+from clickhouse_backend import compat
+
 ExplainInfo = namedtuple("ExplainInfo", ("format", "type", "options"))
 
 
 class Query(query.Query):
     def __init__(self, model, where=query.WhereNode, alias_cols=True):
-        super().__init__(model, alias_cols)
+        if compat.dj_ge4:
+            super().__init__(model, alias_cols)
+        else:
+            super().__init__(model, where, alias_cols)
         self.setting_info = {}
         self.prewhere = query.WhereNode()
 
@@ -42,6 +47,12 @@ class Query(query.Query):
         if clause:
             self.prewhere.add(clause, AND)
         self.demote_joins(existing_inner)
+
+    if not compat.dj_ge42:
+
+        @property
+        def is_sliced(self):
+            return self.low_mark != 0 or self.high_mark is not None
 
     def resolve_expression(self, query, *args, **kwargs):
         clone = self.clone()
