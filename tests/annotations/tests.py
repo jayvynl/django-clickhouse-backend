@@ -24,8 +24,6 @@ from django.db.models.functions import Coalesce, Floor, Lower
 from django.test import TestCase, skipUnlessDBFeature
 from django.test.utils import register_lookup
 
-from clickhouse_backend import compat
-
 from .models import Author, Book, Company, DepartmentStore, Employee, Publisher, Store
 
 
@@ -251,35 +249,29 @@ class NonAggregateAnnotationTestCase(TestCase):
         self.assertEqual(len(books), Book.objects.count())
         self.assertTrue(all(not book.selected for book in books))
 
-    if compat.dj_ge41:
+    def test_full_expression_annotation(self):
+        books = Book.objects.annotate(
+            selected=ExpressionWrapper(~Q(pk__in=[]), output_field=BooleanField()),
+        )
+        self.assertEqual(len(books), Book.objects.count())
+        self.assertTrue(all(book.selected for book in books))
 
-        def test_full_expression_annotation(self):
-            books = Book.objects.annotate(
-                selected=ExpressionWrapper(~Q(pk__in=[]), output_field=BooleanField()),
-            )
-            self.assertEqual(len(books), Book.objects.count())
-            self.assertTrue(all(book.selected for book in books))
+    def test_full_expression_annotation_with_aggregation(self):
+        qs = Book.objects.filter(isbn="159059725").annotate(
+            selected=ExpressionWrapper(~Q(pk__in=[]), output_field=BooleanField()),
+            rating_count=Count("rating"),
+        )
+        self.assertEqual([book.rating_count for book in qs], [1])
 
-        def test_full_expression_annotation_with_aggregation(self):
-            qs = Book.objects.filter(isbn="159059725").annotate(
-                selected=ExpressionWrapper(~Q(pk__in=[]), output_field=BooleanField()),
-                rating_count=Count("rating"),
-            )
-            self.assertEqual([book.rating_count for book in qs], [1])
+    def test_aggregate_over_full_expression_annotation(self):
+        qs = Book.objects.annotate(
+            selected=ExpressionWrapper(~Q(pk__in=[]), output_field=BooleanField()),
+        ).aggregate(Sum("selected"))
+        self.assertEqual(qs["selected__sum"], Book.objects.count())
 
-        def test_aggregate_over_full_expression_annotation(self):
-            qs = Book.objects.annotate(
-                selected=ExpressionWrapper(~Q(pk__in=[]), output_field=BooleanField()),
-            ).aggregate(Sum("selected"))
-            self.assertEqual(qs["selected__sum"], Book.objects.count())
-
-    if compat.dj_ge4:
-
-        def test_empty_queryset_annotation(self):
-            qs = Author.objects.annotate(
-                empty=Subquery(Author.objects.values("id").none())
-            )
-            self.assertIsNone(qs.first().empty)
+    def test_empty_queryset_annotation(self):
+        qs = Author.objects.annotate(empty=Subquery(Author.objects.values("id").none()))
+        self.assertIsNone(qs.first().empty)
 
     def test_annotate_with_aggregation(self):
         books = Book.objects.annotate(is_book=Value(1), rating_count=Count("rating"))

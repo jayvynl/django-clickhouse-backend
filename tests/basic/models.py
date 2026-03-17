@@ -7,7 +7,6 @@ This is a basic model with only two non-primary-key fields.
 import uuid
 
 from django.db import models
-from clickhouse_backend import compat
 
 
 class Article(models.Model):
@@ -59,11 +58,10 @@ class PrimaryKeyWithFalseyDefault(models.Model):
     uuid = models.IntegerField(primary_key=True, default=0)
 
 
-if compat.dj_ge5:
+class PrimaryKeyWithDbDefault(models.Model):
+    uuid = models.IntegerField(primary_key=True, db_default=1)
+    content = models.TextField(default="")
 
-    class PrimaryKeyWithDbDefault(models.Model):
-        uuid = models.IntegerField(primary_key=True, db_default=1)
-        content = models.TextField(default="")
 
-    class PrimaryKeyWithFalseyDbDefault(models.Model):
-        uuid = models.IntegerField(primary_key=True, db_default=0)
+class PrimaryKeyWithFalseyDbDefault(models.Model):
+    uuid = models.IntegerField(primary_key=True, db_default=0)

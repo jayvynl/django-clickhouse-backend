@@ -1,5 +1,4 @@
 import datetime
-from collections import Counter
 from decimal import Decimal
 
 from django.core.exceptions import FieldError
@@ -11,7 +10,6 @@ from django.db.models import (
     IntegerField,
     Max,
     Min,
-    OrderBy,
     Q,
     RowRange,
     Sum,
@@ -36,34 +34,12 @@ from django.db.models.lookups import Exact
 from django.test import TestCase, skipUnlessDBFeature
 from django.test.utils import CaptureQueriesContext
 
-from clickhouse_backend import compat
-
 from .models import Classification, Employee
 from clickhouse_backend.models import ClickhouseModel, JSONField
 
 
 @skipUnlessDBFeature("supports_over_clause")
 class WindowFunctionTests(TestCase):
-    if not compat.dj_ge42:
-
-        def assertQuerySetEqual(
-            self, qs, values, transform=None, ordered=True, msg=None
-        ):
-            values = list(values)
-            items = qs
-            if transform is not None:
-                items = map(transform, items)
-            if not ordered:
-                return self.assertDictEqual(Counter(items), Counter(values), msg=msg)
-            # For example qs.iterator() could be passed as qs, but it does not
-            # have 'ordered' attribute.
-            if len(values) > 1 and hasattr(qs, "ordered") and not qs.ordered:
-                raise ValueError(
-                    "Trying to compare non-ordered queryset against more than one "
-                    "ordered value."
-                )
-            return self.assertEqual(list(items), values, msg=msg)
-
     @classmethod
     def setUpTestData(cls):
         classification = Classification.objects.create()
@@ -105,9 +81,8 @@ class WindowFunctionTests(TestCase):
         tests = [
             ExtractYear(F("hire_date")).asc(),
             F("hire_date__year").asc(),
+            "hire_date__year",
         ]
-        if compat.dj_ge41:
-            tests.append("hire_date__year")
         for order_by in tests:
             with self.subTest(order_by=order_by):
                 qs = Employee.objects.annotate(
@@ -549,11 +524,7 @@ class WindowFunctionTests(TestCase):
         qs = Employee.objects.annotate(
             ntile=Window(
                 expression=Ntile(num_buckets=4),
-                order_by=(
-                    "-salary"
-                    if compat.dj_ge41
-                    else OrderBy(F("salary"), descending=True)
-                ),
+                order_by="-salary",
                 # https://github.com/ClickHouse/ClickHouse/issues/61391
                 # recent clickhouse version(24.5.3.5) ntile has a bug,
                 # older version(23.6) is OK without frame.
@@ -639,268 +610,260 @@ class WindowFunctionTests(TestCase):
         )
         self.assertEqual(qs.count(), 12)
 
-    if compat.dj_ge42:
+    def test_filter(self):
+        qs = Employee.objects.annotate(
+            department_salary_rank=Window(
+                Rank(), partition_by="department", order_by="-salary"
+            ),
+            department_avg_age_diff=(
+                Window(Avg("age"), partition_by="department") - F("age")
+            ),
+        ).order_by("department", "name")
+        # Direct window reference.
+        self.assertQuerySetEqual(
+            qs.filter(department_salary_rank=1),
+            ["Adams", "Wilkinson", "Miller", "Johnson", "Smith"],
+            lambda employee: employee.name,
+        )
+        # Through a combined expression containing a window.
+        self.assertQuerySetEqual(
+            qs.filter(department_avg_age_diff__gt=0),
+            ["Jenson", "Jones", "Williams", "Miller", "Smith"],
+            lambda employee: employee.name,
+        )
+        # Intersection of multiple windows.
+        self.assertQuerySetEqual(
+            qs.filter(department_salary_rank=1, department_avg_age_diff__gt=0),
+            ["Miller"],
+            lambda employee: employee.name,
+        )
+        # Union of multiple windows.
+        self.assertQuerySetEqual(
+            qs.filter(Q(department_salary_rank=1) | Q(department_avg_age_diff__gt=0)),
+            [
+                "Adams",
+                "Jenson",
+                "Jones",
+                "Williams",
+                "Wilkinson",
+                "Miller",
+                "Johnson",
+                "Smith",
+                "Smith",
+            ],
+            lambda employee: employee.name,
+        )
 
-        def test_filter(self):
-            qs = Employee.objects.annotate(
-                department_salary_rank=Window(
-                    Rank(), partition_by="department", order_by="-salary"
+    def test_filter_conditional_annotation(self):
+        qs = (
+            Employee.objects.annotate(
+                rank=Window(Rank(), partition_by="department", order_by="-salary"),
+                case_first_rank=Case(
+                    When(rank=1, then=True),
+                    default=False,
                 ),
+                q_first_rank=Q(rank=1),
+            )
+            .order_by("name")
+            .values_list("name", flat=True)
+        )
+        for annotation in ["case_first_rank", "q_first_rank"]:
+            with self.subTest(annotation=annotation):
+                self.assertSequenceEqual(
+                    qs.filter(**{annotation: True}),
+                    ["Adams", "Johnson", "Miller", "Smith", "Wilkinson"],
+                )
+
+        def test_filter_conditional_expression(self):
+            qs = (
+                Employee.objects.filter(
+                    Exact(
+                        Window(Rank(), partition_by="department", order_by="-salary"),
+                        1,
+                    )
+                )
+                .order_by("name")
+                .values_list("name", flat=True)
+            )
+            self.assertSequenceEqual(
+                qs, ["Adams", "Johnson", "Miller", "Smith", "Wilkinson"]
+            )
+
+        def test_filter_column_ref_rhs(self):
+            qs = (
+                Employee.objects.annotate(
+                    max_dept_salary=Window(Max("salary"), partition_by="department")
+                )
+                .filter(max_dept_salary=F("salary"))
+                .order_by("name")
+                .values_list("name", flat=True)
+            )
+            self.assertSequenceEqual(
+                qs, ["Adams", "Johnson", "Miller", "Smith", "Wilkinson"]
+            )
+
+        def test_filter_values(self):
+            qs = (
+                Employee.objects.annotate(
+                    department_salary_rank=Window(
+                        Rank(), partition_by="department", order_by="-salary"
+                    ),
+                )
+                .order_by("department", "name")
+                .values_list(Upper("name"), flat=True)
+            )
+            self.assertSequenceEqual(
+                qs.filter(department_salary_rank=1),
+                ["ADAMS", "WILKINSON", "MILLER", "JOHNSON", "SMITH"],
+            )
+
+        def test_filter_alias(self):
+            qs = Employee.objects.alias(
                 department_avg_age_diff=(
                     Window(Avg("age"), partition_by="department") - F("age")
                 ),
             ).order_by("department", "name")
-            # Direct window reference.
-            self.assertQuerySetEqual(
-                qs.filter(department_salary_rank=1),
-                ["Adams", "Wilkinson", "Miller", "Johnson", "Smith"],
-                lambda employee: employee.name,
-            )
-            # Through a combined expression containing a window.
             self.assertQuerySetEqual(
                 qs.filter(department_avg_age_diff__gt=0),
                 ["Jenson", "Jones", "Williams", "Miller", "Smith"],
                 lambda employee: employee.name,
             )
-            # Intersection of multiple windows.
-            self.assertQuerySetEqual(
-                qs.filter(department_salary_rank=1, department_avg_age_diff__gt=0),
-                ["Miller"],
-                lambda employee: employee.name,
-            )
-            # Union of multiple windows.
-            self.assertQuerySetEqual(
-                qs.filter(
-                    Q(department_salary_rank=1) | Q(department_avg_age_diff__gt=0)
-                ),
-                [
-                    "Adams",
-                    "Jenson",
-                    "Jones",
-                    "Williams",
-                    "Wilkinson",
-                    "Miller",
-                    "Johnson",
-                    "Smith",
-                    "Smith",
-                ],
-                lambda employee: employee.name,
-            )
 
-        def test_filter_conditional_annotation(self):
+        def test_filter_select_related(self):
+            qs = (
+                Employee.objects.alias(
+                    department_avg_age_diff=(
+                        Window(Avg("age"), partition_by="department") - F("age")
+                    ),
+                )
+                .select_related("classification")
+                .filter(department_avg_age_diff__gt=0)
+                .order_by("department", "name")
+            )
+            self.assertQuerySetEqual(
+                qs,
+                ["Jenson", "Jones", "Williams", "Miller", "Smith"],
+                lambda employee: employee.name,
+            )
+            with self.assertNumQueries(0):
+                qs[0].classification
+
+    def test_exclude(self):
+        qs = Employee.objects.annotate(
+            department_salary_rank=Window(
+                Rank(), partition_by="department", order_by="-salary"
+            ),
+            department_avg_age_diff=(
+                Window(Avg("age"), partition_by="department") - F("age")
+            ),
+        ).order_by("department", "name")
+        # Direct window reference.
+        self.assertQuerySetEqual(
+            qs.exclude(department_salary_rank__gt=1),
+            ["Adams", "Wilkinson", "Miller", "Johnson", "Smith"],
+            lambda employee: employee.name,
+        )
+        # Through a combined expression containing a window.
+        self.assertQuerySetEqual(
+            qs.exclude(department_avg_age_diff__lte=0),
+            ["Jenson", "Jones", "Williams", "Miller", "Smith"],
+            lambda employee: employee.name,
+        )
+        # Union of multiple windows.
+        self.assertQuerySetEqual(
+            qs.exclude(
+                Q(department_salary_rank__gt=1) | Q(department_avg_age_diff__lte=0)
+            ),
+            ["Miller"],
+            lambda employee: employee.name,
+        )
+        # Intersection of multiple windows.
+        self.assertQuerySetEqual(
+            qs.exclude(department_salary_rank__gt=1, department_avg_age_diff__lte=0),
+            [
+                "Adams",
+                "Jenson",
+                "Jones",
+                "Williams",
+                "Wilkinson",
+                "Miller",
+                "Johnson",
+                "Smith",
+                "Smith",
+            ],
+            lambda employee: employee.name,
+        )
+
+        def test_heterogeneous_filter(self):
             qs = (
                 Employee.objects.annotate(
-                    rank=Window(Rank(), partition_by="department", order_by="-salary"),
-                    case_first_rank=Case(
-                        When(rank=1, then=True),
-                        default=False,
+                    department_salary_rank=Window(
+                        Rank(), partition_by="department", order_by="-salary"
                     ),
-                    q_first_rank=Q(rank=1),
                 )
                 .order_by("name")
                 .values_list("name", flat=True)
             )
-            for annotation in ["case_first_rank", "q_first_rank"]:
-                with self.subTest(annotation=annotation):
-                    self.assertSequenceEqual(
-                        qs.filter(**{annotation: True}),
-                        ["Adams", "Johnson", "Miller", "Smith", "Wilkinson"],
-                    )
-
-            def test_filter_conditional_expression(self):
-                qs = (
-                    Employee.objects.filter(
-                        Exact(
-                            Window(
-                                Rank(), partition_by="department", order_by="-salary"
-                            ),
-                            1,
-                        )
-                    )
-                    .order_by("name")
-                    .values_list("name", flat=True)
-                )
-                self.assertSequenceEqual(
-                    qs, ["Adams", "Johnson", "Miller", "Smith", "Wilkinson"]
-                )
-
-            def test_filter_column_ref_rhs(self):
-                qs = (
-                    Employee.objects.annotate(
-                        max_dept_salary=Window(Max("salary"), partition_by="department")
-                    )
-                    .filter(max_dept_salary=F("salary"))
-                    .order_by("name")
-                    .values_list("name", flat=True)
-                )
-                self.assertSequenceEqual(
-                    qs, ["Adams", "Johnson", "Miller", "Smith", "Wilkinson"]
-                )
-
-            def test_filter_values(self):
-                qs = (
-                    Employee.objects.annotate(
-                        department_salary_rank=Window(
-                            Rank(), partition_by="department", order_by="-salary"
-                        ),
-                    )
-                    .order_by("department", "name")
-                    .values_list(Upper("name"), flat=True)
-                )
-                self.assertSequenceEqual(
-                    qs.filter(department_salary_rank=1),
-                    ["ADAMS", "WILKINSON", "MILLER", "JOHNSON", "SMITH"],
-                )
-
-            def test_filter_alias(self):
-                qs = Employee.objects.alias(
-                    department_avg_age_diff=(
-                        Window(Avg("age"), partition_by="department") - F("age")
-                    ),
-                ).order_by("department", "name")
-                self.assertQuerySetEqual(
-                    qs.filter(department_avg_age_diff__gt=0),
-                    ["Jenson", "Jones", "Williams", "Miller", "Smith"],
-                    lambda employee: employee.name,
-                )
-
-            def test_filter_select_related(self):
-                qs = (
-                    Employee.objects.alias(
-                        department_avg_age_diff=(
-                            Window(Avg("age"), partition_by="department") - F("age")
-                        ),
-                    )
-                    .select_related("classification")
-                    .filter(department_avg_age_diff__gt=0)
-                    .order_by("department", "name")
-                )
-                self.assertQuerySetEqual(
-                    qs,
-                    ["Jenson", "Jones", "Williams", "Miller", "Smith"],
-                    lambda employee: employee.name,
-                )
-                with self.assertNumQueries(0):
-                    qs[0].classification
-
-        def test_exclude(self):
-            qs = Employee.objects.annotate(
-                department_salary_rank=Window(
-                    Rank(), partition_by="department", order_by="-salary"
+            # Heterogeneous filter between window function and aggregates pushes
+            # the WHERE clause to the QUALIFY outer query.
+            self.assertSequenceEqual(
+                qs.filter(
+                    department_salary_rank=1,
+                    department__in=["Accounting", "Management"],
                 ),
-                department_avg_age_diff=(
-                    Window(Avg("age"), partition_by="department") - F("age")
-                ),
-            ).order_by("department", "name")
-            # Direct window reference.
-            self.assertQuerySetEqual(
-                qs.exclude(department_salary_rank__gt=1),
-                ["Adams", "Wilkinson", "Miller", "Johnson", "Smith"],
-                lambda employee: employee.name,
+                ["Adams", "Miller"],
             )
-            # Through a combined expression containing a window.
-            self.assertQuerySetEqual(
-                qs.exclude(department_avg_age_diff__lte=0),
-                ["Jenson", "Jones", "Williams", "Miller", "Smith"],
-                lambda employee: employee.name,
-            )
-            # Union of multiple windows.
-            self.assertQuerySetEqual(
-                qs.exclude(
-                    Q(department_salary_rank__gt=1) | Q(department_avg_age_diff__lte=0)
-                ),
-                ["Miller"],
-                lambda employee: employee.name,
-            )
-            # Intersection of multiple windows.
-            self.assertQuerySetEqual(
-                qs.exclude(
-                    department_salary_rank__gt=1, department_avg_age_diff__lte=0
+            self.assertSequenceEqual(
+                qs.filter(
+                    Q(department_salary_rank=1)
+                    | Q(department__in=["Accounting", "Management"])
                 ),
                 [
                     "Adams",
                     "Jenson",
-                    "Jones",
-                    "Williams",
-                    "Wilkinson",
-                    "Miller",
                     "Johnson",
+                    "Johnson",
+                    "Jones",
+                    "Miller",
                     "Smith",
-                    "Smith",
+                    "Wilkinson",
+                    "Williams",
                 ],
-                lambda employee: employee.name,
             )
 
-            def test_heterogeneous_filter(self):
-                qs = (
-                    Employee.objects.annotate(
-                        department_salary_rank=Window(
-                            Rank(), partition_by="department", order_by="-salary"
-                        ),
-                    )
-                    .order_by("name")
-                    .values_list("name", flat=True)
+    def test_limited_filter(self):
+        """
+        A query filtering against a window function have its limit applied
+        after window filtering takes place.
+        """
+        self.assertQuerySetEqual(
+            Employee.objects.annotate(
+                department_salary_rank=Window(
+                    Rank(), partition_by="department", order_by="-salary"
                 )
-                # Heterogeneous filter between window function and aggregates pushes
-                # the WHERE clause to the QUALIFY outer query.
-                self.assertSequenceEqual(
-                    qs.filter(
-                        department_salary_rank=1,
-                        department__in=["Accounting", "Management"],
-                    ),
-                    ["Adams", "Miller"],
-                )
-                self.assertSequenceEqual(
-                    qs.filter(
-                        Q(department_salary_rank=1)
-                        | Q(department__in=["Accounting", "Management"])
-                    ),
-                    [
-                        "Adams",
-                        "Jenson",
-                        "Johnson",
-                        "Johnson",
-                        "Jones",
-                        "Miller",
-                        "Smith",
-                        "Wilkinson",
-                        "Williams",
-                    ],
-                )
+            )
+            .filter(department_salary_rank=1)
+            .order_by("department")[0:3],
+            ["Adams", "Wilkinson", "Miller"],
+            lambda employee: employee.name,
+        )
 
-        def test_limited_filter(self):
-            """
-            A query filtering against a window function have its limit applied
-            after window filtering takes place.
-            """
-            self.assertQuerySetEqual(
+    def test_filter_count(self):
+        with CaptureQueriesContext(connection) as ctx:
+            self.assertEqual(
                 Employee.objects.annotate(
                     department_salary_rank=Window(
                         Rank(), partition_by="department", order_by="-salary"
                     )
                 )
                 .filter(department_salary_rank=1)
-                .order_by("department")[0:3],
-                ["Adams", "Wilkinson", "Miller"],
-                lambda employee: employee.name,
+                .count(),
+                5,
             )
-
-        def test_filter_count(self):
-            with CaptureQueriesContext(connection) as ctx:
-                self.assertEqual(
-                    Employee.objects.annotate(
-                        department_salary_rank=Window(
-                            Rank(), partition_by="department", order_by="-salary"
-                        )
-                    )
-                    .filter(department_salary_rank=1)
-                    .count(),
-                    5,
-                )
-            self.assertEqual(len(ctx.captured_queries), 1)
-            sql = ctx.captured_queries[0]["sql"].lower()
-            self.assertEqual(sql.count("select"), 3)
-            self.assertNotIn("group by", sql)
+        self.assertEqual(len(ctx.captured_queries), 1)
+        sql = ctx.captured_queries[0]["sql"].lower()
+        self.assertEqual(sql.count("select"), 3)
+        self.assertNotIn("group by", sql)
 
     @skipUnlessDBFeature("supports_frame_range_fixed_distance")
     def test_range_n_preceding_and_following(self):

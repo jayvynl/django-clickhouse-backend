@@ -3,7 +3,7 @@ import re
 from django.core.management.commands.inspectdb import Command as DCommand
 from django.db import connections
 
-from clickhouse_backend import compat, models
+from clickhouse_backend import models
 from clickhouse_backend.utils.encoding import ensure_str
 
 
@@ -74,11 +74,7 @@ class Command(DCommand):
                     column_to_field_name[column_name] = att_name
 
                     # Add comment.
-                    if (
-                        compat.dj_ge42
-                        and connection.features.supports_comments
-                        and row.comment
-                    ):
+                    if connection.features.supports_comments and row.comment:
                         extra_params["db_comment"] = row.comment
 
                     if extra_params:
@@ -107,7 +103,7 @@ class Command(DCommand):
                 yield "    class Meta:"
                 yield f"        managed = False{managed_comment}"
                 yield f"        db_table = {table_name!r}"
-                if compat.dj_ge42 and comment:
+                if comment:
                     yield f"        db_table_comment = {comment!r}"
 
     def inspect_field_type(self, column_type, param=""):

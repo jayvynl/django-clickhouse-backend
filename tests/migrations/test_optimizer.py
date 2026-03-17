@@ -4,8 +4,6 @@ from django.db.migrations.optimizer import MigrationOptimizer
 from django.db.migrations.serializer import serializer_factory
 from django.test import SimpleTestCase
 
-from clickhouse_backend import compat
-
 from .models import EmptyManager, UnicodeModel
 
 
@@ -116,48 +114,44 @@ class OptimizerTests(SimpleTestCase):
             ],
         )
 
-    if compat.dj_ge4:
+    def test_create_alter_model_options(self):
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel("Foo", fields=[]),
+                migrations.AlterModelOptions(
+                    name="Foo", options={"verbose_name_plural": "Foozes"}
+                ),
+            ],
+            [
+                migrations.CreateModel(
+                    "Foo", fields=[], options={"verbose_name_plural": "Foozes"}
+                ),
+            ],
+        )
 
-        def test_create_alter_model_options(self):
-            self.assertOptimizesTo(
-                [
-                    migrations.CreateModel("Foo", fields=[]),
-                    migrations.AlterModelOptions(
-                        name="Foo", options={"verbose_name_plural": "Foozes"}
-                    ),
-                ],
-                [
-                    migrations.CreateModel(
-                        "Foo", fields=[], options={"verbose_name_plural": "Foozes"}
-                    ),
-                ],
-            )
-
-    if compat.dj_ge41:
-
-        def test_create_alter_model_managers(self):
-            self.assertOptimizesTo(
-                [
-                    migrations.CreateModel("Foo", fields=[]),
-                    migrations.AlterModelManagers(
-                        name="Foo",
-                        managers=[
-                            ("objects", models.Manager()),
-                            ("things", models.Manager()),
-                        ],
-                    ),
-                ],
-                [
-                    migrations.CreateModel(
-                        "Foo",
-                        fields=[],
-                        managers=[
-                            ("objects", models.Manager()),
-                            ("things", models.Manager()),
-                        ],
-                    ),
-                ],
-            )
+    def test_create_alter_model_managers(self):
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel("Foo", fields=[]),
+                migrations.AlterModelManagers(
+                    name="Foo",
+                    managers=[
+                        ("objects", models.Manager()),
+                        ("things", models.Manager()),
+                    ],
+                ),
+            ],
+            [
+                migrations.CreateModel(
+                    "Foo",
+                    fields=[],
+                    managers=[
+                        ("objects", models.Manager()),
+                        ("things", models.Manager()),
+                    ],
+                ),
+            ],
+        )
 
     def test_create_model_and_remove_model_options(self):
         self.assertOptimizesTo(
@@ -737,24 +731,22 @@ class OptimizerTests(SimpleTestCase):
             ],
         )
 
-    if compat.dj_ge4:
-
-        def test_swapping_fields_names(self):
-            self.assertDoesNotOptimize(
-                [
-                    migrations.CreateModel(
-                        "MyModel",
-                        [
-                            ("field_a", models.IntegerField()),
-                            ("field_b", models.IntegerField()),
-                        ],
-                    ),
-                    migrations.RunPython(migrations.RunPython.noop),
-                    migrations.RenameField("MyModel", "field_a", "field_c"),
-                    migrations.RenameField("MyModel", "field_b", "field_a"),
-                    migrations.RenameField("MyModel", "field_c", "field_b"),
-                ],
-            )
+    def test_swapping_fields_names(self):
+        self.assertDoesNotOptimize(
+            [
+                migrations.CreateModel(
+                    "MyModel",
+                    [
+                        ("field_a", models.IntegerField()),
+                        ("field_b", models.IntegerField()),
+                    ],
+                ),
+                migrations.RunPython(migrations.RunPython.noop),
+                migrations.RenameField("MyModel", "field_a", "field_c"),
+                migrations.RenameField("MyModel", "field_b", "field_a"),
+                migrations.RenameField("MyModel", "field_c", "field_b"),
+            ],
+        )
 
     def test_create_model_remove_field(self):
         """
@@ -1123,46 +1115,40 @@ class OptimizerTests(SimpleTestCase):
             ],
         )
 
-    if compat.dj_ge41:
-
-        def test_rename_index(self):
-            self.assertOptimizesTo(
-                [
-                    migrations.RenameIndex(
-                        "Pony", new_name="mid_name", old_fields=("weight", "pink")
-                    ),
-                    migrations.RenameIndex(
-                        "Pony", new_name="new_name", old_name="mid_name"
-                    ),
-                ],
-                [
-                    migrations.RenameIndex(
-                        "Pony", new_name="new_name", old_fields=("weight", "pink")
-                    ),
-                ],
-            )
-            self.assertOptimizesTo(
-                [
-                    migrations.RenameIndex(
-                        "Pony", new_name="mid_name", old_name="old_name"
-                    ),
-                    migrations.RenameIndex(
-                        "Pony", new_name="new_name", old_name="mid_name"
-                    ),
-                ],
-                [
-                    migrations.RenameIndex(
-                        "Pony", new_name="new_name", old_name="old_name"
-                    )
-                ],
-            )
-            self.assertDoesNotOptimize(
-                [
-                    migrations.RenameIndex(
-                        "Pony", new_name="mid_name", old_name="old_name"
-                    ),
-                    migrations.RenameIndex(
-                        "Pony", new_name="new_name", old_fields=("weight", "pink")
-                    ),
-                ]
-            )
+    def test_rename_index(self):
+        self.assertOptimizesTo(
+            [
+                migrations.RenameIndex(
+                    "Pony", new_name="mid_name", old_fields=("weight", "pink")
+                ),
+                migrations.RenameIndex(
+                    "Pony", new_name="new_name", old_name="mid_name"
+                ),
+            ],
+            [
+                migrations.RenameIndex(
+                    "Pony", new_name="new_name", old_fields=("weight", "pink")
+                ),
+            ],
+        )
+        self.assertOptimizesTo(
+            [
+                migrations.RenameIndex(
+                    "Pony", new_name="mid_name", old_name="old_name"
+                ),
+                migrations.RenameIndex(
+                    "Pony", new_name="new_name", old_name="mid_name"
+                ),
+            ],
+            [migrations.RenameIndex("Pony", new_name="new_name", old_name="old_name")],
+        )
+        self.assertDoesNotOptimize(
+            [
+                migrations.RenameIndex(
+                    "Pony", new_name="mid_name", old_name="old_name"
+                ),
+                migrations.RenameIndex(
+                    "Pony", new_name="new_name", old_fields=("weight", "pink")
+                ),
+            ]
+        )

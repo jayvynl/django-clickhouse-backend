@@ -148,10 +148,6 @@ class ModelInstanceCreationTests(TestCase):
         with self.assertNumQueries(2):
             ChildPrimaryKeyWithDefault().save()
 
-    @skipUnless(
-        compat.dj_ge5,
-        "https://docs.djangoproject.com/en/5.0/releases/5.0/#database-computed-default-values",
-    )
     def test_save_primary_with_db_default(self):
         from .models import PrimaryKeyWithDbDefault
 
@@ -171,10 +167,6 @@ class ModelInstanceCreationTests(TestCase):
         with self.assertNumQueries(1):
             PrimaryKeyWithFalseyDbDefault().save()
 
-    @skipUnless(
-        compat.dj_ge5,
-        "https://docs.djangoproject.com/en/5.0/releases/5.0/#database-computed-default-values",
-    )
     def test_save_primary_with_db_default_regress(self):
         from .models import PrimaryKeyWithDbDefault
 

@@ -9,16 +9,11 @@ authors = [
 ]
 description = "Django clickHouse database backend"
 urls = {Homepage = "https://github.com/gto-wizard/django-clickhousedb"}
-requires-python = ">=3.7, <4"
+requires-python = ">=3.10, <4"
 keywords = ["Django", "ClickHouse", "database", "backend", "engine", "driver"]
 license = {text = "MIT"}
 classifiers = [
     "Framework :: Django",
-    "Framework :: Django :: 3.2",
-    "Framework :: Django :: 4",
-    "Framework :: Django :: 4.0",
-    "Framework :: Django :: 4.1",
-    "Framework :: Django :: 4.2",
     "Framework :: Django :: 5",
     "Framework :: Django :: 5.0",
     "Framework :: Django :: 5.1",
@@ -29,9 +24,6 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -39,9 +31,8 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "django>=3.2",
-    "clickhouse-driver==0.2.9; python_version < '3.9'",
-    "clickhouse-driver==0.2.10; python_version >= '3.9'",
+    "django>=5.0",
+    "clickhouse-driver==0.2.10",
 ]
 dynamic = ["version", "readme"]
 

@@ -6,12 +6,8 @@ import django
 from django.conf import settings
 from django.test.utils import get_runner
 
-from clickhouse_backend import compat
-
 RUNTESTS_DIR = os.path.abspath(os.path.dirname(__file__))
 SKIP_DIRS = ["unsupported"]
-if not compat.dj_ge5:
-    SKIP_DIRS.append("field_defaults")
 
 
 def get_test_modules():
@@ -33,13 +29,12 @@ def get_test_modules():
 
 # assertQuerysetEqual is removed from django 5.1
 def patch_assertQuerysetEqual():
-    if compat.dj_ge5:
-        from django.test import TransactionTestCase
+    from django.test import TransactionTestCase
 
-        def assertQuerysetEqual(self, *args, **kw):
-            return self.assertQuerySetEqual(*args, **kw)
+    def assertQuerysetEqual(self, *args, **kw):
+        return self.assertQuerySetEqual(*args, **kw)
 
-        TransactionTestCase.assertQuerysetEqual = assertQuerysetEqual
+    TransactionTestCase.assertQuerysetEqual = assertQuerysetEqual
 
 
 if __name__ == "__main__":
@@ -81,33 +76,20 @@ if __name__ == "__main__":
         action="store_true",
         help="Turn on the SQL query logger within tests.",
     )
-    if not compat.dj_ge4:
-        from django.test.runner import default_test_processes
+    from django.test.runner import parallel_type
 
-        parser.add_argument(
-            "--parallel",
-            nargs="?",
-            default=0,
-            type=int,
-            const=default_test_processes(),
-            metavar="N",
-            help="Run tests using up to N parallel processes.",
-        )
-    else:
-        from django.test.runner import parallel_type
-
-        parser.add_argument(
-            "--parallel",
-            nargs="?",
-            const="auto",
-            default=0,
-            type=parallel_type,
-            metavar="N",
-            help=(
-                'Run tests using up to N parallel processes. Use the value "auto" '
-                "to run one test process for each processor core."
-            ),
-        )
+    parser.add_argument(
+        "--parallel",
+        nargs="?",
+        const="auto",
+        default=0,
+        type=parallel_type,
+        metavar="N",
+        help=(
+            'Run tests using up to N parallel processes. Use the value "auto" '
+            "to run one test process for each processor core."
+        ),
+    )
     options = parser.parse_args()
     options.modules = [os.path.normpath(labels) for labels in options.modules]
 
@@ -117,7 +99,7 @@ if __name__ == "__main__":
     django.setup()
 
     parallel = options.parallel
-    if compat.dj_ge4 and parallel in {0, "auto"}:
+    if parallel in {0, "auto"}:
         # This doesn't work before django.setup() on some databases.
         from django.db import connections
         from django.test.runner import get_max_test_processes

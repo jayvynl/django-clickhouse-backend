@@ -13,7 +13,6 @@ from django.db.migrations.loader import MigrationLoader
 from django.db.migrations.recorder import MigrationRecorder
 from django.test import TestCase, modify_settings, override_settings
 
-from clickhouse_backend import compat
 from clickhouse_backend.backend.base import DatabaseWrapper
 from clickhouse_backend.patch.migrations import _check_replicas, _get_replicas
 
@@ -349,10 +348,7 @@ class LoaderTests(TestCase):
         msg = "There is more than one migration for 'migrations' with the prefix '0'"
         with self.assertRaisesMessage(AmbiguityError, msg):
             migration_loader.get_migration_by_prefix("migrations", "0")
-        if not compat.dj_ge4:
-            msg = "There no migrations for 'migrations' with the prefix 'blarg'"
-        else:
-            msg = "There is no migration for 'migrations' with the prefix 'blarg'"
+        msg = "There is no migration for 'migrations' with the prefix 'blarg'"
         with self.assertRaisesMessage(KeyError, msg):
             migration_loader.get_migration_by_prefix("migrations", "blarg")
 

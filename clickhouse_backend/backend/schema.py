@@ -466,8 +466,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             new_kwargs.pop("to", None)
         # db_default can take many form but result in the same SQL.
         if (
-            compat.dj_ge5
-            and old_kwargs.get("db_default")
+            old_kwargs.get("db_default")
             and new_kwargs.get("db_default")
             and self.db_default_sql(old_field) == self.db_default_sql(new_field)
         ):
@@ -717,12 +716,9 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             self.execute(sql, params)
 
     def _alter_column_type_sql(self, model, old_field, new_field, new_type):
-        if compat.dj_ge42:
-            return super()._alter_column_type_sql(
-                model, old_field, new_field, new_type, "", ""
-            )
-        else:
-            return super()._alter_column_type_sql(model, old_field, new_field, new_type)
+        return super()._alter_column_type_sql(
+            model, old_field, new_field, new_type, "", ""
+        )
 
     def _alter_column_comment_sql(self, model, new_field, new_type, new_db_comment):
         return (
