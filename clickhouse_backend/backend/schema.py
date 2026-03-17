@@ -15,8 +15,22 @@ from django.db.models.constraints import CheckConstraint, UniqueConstraint
 from django.db.models.expressions import Col, ExpressionList, F
 from django.db.models.indexes import IndexExpression
 
-from clickhouse_backend import compat
+import django
+
 from clickhouse_backend.driver.escape import escape_param
+
+
+def _field_has_db_default(field):
+    if django.VERSION >= (5, 2):
+        return field.has_db_default()
+    if django.VERSION >= (5,):
+        from django.db import models
+        return field.db_default is not models.NOT_PROVIDED
+    return False
+
+
+def _field_db_comment(field):
+    return field.db_comment or ""
 
 
 class ChColumns(Columns):
@@ -196,7 +210,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if field.null and "Nullable" not in sql:  # Compatible with django fields.
             sql = f"Nullable({sql})"
         # Add database default.
-        if compat.field_has_db_default(field):
+        if _field_has_db_default(field):
             default_sql, default_params = self.db_default_sql(field)
             sql = f"{sql} DEFAULT {default_sql}"
             params.extend(default_params)
@@ -205,7 +219,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             if default_value is not None:
                 sql = f"{sql} DEFAULT {self._column_default_sql(field)}"
                 params.append(default_value)
-        if compat.field_db_comment(field):
+        if _field_db_comment(field):
             sql = f"{sql} COMMENT %s"
             params.append(field.db_comment)
         return sql, params
@@ -327,7 +341,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         # Drop the default if we need to
         # (Django usually does not use in-database defaults)
         if (
-            not compat.field_has_db_default(field)
+            not _field_has_db_default(field)
             and self.effective_default(field) is not None
         ):
             # Update existing rows with default value
@@ -466,7 +480,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             new_kwargs.pop("to", None)
         # db_default can take many form but result in the same SQL.
         if (
-            compat.dj_ge5
+            django.VERSION >= (5,)
             and old_kwargs.get("db_default")
             and new_kwargs.get("db_default")
             and self.db_default_sql(old_field) == self.db_default_sql(new_field)
@@ -554,12 +568,12 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         post_actions = []
         # Only if we have a default and there is a change from NULL to NOT NULL
         four_way_default_alteration = (
-            new_field.has_default() or compat.field_has_db_default(new_field)
+            new_field.has_default() or _field_has_db_default(new_field)
         ) and (old_field.null and not new_field.null)
         # Type or comment change?
-        if old_type != new_type or compat.field_db_comment(
+        if old_type != new_type or _field_db_comment(
             old_field
-        ) != compat.field_db_comment(new_field):
+        ) != _field_db_comment(new_field):
             # Should not alter nullable before null values updated.
             if four_way_default_alteration:
                 new_field.null = True
@@ -574,15 +588,15 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             actions.append(fragment)
             post_actions.extend(other_actions)
 
-        if compat.field_has_db_default(new_field):
+        if _field_has_db_default(new_field):
             if (
-                not compat.field_has_db_default(old_field)
+                not _field_has_db_default(old_field)
                 or new_field.db_default != old_field.db_default
             ):
                 actions.append(
                     self._alter_column_database_default_sql(model, old_field, new_field)
                 )
-        elif compat.field_has_db_default(old_field):
+        elif _field_has_db_default(old_field):
             actions.append(
                 self._alter_column_database_default_sql(
                     model, old_field, new_field, drop=True
@@ -599,7 +613,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if (
             old_field.null
             and not new_field.null
-            and not compat.field_has_db_default(new_field)
+            and not _field_has_db_default(new_field)
         ):
             old_default = self.effective_default(old_field)
             new_default = self.effective_default(new_field)
@@ -624,7 +638,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             from clickhouse_backend.models import Distributed
 
             if not isinstance(self._get_engine(model), Distributed):
-                if not compat.field_has_db_default(new_field):
+                if not _field_has_db_default(new_field):
                     default_sql = "%s"
                     params = [new_default]
                 else:
@@ -717,12 +731,9 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             self.execute(sql, params)
 
     def _alter_column_type_sql(self, model, old_field, new_field, new_type):
-        if compat.dj_ge42:
-            return super()._alter_column_type_sql(
-                model, old_field, new_field, new_type, "", ""
-            )
-        else:
-            return super()._alter_column_type_sql(model, old_field, new_field, new_type)
+        return super()._alter_column_type_sql(
+            model, old_field, new_field, new_type, "", ""
+        )
 
     def _alter_column_comment_sql(self, model, new_field, new_type, new_db_comment):
         return (

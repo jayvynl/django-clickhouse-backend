@@ -1,23 +1,23 @@
 import itertools
+import uuid
 
-from django.core.exceptions import EmptyResultSet
+import django
+from django.core.exceptions import EmptyResultSet, FullResultSet
 from django.db import NotSupportedError
 from django.db.models.fields import AutoFieldMixin
 from django.db.models.sql import compiler
 
-from clickhouse_backend import compat
-from clickhouse_backend.idworker import id_worker
 from clickhouse_backend.models import engines
 from clickhouse_backend.models.sql import Query
 
-if compat.dj_ge42:
-    from django.core.exceptions import FullResultSet
-else:
 
-    class FullResultSet(Exception):
-        """A database query predicate is matches everything."""
-
-        pass
+def _field_has_db_default(field):
+    if django.VERSION >= (5, 2):
+        return field.has_db_default()
+    if django.VERSION >= (5,):
+        from django.db import models
+        return field.db_default is not models.NOT_PROVIDED
+    return False
 
 
 # Max rows you can insert using expression as value.
@@ -26,7 +26,6 @@ MAX_ROWS_INSERT_USE_EXPRESSION = 1000
 
 class ClickhouseMixin:
     def _add_explain_sql(self, sql, params):
-        # Backward compatible for django 3.2
         explain_info = getattr(self.query, "explain_info", None)
         if explain_info:
             prefix, suffix = self.connection.ops.explain_query(
@@ -67,38 +66,30 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
         is for things that can't necessarily be done in __init__ because we
         might not have all the pieces in place at that time.
         """
-        if compat.dj_ge42:
-            self.setup_query(with_col_aliases=with_col_aliases)
+        self.setup_query(with_col_aliases=with_col_aliases)
+        (
+            self.where,
+            self.having,
+            self.qualify,
+        ) = self.query.where.split_having_qualify(
+            must_group_by=self.query.group_by is not None
+        )
+        if isinstance(self.query, Query):
             (
-                self.where,
-                self.having,
-                self.qualify,
-            ) = self.query.where.split_having_qualify(
+                self.prewhere,
+                prehaving,
+                prequalify,
+            ) = self.query.prewhere.split_having_qualify(
                 must_group_by=self.query.group_by is not None
             )
-            if isinstance(self.query, Query):
-                (
-                    self.prewhere,
-                    prehaving,
-                    prequalify,
-                ) = self.query.prewhere.split_having_qualify(
-                    must_group_by=self.query.group_by is not None
-                )
-            else:
-                self.prewhere, prehaving, prequalify = None, None, None
-            # Check before ClickHouse complain.
-            # DB::Exception: Window function is found in PREWHERE in query. (ILLEGAL_AGGREGATION)
-            if prequalify:
-                raise NotSupportedError(
-                    "Window function is disallowed in the prewhere clause."
-                )
         else:
-            self.setup_query()
-            self.where, self.having = self.query.where.split_having()
-            if isinstance(self.query, Query):
-                self.prewhere, prehaving = self.query.prewhere.split_having()
-            else:
-                self.prewhere, prehaving = None, None
+            self.prewhere, prehaving, prequalify = None, None, None
+        # Check before ClickHouse complain.
+        # DB::Exception: Window function is found in PREWHERE in query. (ILLEGAL_AGGREGATION)
+        if prequalify:
+            raise NotSupportedError(
+                "Window function is disallowed in the prewhere clause."
+            )
         # Check before ClickHouse complain.
         # DB::Exception: Aggregate function is found in PREWHERE in query. (ILLEGAL_AGGREGATION)
         if prehaving:
@@ -122,20 +113,16 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
         refcounts_before = self.query.alias_refcount.copy()
         try:
             combinator = self.query.combinator
-            if compat.dj_ge42:
-                extra_select, order_by, group_by = self.pre_sql_setup(
-                    with_col_aliases=with_col_aliases or bool(combinator),
-                )
-            else:
-                extra_select, order_by, group_by = self.pre_sql_setup()
+            extra_select, order_by, group_by = self.pre_sql_setup(
+                with_col_aliases=with_col_aliases or bool(combinator),
+            )
             # Is a LIMIT/OFFSET clause needed?
             with_limit_offset = with_limits and self.query.is_sliced
             if combinator:
                 result, params = self.get_combinator_sql(
                     combinator, self.query.combinator_all
                 )
-            # Django >= 4.2 have this branch
-            elif compat.dj_ge42 and self.qualify:
+            elif self.qualify:
                 result, params = self.get_qualify_sql()
                 order_by = None
             else:
@@ -148,7 +135,7 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
                         self.compile(self.where) if self.where is not None else ("", [])
                     )
                 except EmptyResultSet:
-                    if compat.dj3 or self.elide_empty:
+                    if self.elide_empty:
                         raise
                     # Use a predicate that's always False.
                     where, w_params = "FALSE", []
@@ -171,7 +158,7 @@ class SQLCompiler(ClickhouseMixin, compiler.SQLCompiler):
                         else ("", [])
                     )
                 except EmptyResultSet:
-                    if compat.dj_ge42 and self.elide_empty:
+                    if self.elide_empty:
                         raise
                     # Use a predicate that's always False.
                     prewhere, p_params = "FALSE", []
@@ -299,16 +286,16 @@ class SQLInsertCompiler(compiler.SQLInsertCompiler):
         if absent_of_pk:
             fields = fields + [opts.pk]
             for obj in self.query.objs:
-                setattr(obj, opts.pk.attname, id_worker.get_id())
+                setattr(obj, opts.pk.attname, uuid.uuid4().int >> 65)
 
         # Check db_default
-        if any(compat.field_has_db_default(field) for field in fields):
+        if any(_field_has_db_default(field) for field in fields):
             from django.db.models.expressions import DatabaseDefault
 
             other_fields = []
             db_default_fields = []
             for field in fields:
-                if compat.field_has_db_default(field):
+                if _field_has_db_default(field):
                     db_default_fields.append(field)
                 else:
                     other_fields.append(field)

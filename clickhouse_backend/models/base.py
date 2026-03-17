@@ -2,9 +2,10 @@ from django.db import models
 from django.db.migrations import state
 from django.db.models import options
 
+import django
+
 from .query import QuerySet
 from .sql import Query
-from clickhouse_backend import compat
 
 options.DEFAULT_NAMES = (
     *options.DEFAULT_NAMES,
@@ -45,7 +46,7 @@ class ClickhouseModel(models.Model):
         abstract = True
         base_manager_name = "_overwrite_base_manager"
 
-    if compat.dj_ge6:
+    if django.VERSION >= (6,):
 
         def _do_update(
             self,

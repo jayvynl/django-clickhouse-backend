@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "django-clickhouse-backend"
+name = "django-clickhousedb"
 authors = [
     {name = "Lin Zhiwen", email = "zhiwenlin1116@gmail.com"},
 ]
