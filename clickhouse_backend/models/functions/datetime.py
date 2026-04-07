@@ -117,7 +117,9 @@ class ULIDStringToDateTime(Func):
                 )
             )
 
-        expressions = (expressions[0], *(models.Value(expr) for expr in expressions[1:]))
+        expressions = (
+            expressions[0],
+            *(models.Value(expr) for expr in expressions[1:]),
+        )
 
         super().__init__(*expressions)
-
