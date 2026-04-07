@@ -15,6 +15,7 @@ __all__ = [
     "toYYYYMMDD",
     "toYYYYMMDDhhmmss",
     "toYearWeek",
+    "ULIDStringToDateTime",
 ]
 
 
@@ -100,3 +101,23 @@ class toYearWeek(Func):
         )
 
         super().__init__(*expressions)
+
+
+class ULIDStringToDateTime(Func):
+    output_field = fields.DateTime64Field(precision=3)
+
+    def __init__(self, *expressions):
+        arity = len(expressions)
+        if not 1 <= arity <= 2:
+            raise TypeError(
+                "'%s' takes between 1 and 2 arguments (%s given)"
+                % (
+                    self.__class__.__name__,
+                    len(expressions),
+                )
+            )
+
+        expressions = (expressions[0], *(models.Value(expr) for expr in expressions[1:]))
+
+        super().__init__(*expressions)
+
