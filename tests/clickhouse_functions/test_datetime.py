@@ -19,6 +19,7 @@ class DateTimeTests(TestCase):
             birthday=pytz.timezone(get_timezone()).localize(
                 datetime(2023, 11, 30, hour=16, minute=12, second=15), is_dst=False
             ),
+            ulid="01KNMCHTWZJ9M36D87THWBENGF",
         )
         cls.elena = Author.objects.create(
             name="Élena Jordan",
@@ -200,3 +201,21 @@ class DateTimeTests(TestCase):
             v=models.toYearWeek("birthday", 1, "Pacific/Kiritimati")
         ).get(id=self.sarah.id)
         self.assertEqual(sarah.v, 202401)
+
+    def test_ulid_string_to_datetime(self):        
+        john = Author.objects.annotate(v=models.ULIDStringToDateTime("ulid", "UTC")).get(
+            id=self.john.id
+        )
+
+        expected_datetime = datetime(2026, 4, 7, hour=16, minute=31, second=31, microsecond=231000, tzinfo=pytz.utc)
+
+        self.assertEqual(john.v, expected_datetime)
+    
+    def test_ulid_string_to_datetime_with_timezone_conversion(self):
+        john = Author.objects.annotate(v=models.ULIDStringToDateTime("ulid", "Asia/Shanghai")).get(
+            id=self.john.id
+        )
+
+        expected_datetime = pytz.timezone("Asia/Shanghai").localize(datetime(2026, 4, 8, hour=0, minute=31, second=31, microsecond=231000))
+
+        self.assertEqual(john.v, expected_datetime)

@@ -11,3 +11,4 @@ class Author(models.ClickhouseModel):
     goes_by = models.StringField(max_length=50, null=True, blank=True)
     birthday = models.DateTime64Field(null=True)
     age = models.UInt16Field(default=30)
+    ulid = models.FixedStringField(max_bytes=26, null=True, blank=True)
