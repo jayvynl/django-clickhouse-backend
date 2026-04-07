@@ -202,20 +202,31 @@ class DateTimeTests(TestCase):
         ).get(id=self.sarah.id)
         self.assertEqual(sarah.v, 202401)
 
-    def test_ulid_string_to_datetime(self):        
-        john = Author.objects.annotate(v=models.ULIDStringToDateTime("ulid", "UTC")).get(
-            id=self.john.id
-        )
+    def test_ulid_string_to_datetime(self):
+        john = Author.objects.annotate(
+            v=models.ULIDStringToDateTime("ulid", "UTC")
+        ).get(id=self.john.id)
 
-        expected_datetime = datetime(2026, 4, 7, hour=16, minute=31, second=31, microsecond=231000, tzinfo=pytz.utc)
+        expected_datetime = datetime(
+            2026,
+            4,
+            7,
+            hour=16,
+            minute=31,
+            second=31,
+            microsecond=231000,
+            tzinfo=pytz.utc,
+        )
 
         self.assertEqual(john.v, expected_datetime)
-    
-    def test_ulid_string_to_datetime_with_timezone_conversion(self):
-        john = Author.objects.annotate(v=models.ULIDStringToDateTime("ulid", "Asia/Shanghai")).get(
-            id=self.john.id
-        )
 
-        expected_datetime = pytz.timezone("Asia/Shanghai").localize(datetime(2026, 4, 8, hour=0, minute=31, second=31, microsecond=231000))
+    def test_ulid_string_to_datetime_with_timezone_conversion(self):
+        john = Author.objects.annotate(
+            v=models.ULIDStringToDateTime("ulid", "Asia/Shanghai")
+        ).get(id=self.john.id)
+
+        expected_datetime = pytz.timezone("Asia/Shanghai").localize(
+            datetime(2026, 4, 8, hour=0, minute=31, second=31, microsecond=231000)
+        )
 
         self.assertEqual(john.v, expected_datetime)
