@@ -1,4 +1,5 @@
 import threading
+import logging
 from contextlib import contextmanager
 from typing import Generator, Union
 
@@ -6,6 +7,7 @@ from clickhouse_driver.dbapi.errors import InterfaceError
 
 from .client import Client
 
+logger = logging.getLogger(__name__)
 
 class ClickhousePool:
     """A modified version of clickhouse_pool.ChPool
@@ -110,8 +112,10 @@ class ClickhousePool:
                 # Explicitly disconnect it instead.
                 if client.connection.is_query_executing:
                     client.disconnect()
-                if client.connection.connected:
+                if client.connection.connected and client.connection.ping():
                     self._pool.append(client)
+                else:
+                    client.disconnect()
             else:
                 client.disconnect()
 
@@ -136,8 +140,8 @@ class ClickhousePool:
                 try:
                     client.disconnect()
                 # TODO: handle problems with disconnect
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error("Error occurred while disconnecting client: %s", e)
             self.closed = True
         finally:
             self._lock.release()
