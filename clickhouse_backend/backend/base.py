@@ -15,6 +15,9 @@ from .features import DatabaseFeatures
 from .introspection import DatabaseIntrospection
 from .operations import DatabaseOperations
 from .schema import DatabaseSchemaEditor
+from . import lookups as clickhouse_lookups
+
+_clickhouse_lookups = clickhouse_lookups
 
 
 class DatabaseWrapper(BaseDatabaseWrapper):
