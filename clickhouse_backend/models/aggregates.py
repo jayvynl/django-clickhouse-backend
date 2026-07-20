@@ -1,7 +1,7 @@
 from django.db.models import aggregates
 from django.db.models.expressions import Star
 
-from clickhouse_backend.models.fields import UInt64Field
+from clickhouse_backend.models.fields import ArrayField, UInt64Field
 
 __all__ = [
     "uniq",
@@ -12,6 +12,7 @@ __all__ = [
     "uniqTheta",
     "anyLast",
     "argMax",
+    "groupUniqArray",
 ]
 
 
@@ -75,3 +76,14 @@ class argMax(Aggregate):
 
     def _resolve_output_field(self):
         return self.get_source_fields()[0]
+
+
+class groupUniqArray(Aggregate):
+    """
+    Collect the distinct non-NULL values of the argument into an array. The order of the resulting array is not guaranteed. 
+    """
+
+    arity = 1
+
+    def _resolve_output_field(self):
+        return ArrayField(base_field=self.get_source_fields()[0])
