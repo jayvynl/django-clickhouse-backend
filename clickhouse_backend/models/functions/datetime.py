@@ -11,6 +11,11 @@ __all__ = [
     "toStartOfTenMinutes",
     "toStartOfFifteenMinutes",
     "toStartOfHour",
+    "toStartOfDay",
+    "toStartOfWeek",
+    "toStartOfMonth",
+    "toStartOfQuarter",
+    "toStartOfYear",
     "toYYYYMM",
     "toYYYYMMDD",
     "toYYYYMMDDhhmmss",
@@ -78,6 +83,48 @@ class toStartOfFifteenMinutes(toStartOfMinute):
 
 
 class toStartOfHour(toStartOfMinute):
+    pass
+
+
+class toStartOfDay(toStartOfMinute):
+    pass
+
+
+class toStartOfWeek(Func):
+    """https://clickhouse.com/docs/sql-reference/functions/date-time-functions#tostartofweek"""
+
+    output_field = fields.DateField()
+
+    def __init__(self, *expressions):
+        arity = len(expressions)
+        if not 1 <= arity <= 2:
+            raise TypeError(
+                "'%s' takes 1 or 2 arguments (%s given)"
+                % (
+                    self.__class__.__name__,
+                    arity,
+                )
+            )
+        # The second argument is a mode, not a column reference.
+        expressions = (
+            expressions[0],
+            *(models.Value(expr) for expr in expressions[1:]),
+        )
+
+        super().__init__(*expressions)
+
+
+# The remaining truncations take a single argument, like toStartOfMinute does,
+# but they return a Date instead of a DateTime.
+class toStartOfMonth(toStartOfMinute):
+    output_field = fields.DateField()
+
+
+class toStartOfQuarter(toStartOfMonth):
+    pass
+
+
+class toStartOfYear(toStartOfMonth):
     pass
 
 

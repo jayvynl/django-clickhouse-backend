@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 import pytz
 from django.test import TestCase
@@ -185,6 +185,81 @@ class DateTimeTests(TestCase):
             elena.v,
             datetime(2023, 11, 30, hour=10, minute=00, second=00),
         )
+
+    @staticmethod
+    def utc_to_current_timezone(dt):
+        """Render a naive UTC datetime in the current time zone, still naive.
+
+        birthday is stored as a DateTime64 in UTC, so a truncation returns a
+        DateTime in UTC, which is then rendered in the current time zone because
+        USE_TZ is off.
+        """
+        return (
+            pytz.utc.localize(dt)
+            .astimezone(pytz.timezone(get_timezone()))
+            .replace(tzinfo=None)
+        )
+
+    def test_tostartofday(self):
+        # 2023-11-30 22:12:15 UTC
+        john = Author.objects.annotate(v=models.toStartOfDay("birthday")).get(
+            id=self.john.id
+        )
+        self.assertEqual(john.v, self.utc_to_current_timezone(datetime(2023, 11, 30)))
+
+        # 2023-12-31 23:30:00 UTC
+        sarah = Author.objects.annotate(v=models.toStartOfDay("birthday")).get(
+            id=self.sarah.id
+        )
+        self.assertEqual(sarah.v, self.utc_to_current_timezone(datetime(2023, 12, 31)))
+
+    def test_tostartofweek(self):
+        # 2023-12-31 is a Sunday, mode 0 starts the week on Sunday.
+        sarah = Author.objects.annotate(v=models.toStartOfWeek("birthday")).get(
+            id=self.sarah.id
+        )
+        self.assertEqual(sarah.v, date(2023, 12, 31))
+
+        # Mode 1 starts the week on Monday.
+        sarah = Author.objects.annotate(v=models.toStartOfWeek("birthday", 1)).get(
+            id=self.sarah.id
+        )
+        self.assertEqual(sarah.v, date(2023, 12, 25))
+
+    def test_tostartofmonth(self):
+        sarah = Author.objects.annotate(v=models.toStartOfMonth("birthday")).get(
+            id=self.sarah.id
+        )
+        self.assertEqual(sarah.v, date(2023, 12, 1))
+
+    def test_tostartofquarter(self):
+        sarah = Author.objects.annotate(v=models.toStartOfQuarter("birthday")).get(
+            id=self.sarah.id
+        )
+        self.assertEqual(sarah.v, date(2023, 10, 1))
+
+    def test_tostartofyear(self):
+        sarah = Author.objects.annotate(v=models.toStartOfYear("birthday")).get(
+            id=self.sarah.id
+        )
+        self.assertEqual(sarah.v, date(2023, 1, 1))
+
+    def test_tostartof_arity(self):
+        for func in [
+            models.toStartOfDay,
+            models.toStartOfMonth,
+            models.toStartOfQuarter,
+            models.toStartOfYear,
+        ]:
+            with self.subTest(func=func.__name__):
+                with self.assertRaisesMessage(
+                    TypeError, f"'{func.__name__}' takes 1 argument (2 given)"
+                ):
+                    func("birthday", 1)
+        with self.assertRaisesMessage(
+            TypeError, "'toStartOfWeek' takes 1 or 2 arguments (3 given)"
+        ):
+            models.toStartOfWeek("birthday", 1, "UTC")
 
     def test_toyearweek(self):
         sarah = Author.objects.annotate(v=models.toYearWeek("birthday")).get(

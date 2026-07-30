@@ -1,3 +1,7 @@
+### Unreleased
+
+- feat: #135 add database functions `toStartOfDay`, `toStartOfWeek`, `toStartOfMonth`, `toStartOfQuarter` and `toStartOfYear`.
+
 ### 1.6.0
 * Feat db comment db default by @jayvynl in https://github.com/jayvynl/django-clickhouse-backend/pull/146
 * tests: fix tests of Object(json) by @jayvynl in https://github.com/jayvynl/django-clickhouse-backend/pull/147
