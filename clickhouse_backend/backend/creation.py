@@ -149,42 +149,47 @@ class DatabaseCreation(BaseDatabaseCreation):
         cluster because their replica path is not unique, so ``--parallel`` is
         unsupported for such models.
         """
-        if not self.connection.settings_dict["TEST"].get("managed", True):
-            return
         source_database_name = self.connection.settings_dict["NAME"]
         target_database_name = self.get_test_db_clone_settings(suffix)["NAME"]
         test_db_params = {
             "dbname": self.connection.ops.quote_name(target_database_name),
             "suffix": self.sql_table_creation_suffix(),
         }
+        # An unmanaged alias must not CREATE DATABASE, another alias already did
+        # so ON CLUSTER, but it must still migrate: tables that are not
+        # ON CLUSTER only exist on the node the migration ran against. Same
+        # split as create_test_db(), which also migrates unmanaged aliases.
+        managed = self.connection.settings_dict["TEST"].get("managed", True)
+        already_exists = False
 
-        with self._nodb_cursor() as cursor:
-            already_exists = keepdb and self._database_exists(
-                cursor, target_database_name
-            )
-            if not already_exists:
-                try:
-                    self._execute_create_test_db(cursor, test_db_params, keepdb)
-                except Exception:
+        if managed:
+            with self._nodb_cursor() as cursor:
+                already_exists = keepdb and self._database_exists(
+                    cursor, target_database_name
+                )
+                if not already_exists:
                     try:
-                        if verbosity >= 1:
-                            self.log(
-                                "Destroying old test database for alias %s..."
-                                % (
-                                    self._get_database_display_str(
-                                        verbosity, target_database_name
-                                    ),
-                                )
-                            )
-                        sql = "DROP DATABASE %(dbname)s" % test_db_params
-                        on_cluster = self._get_on_cluster()
-                        if on_cluster:
-                            sql = f"{sql} {on_cluster} SYNC"
-                        cursor.execute(sql)
                         self._execute_create_test_db(cursor, test_db_params, keepdb)
-                    except Exception as e:
-                        self.log("Got an error cloning the test database: %s" % e)
-                        sys.exit(2)
+                    except Exception:
+                        try:
+                            if verbosity >= 1:
+                                self.log(
+                                    "Destroying old test database for alias %s..."
+                                    % (
+                                        self._get_database_display_str(
+                                            verbosity, target_database_name
+                                        ),
+                                    )
+                                )
+                            sql = "DROP DATABASE %(dbname)s" % test_db_params
+                            on_cluster = self._get_on_cluster()
+                            if on_cluster:
+                                sql = f"{sql} {on_cluster} SYNC"
+                            cursor.execute(sql)
+                            self._execute_create_test_db(cursor, test_db_params, keepdb)
+                        except Exception as e:
+                            self.log("Got an error cloning the test database: %s" % e)
+                            sys.exit(2)
 
         # An existing clone that is being kept is assumed to already hold the
         # schema, mirroring how create_test_db() treats keepdb.

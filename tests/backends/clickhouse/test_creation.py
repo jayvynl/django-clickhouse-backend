@@ -133,14 +133,31 @@ class DatabaseCreationTests(SimpleTestCase):
         execute_create.assert_not_called()
         call_command.assert_not_called()
 
-    def test_clone_test_db_unmanaged_noop(self):
+    def test_clone_test_db_unmanaged_migrates_without_creating(self):
+        """An unmanaged alias skips CREATE DATABASE but still migrates."""
         creation = DatabaseCreation(connection)
+        source_name = connection.settings_dict["NAME"]
+        target_name = creation.get_test_db_clone_settings("3")["NAME"]
+
+        migrated_against = []
+
+        def fake_migrate(*args, **kwargs):
+            migrated_against.append(connection.settings_dict["NAME"])
+
         with self.changed_test_settings(managed=False):
             with mock.patch.object(
                 BaseDatabaseCreation, "_execute_create_test_db"
             ) as execute_create, mock.patch(
-                "clickhouse_backend.backend.creation.call_command"
+                "clickhouse_backend.backend.creation.call_command",
+                side_effect=fake_migrate,
             ) as call_command:
                 creation._clone_test_db(suffix="3", verbosity=0, keepdb=False)
         execute_create.assert_not_called()
-        call_command.assert_not_called()
+        call_command.assert_called_once()
+        migrate_args, migrate_kwargs = call_command.call_args
+        self.assertEqual(migrate_args[0], "migrate")
+        self.assertTrue(migrate_kwargs["run_syncdb"])
+        self.assertEqual(migrate_kwargs["database"], connection.alias)
+        # The clone is migrated, not the source database.
+        self.assertEqual(migrated_against, [target_name])
+        self.assertEqual(connection.settings_dict["NAME"], source_name)
