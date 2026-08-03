@@ -4,4 +4,3 @@ source = clickhouse_backend
 # writes its own data file, hence "coverage combine" in tox.ini.
 concurrency = multiprocessing
 parallel = True
-sigterm = True

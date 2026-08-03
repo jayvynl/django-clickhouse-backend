@@ -1,4 +1,5 @@
 import argparse
+import multiprocessing
 import os
 import sys
 
@@ -42,7 +43,20 @@ def patch_assertQuerysetEqual():
         TransactionTestCase.assertQuerysetEqual = assertQuerysetEqual
 
 
+def force_fork_start_method():
+    """
+    Python 3.14 defaults to "forkserver" on Linux, and Django resolves
+    "--parallel=auto" to a single process for any method other than fork or
+    spawn. Neither alternative works here: this module patches INSTALLED_APPS
+    and TransactionTestCase at runtime, and a worker that re-imports instead of
+    inheriting memory loses those patches.
+    """
+    if "fork" in multiprocessing.get_all_start_methods():
+        multiprocessing.set_start_method("fork", force=True)
+
+
 if __name__ == "__main__":
+    force_fork_start_method()
     patch_assertQuerysetEqual()
     parser = argparse.ArgumentParser(description="Run the Django test suite.")
     parser.add_argument(
@@ -133,7 +147,10 @@ if __name__ == "__main__":
                 default_test_processes as get_max_test_processes,
             )
 
-        if all(conn.features.can_clone_databases for conn in connections.all()):
+        if multiprocessing.get_start_method() != "fork":
+            # See force_fork_start_method(); workers must inherit memory.
+            parallel = 1
+        elif all(conn.features.can_clone_databases for conn in connections.all()):
             parallel = get_max_test_processes()
         else:
             parallel = 1
