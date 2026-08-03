@@ -1,2 +1,7 @@
 [run]
 source = clickhouse_backend
+# Measure the workers --parallel forks, not just the parent. Each process
+# writes its own data file, hence "coverage combine" in tox.ini.
+concurrency = multiprocessing
+parallel = True
+sigterm = True

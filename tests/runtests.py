@@ -82,32 +82,33 @@ if __name__ == "__main__":
         help="Turn on the SQL query logger within tests.",
     )
     if not compat.dj_ge4:
-        from django.test.runner import default_test_processes
+        # parallel_type is new in Django 4.0, but "--parallel=auto" has to work
+        # on every version in the matrix.
+        def parallel_type(value):
+            if value == "auto":
+                return value
+            try:
+                return int(value)
+            except ValueError:
+                raise argparse.ArgumentTypeError(
+                    f"{value!r} is not an integer or the string 'auto'"
+                )
 
-        parser.add_argument(
-            "--parallel",
-            nargs="?",
-            default=0,
-            type=int,
-            const=default_test_processes(),
-            metavar="N",
-            help="Run tests using up to N parallel processes.",
-        )
     else:
         from django.test.runner import parallel_type
 
-        parser.add_argument(
-            "--parallel",
-            nargs="?",
-            const="auto",
-            default=0,
-            type=parallel_type,
-            metavar="N",
-            help=(
-                'Run tests using up to N parallel processes. Use the value "auto" '
-                "to run one test process for each processor core."
-            ),
-        )
+    parser.add_argument(
+        "--parallel",
+        nargs="?",
+        const="auto",
+        default=0,
+        type=parallel_type,
+        metavar="N",
+        help=(
+            'Run tests using up to N parallel processes. Use the value "auto" '
+            "to run one test process for each processor core."
+        ),
+    )
     options = parser.parse_args()
     options.modules = [os.path.normpath(labels) for labels in options.modules]
 
@@ -117,14 +118,20 @@ if __name__ == "__main__":
     django.setup()
 
     parallel = options.parallel
-    # Default to sequential. Auto-parallel is opt-in via bare ``--parallel``
+    # Default to sequential. Auto-parallel is opt-in via ``--parallel``
     # (const "auto") so the suite does not suddenly fan out when
     # ``can_clone_databases`` becomes True — several test models use
     # cluster-wide state that is sensitive to worker clones.
-    if compat.dj_ge4 and parallel == "auto":
+    if parallel == "auto":
         # This doesn't work before django.setup() on some databases.
         from django.db import connections
-        from django.test.runner import get_max_test_processes
+
+        if compat.dj_ge4:
+            from django.test.runner import get_max_test_processes
+        else:
+            from django.test.runner import (
+                default_test_processes as get_max_test_processes,
+            )
 
         if all(conn.features.can_clone_databases for conn in connections.all()):
             parallel = get_max_test_processes()

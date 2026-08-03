@@ -43,6 +43,10 @@ jobs:
       - name: Run test
         # Run tox using the version of Python in `PATH`
         run: tox -e py-django${{ matrix.django-version }}
+        env:
+          # Test processes, capped because the cluster, not the CPU, is the
+          # bottleneck. Override with the repository variable of the same name.
+          DJANGO_TEST_PROCESSES: ${{ vars.DJANGO_TEST_PROCESSES || 4 }}
       - name: Coveralls Parallel
         run: coveralls
         env:
