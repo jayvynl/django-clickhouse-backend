@@ -1,3 +1,4 @@
+from django.db import connection
 from django.test import TestCase
 
 from clickhouse_backend import models
@@ -12,7 +13,7 @@ class OtherTests(TestCase):
 
     def test_currentDatabase(self):
         john = Author.objects.annotate(v=models.currentDatabase()).get(id=self.john.id)
-        self.assertEqual(john.v, "test_default")
+        self.assertEqual(john.v, connection.settings_dict["NAME"])
 
     def test_hostName(self):
         john = Author.objects.annotate(v=models.hostName()).get(id=self.john.id)

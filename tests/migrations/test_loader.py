@@ -63,7 +63,6 @@ class DistributedMigrationTests(MigrationTestBase):
         "USER": "default",
         "PASSWORD": "clickhouse_password",
         "PORT": 9004,
-        "NAME": "test_default",
         "OPTIONS": {
             "distributed_migrations": True,
             "migration_cluster": "cluster",
@@ -83,6 +82,11 @@ class DistributedMigrationTests(MigrationTestBase):
         "CONN_MAX_AGE": 0,
         "CONN_HEALTH_CHECKS": True,
     }
+
+    def setUp(self):
+        # Under --parallel each worker runs against a clone, so the name cannot
+        # be hardcoded. Shadow the class attribute instead of mutating it.
+        self.lb = {**self.lb, "NAME": connections["default"].settings_dict["NAME"]}
 
     def tearDown(self):
         if "load_balancer" in connections:
