@@ -159,6 +159,12 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     def supports_transactions(self):
         return self.fake_transaction
 
+    # startsWithCaseInsensitive[UTF8] were added in ClickHouse 25.10.
+    # https://clickhouse.com/docs/whats-new/changelog/2025#2510
+    @cached_property
+    def has_starts_with_case_insensitive(self):
+        return self.connection.get_database_version() >= (25, 10)
+
     @cached_property
     def django_test_skips(self):
         skips = {}
