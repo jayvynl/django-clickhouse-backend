@@ -1,3 +1,6 @@
+import socket
+from unittest import mock
+
 from django.db import connection
 from django.test import TestCase
 
@@ -12,6 +15,53 @@ class Tests(TestCase):
         assert conn.pool.connections_min == 2
         assert conn.pool.connections_max == 4
         assert len(conn.pool._pool) == 2
+
+
+class PoolCleanupTests(TestCase):
+    def test_disconnect_error_is_logged_and_does_not_stop_cleanup(self):
+        """
+        A client that fails to disconnect must not silence the failure, nor
+        prevent the remaining clients from being closed.
+        """
+        pool = connect(host="localhost", connections_min=2, connections_max=4).pool
+        failing, healthy = pool._pool
+        error = OSError("cannot disconnect")
+        failing.disconnect = mock.Mock(side_effect=error)
+        healthy.disconnect = mock.Mock()
+
+        with self.assertLogs("clickhouse_backend.driver.pool", "WARNING") as logs:
+            pool.cleanup()
+
+        assert pool.closed
+        healthy.disconnect.assert_called_once_with()
+        (record,) = logs.records
+        # Rendering the message must not raise for a client that never
+        # connected, otherwise it would hide the error being reported.
+        assert repr(failing.connection) in record.getMessage()
+        assert record.exc_info[1] is error
+
+
+class ConnectionRecoveryTests(TestCase):
+    def test_connection_that_died_while_pooled_is_recovered_on_use(self):
+        """
+        A pooled connection can be dropped by the server at any point while it
+        sits idle, which is why push() does not check liveness on the way in.
+        Recovery happens on use: clickhouse_driver pings and reconnects when a
+        query is issued.
+        """
+        with connection.cursor() as cursor:
+            cursor.execute("select 1")
+            assert cursor.fetchall() == [(1,)]
+
+        (client,) = connection.connection.pool._pool
+        # Mimic the server hanging up on an idle pooled connection.
+        client.connection.socket.shutdown(socket.SHUT_RDWR)
+        # The connection is dead, but its own flag does not know that yet.
+        assert client.connection.connected
+
+        with connection.cursor() as cursor:
+            cursor.execute("select 2")
+            assert cursor.fetchall() == [(2,)]
 
 
 class IterationTests(TestCase):

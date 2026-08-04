@@ -1,3 +1,4 @@
+import logging
 import threading
 from contextlib import contextmanager
 from typing import Generator, Union
@@ -5,6 +6,8 @@ from typing import Generator, Union
 from clickhouse_driver.dbapi.errors import InterfaceError
 
 from .client import Client
+
+logger = logging.getLogger(__name__)
 
 
 class ClickhousePool:
@@ -104,7 +107,14 @@ class ClickhousePool:
                 if key is None:
                     raise InterfaceError("trying to put unkeyed client")
             if len(self._pool) < self.connections_min and not close:
-                # TODO: verify connection still valid
+                # Liveness is deliberately not checked here. A pooled connection
+                # can die at any point while it sits idle, so a check on the way
+                # in proves nothing about the state it will be in on the way out.
+                # clickhouse_driver validates on use instead: every query starts
+                # with `Connection.force_connect()`, which pings the server and
+                # reconnects if the connection is gone. Pinging here would add a
+                # round trip to every cursor close, taken while holding the pool
+                # lock, without making anything safer.
 
                 # If the connection is currently executing a query, it shouldn't be reused.
                 # Explicitly disconnect it instead.
@@ -135,9 +145,14 @@ class ClickhousePool:
             for client in self._pool + list(self._used.values()):
                 try:
                     client.disconnect()
-                # TODO: handle problems with disconnect
                 except Exception:
-                    pass
+                    # A failed disconnect must not stop the remaining clients
+                    # from being closed, but it should not vanish either.
+                    logger.warning(
+                        "Error while disconnecting %r on pool cleanup",
+                        client.connection,
+                        exc_info=True,
+                    )
             self.closed = True
         finally:
             self._lock.release()
