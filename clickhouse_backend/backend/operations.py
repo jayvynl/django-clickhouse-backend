@@ -46,6 +46,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     explain_types = {
         "AST",
         "SYNTAX",
+        "QUERY TREE",
         "PLAN",
         "PIPELINE",
         "ESTIMATE",
@@ -126,6 +127,10 @@ class DatabaseOperations(BaseDatabaseOperations):
         "RawBLOB",
         "MsgPack",
     }
+
+    @cached_property
+    def output_formats_by_lower_name(self):
+        return {format.lower(): format for format in self.supported_output_formats}
 
     def unification_cast_sql(self, output_field):
         db_type = output_field.db_type(self.connection)
@@ -342,9 +347,12 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         if format:
             supported_formats = self.supported_output_formats
-            normalized_format = format.upper()
-            if normalized_format not in supported_formats:
-                msg = "%s is not a recognized format." % normalized_format
+            # Most ClickHouse output format names are mixed case, such as
+            # TabSeparated, so they can't be normalized by upper casing them.
+            # ClickHouse itself matches them case insensitively.
+            normalized_format = self.output_formats_by_lower_name.get(format.lower())
+            if normalized_format is None:
+                msg = "%s is not a recognized format." % format
                 if supported_formats:
                     msg += " Allowed formats: %s" % ", ".join(sorted(supported_formats))
                 else:
