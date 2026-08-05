@@ -2,74 +2,17 @@ import re
 import typing as T
 from contextlib import contextmanager
 
-from clickhouse_driver import connection
 from clickhouse_driver.dbapi import connection as dbapi_connection
 from clickhouse_driver.dbapi import cursor, errors
 from clickhouse_driver.result import IterQueryResult, ProgressQueryResult, QueryResult
 from django.conf import settings
 
-from .escape import escape_params
 from .pool import ClickhousePool
 
 name_regex = r'"(?:[^"]|\\.)+"'
 value_regex = r"(')?(?(1)(?:[^']|\\.)+|\S+)(?(1)'|)"
 name_value_regex = f"{name_regex} = {value_regex}"
 update_pattern = re.compile(f"^ALTER TABLE ({name_regex}) UPDATE ")
-
-
-def send_query(self, query, query_id=None, params=None):
-    if not self.connected:
-        self.connect()
-
-    connection.write_varint(connection.ClientPacketTypes.QUERY, self.fout)
-
-    connection.write_binary_str(query_id or "", self.fout)
-
-    revision = self.server_info.used_revision
-    if revision >= connection.defines.DBMS_MIN_REVISION_WITH_CLIENT_INFO:
-        client_info = connection.ClientInfo(
-            self.client_name, self.context, client_revision=self.client_revision
-        )
-        client_info.query_kind = connection.ClientInfo.QueryKind.INITIAL_QUERY
-
-        client_info.write(revision, self.fout)
-
-    settings_as_strings = (
-        revision
-        >= connection.defines.DBMS_MIN_REVISION_WITH_SETTINGS_SERIALIZED_AS_STRINGS
-    )
-    settings_flags = 0
-    if self.settings_is_important:
-        settings_flags |= connection.SettingsFlags.IMPORTANT
-    connection.write_settings(
-        self.context.settings, self.fout, settings_as_strings, settings_flags
-    )
-
-    if revision >= connection.defines.DBMS_MIN_REVISION_WITH_INTERSERVER_SECRET:
-        connection.write_binary_str("", self.fout)
-
-    connection.write_varint(connection.QueryProcessingStage.COMPLETE, self.fout)
-    connection.write_varint(self.compression, self.fout)
-
-    connection.write_binary_str(query, self.fout)
-
-    if revision >= connection.defines.DBMS_MIN_PROTOCOL_VERSION_WITH_PARAMETERS:
-        if self.context.client_settings["server_side_params"]:
-            # Always settings_as_strings = True
-            escaped = escape_params(params or {}, self.context, for_server=True)
-        else:
-            escaped = {}
-        connection.write_settings(
-            escaped, self.fout, True, connection.SettingsFlags.CUSTOM
-        )
-
-    connection.logger.debug("Query: %s", query)
-
-    self.fout.flush()
-
-
-# Monkey patch to resolve https://github.com/jayvynl/django-clickhouse-backend/issues/14
-connection.Connection.send_query = send_query
 
 
 class Cursor(cursor.Cursor):

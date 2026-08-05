@@ -8,6 +8,7 @@
 - fix: `QuerySet.union(all=True)` generated `UNION ALL ALL`, which ClickHouse rejects as a syntax error.
 - fix: #137 two `EXPLAIN` problems reported by @Azmisov: `QUERY TREE` was not an allowed type, and `QuerySet.explain(format=...)` rejected every output format whose ClickHouse spelling is not all upper case, such as `TabSeparated`.
 - depends: #172 update clickhouse-driver to 0.2.11 on python 3.9 and later, reported by @khvn26. Python 3.7 and 3.8 stay on 0.2.9.
+- fix: drop the `clickhouse_driver.connection.Connection.send_query` monkey patch added for #14. clickhouse-driver has guarded that code with `server_side_params` itself since 0.2.7, so the patch no longer changed anything for this backend, while still replacing upstream's server side parameter escaping process wide — costing any code that uses clickhouse-driver directly the list and tuple escaping fix in 0.2.11. `clickhouse_backend.driver.escape.escape_param()` and `escape_params()` lose their now unreachable `for_server` argument.
 - fix: #167 test database cloning skipped migrations entirely for a database whose `TEST` settings set `managed` to `False`. Such an alias must not run `CREATE DATABASE` for a clone, because the managed alias already created it `ON CLUSTER`, but it does have to migrate: tables that are not `ON CLUSTER` only exist on the node the migration ran against. Clones were therefore missing every local table, such as `django_content_type`, on the unmanaged alias' node, which broke `manage.py test --parallel` against a cluster.
 
 ### 1.6.0
