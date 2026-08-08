@@ -3,7 +3,6 @@ from django.db.backends.base.operations import BaseDatabaseOperations
 from django.utils.functional import cached_property
 
 from clickhouse_backend import compat
-from clickhouse_backend.driver import JSON
 from clickhouse_backend.driver.client import insert_pattern
 from clickhouse_backend.utils.timezone import get_timezone
 
@@ -325,9 +324,6 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def adapt_decimalfield_value(self, value, max_digits=None, decimal_places=None):
         return value
-
-    def adapt_json_value(self, value, encoder):
-        return JSON(value)
 
     def explain_query_prefix(self, format=None, **options):
         # bypass normal explain prefix insert in compiler.as_sql

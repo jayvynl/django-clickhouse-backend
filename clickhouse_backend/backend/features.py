@@ -110,8 +110,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # Does the backend support partial indexes (CREATE INDEX ... WHERE ...)?
     supports_partial_indexes = False
 
-    # Does the backend support JSONField?
-    supports_json_field = True
     # Can the backend introspect a JSONField?
     can_introspect_json_field = True
     # Does the backend support primitives in JSONField?
@@ -160,29 +158,112 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         return self.fake_transaction
 
     # startsWithCaseInsensitive[UTF8] were added in ClickHouse 25.10.
-    # https://clickhouse.com/docs/whats-new/changelog/2025#2510
+    # https://github.com/ClickHouse/ClickHouse/blob/31081d9f05014003321333553bb3e657eb3da168/docs/changelogs/v25.10.1.3832-stable.md?plain=1#L37
     @cached_property
     def has_starts_with_case_insensitive(self):
         return self.connection.get_database_version() >= (25, 10)
+
+    # The JSON type was added in ClickHouse 24.8, where it is experimental and
+    # requires allow_experimental_json_type=1.
+    # https://github.com/ClickHouse/ClickHouse/blob/31081d9f05014003321333553bb3e657eb3da168/docs/changelogs/v24.8.1.2684-lts.md?plain=1#L27
+    @cached_property
+    def supports_json_field(self):
+        return self.connection.get_database_version() >= (24, 8)
 
     @cached_property
     def django_test_skips(self):
         skips = {}
         version = self.connection.get_database_version()
-        if version >= (25, 11):
+        # A ClickHouse bug: once a query has run often enough to be JIT compiled,
+        # min() and max() over a DateTime64 compare it as unsigned, so a value
+        # before 1970 comes out as the largest one.
+        # https://github.com/ClickHouse/ClickHouse/issues/113942
+        # Measured on 26.1 to 26.7, 25.12 is unaffected. Skipped rather than an
+        # expected failure: the results are only wrong from the JIT threshold on,
+        # three runs by default.
+        if version >= (26, 1):
             skips.update(
                 {
-                    "ClickHouse 25.11 remove deprecated Object('json') type.": {
-                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_query",
-                        "expressions_window.tests.WindowFunctionTests.test_key_transform",
+                    "min() of a DateTime64 before 1970 is wrong once ClickHouse "
+                    "26.1 JIT compiles it.": {
+                        "aggregation.tests.AggregateTestCase.test_aggregation_default_using_datetime_from_database",
+                        "aggregation.tests.AggregateTestCase.test_aggregation_default_using_datetime_from_python",
                     }
                 }
             )
+        # https://github.com/ClickHouse/ClickHouse/blob/31081d9f05014003321333553bb3e657eb3da168/docs/changelogs/v25.3.1.2703-lts.md?plain=1#L25
+        if version < (25, 3):
+            # tests/settings.py cannot enable it for every version it tests,
+            # allow_experimental_json_type is unknown before ClickHouse 24.8.
+            skips.update(
+                {
+                    "The JSON type is only production ready since ClickHouse 25.3.": {
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_query",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_key_transform",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_lookups",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_null",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_null_is_stored_as_empty_object",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_value_expression",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_db_default",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_hints",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_escaping",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_encoder_decoder",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_raw_query",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_field_lookups",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_unsupported_lookups",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_has_key",
+                        "expressions_window.tests.WindowFunctionTests.test_key_transform",
+                        "clickhouse_functions.test_json.JsonFunctionTests.test_paths",
+                        "clickhouse_functions.test_json.JsonFunctionTests.test_shared_data_paths",
+                        "clickhouse_functions.test_json.JsonFunctionTests.test_all_values",
+                        "clickhouse_functions.test_json.JsonFunctionTests.test_dynamic_type",
+                        "clickhouse_functions.test_json.JsonFunctionTests.test_dynamic_type_after_an_array_index",
+                        "clickhouse_functions.test_json.JsonFunctionTests.test_dynamic_type_of_an_expression",
+                        "clickhouse_functions.test_json.JsonFunctionTests.test_string_functions",
+                        "clickhouse_functions.test_json.JsonFunctionTests.test_output_fields",
+                        "inspectdb.tests.JsonInspectDBTests.test_json",
+                        "inspectdb.tests.JsonInspectDBTests.test_nullable",
+                        "inspectdb.tests.JsonInspectDBTests.test_hints",
+                        "inspectdb.tests.JsonInspectDBTests.test_quoted_hints",
+                    }
+                }
+            )
+        # Released in 25.7 and backported to 25.6.3.
+        # https://github.com/ClickHouse/ClickHouse/blob/31081d9f05014003321333553bb3e657eb3da168/docs/changelogs/v25.6.3.116-stable.md?plain=1#L14
+        # https://github.com/ClickHouse/ClickHouse/blob/31081d9f05014003321333553bb3e657eb3da168/docs/changelogs/v25.7.1.3997-stable.md?plain=1#L114
+        if version < (25, 6, 3):
+            skips.update(
+                {
+                    "ALTER UPDATE of a JSON column is only allowed since ClickHouse 25.6.3.": {
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_update",
+                    }
+                }
+            )
+        # https://clickhouse.com/docs/sql-reference/functions/json-functions#JSONAllValues
+        if version < (26, 4):
+            skips.update(
+                {
+                    "ClickHouse 26.4 add the JSONAllValues function.": {
+                        "clickhouse_functions.test_json.JsonFunctionTests.test_all_values",
+                    }
+                }
+            )
+        # https://github.com/ClickHouse/ClickHouse/blob/31081d9f05014003321333553bb3e657eb3da168/docs/changelogs/v25.10.1.3832-stable.md?plain=1#L128
+        if version < (25, 10):
+            skips.update(
+                {
+                    "ClickHouse 25.10 add the start value of generateSerialID.": {
+                        "clickhouse_functions.test_other.OtherTests.test_generateSerialID_start_value",
+                    }
+                }
+            )
+        # https://github.com/ClickHouse/ClickHouse/blob/31081d9f05014003321333553bb3e657eb3da168/docs/changelogs/archive/v25.1.1.4165-stable.md?plain=1#L31
         if version < (25, 1):
             skips.update(
                 {
                     "ClickHouse 25.1 add generateSerialID function.": {
                         "clickhouse_functions.test_other.OtherTests.test_generateSerialID",
+                        "clickhouse_functions.test_other.OtherTests.test_generateSerialID_start_value",
                     }
                 }
             )
@@ -193,6 +274,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         # DB::Exception: Cannot convert column 'height' from nullable type Nullable(UInt32) to non-nullable type UInt32.
         # Please specify `DEFAULT` expression in ALTER MODIFY COLUMN statement.
         # A bug in ClickHouse 25.11, they force a `DEFAULT` expression when alter column type from nullable to non-nullable.
+        # Measured on 25.11, no changelog entry or upstream issue describes it.
         if self.connection.get_database_version() >= (25, 11):
             return {
                 "schema.tests.SchemaTests.test_alter_null_to_not_null_keeping_default",

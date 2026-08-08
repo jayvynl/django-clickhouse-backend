@@ -16,7 +16,7 @@ from clickhouse_driver.dbapi.errors import (  # NOQA
 from .connection import Connection
 
 # Binary is compatible for django's BinaryField.
-from .types import JSON, Binary  # NOQA
+from .types import Binary  # NOQA
 
 
 def connect(

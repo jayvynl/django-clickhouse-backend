@@ -24,6 +24,8 @@ class OtherTests(TestCase):
             v=models.generateSerialID("test_generateSerialID")
         ).get(id=self.john.id)
         self.assertIsInstance(john.v, int)
+
+    def test_generateSerialID_start_value(self):
         john = Author.objects.annotate(
             v=models.generateSerialID(models.currentDatabase(), 100)
         ).get(id=self.john.id)

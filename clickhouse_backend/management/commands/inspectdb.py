@@ -210,9 +210,14 @@ class Command(DCommand):
                 yield f", {param}"
             yield ")"
             return remain[1:]
-        elif column_type.startswith("Object('json')"):
+        # JSON or JSON(max_dynamic_paths=64, `a.b` UInt32, SKIP `a.c`)
+        elif column_type.startswith("JSON"):
+            remain = column_type[4:]
+            if remain.startswith("("):
+                hints, remain = self.consume_type_params(remain)
+                param = self.merge_params(param, *self.json_hints(hints))
             yield f"models.JSONField({param})"
-            return column_type[14:]
+            return remain
 
         i = 0
         length = len(column_type)
@@ -251,6 +256,80 @@ class Command(DCommand):
             i += 1
         value = s[j:i]
         return name, value, s[i:]
+
+    def consume_quoted(self, s, i):
+        """Return the index just after the string quoted by s[i]."""
+        quote = s[i]
+        i += 1
+        while s[i] != quote:
+            i += 2 if s[i] == "\\" else 1
+        return i + 1
+
+    def consume_type_params(self, s):
+        """Split the parameter list ``(a, b)`` at the start of ``s``, and return
+        its items and what follows it. A nested list and a quoted string are left
+        alone, they may hold a comma of their own.
+        """
+        items = []
+        item = ""
+        depth = 1
+        i = 1  # s[0] is the opening parenthesis.
+        while i < len(s):
+            char = s[i]
+            if char in "`'":
+                end = self.consume_quoted(s, i)
+                item += s[i:end]
+                i = end
+                continue
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if not depth:
+                    return [*items, item.strip()], s[i + 1 :]
+            if depth == 1 and char == ",":
+                items.append(item.strip())
+                item = ""
+            else:
+                item += char
+            i += 1
+        return items, ""
+
+    def json_hints(self, hints):
+        typed_paths = {}
+        skip_paths = []
+        skip_regexps = []
+        for hint in hints:
+            if hint.startswith("max_dynamic"):  # max_dynamic_paths=64
+                yield hint
+            elif hint.startswith("SKIP REGEXP "):  # SKIP REGEXP 'a.*'
+                skip_regexps.append(
+                    hint[13:-1].replace("\\\\", "\\").replace("\\'", "'")
+                )
+            elif hint.startswith("SKIP "):  # SKIP `a.c`
+                skip_paths.append(self.consume_path(hint[5:])[0])
+            else:  # `a.b` UInt32
+                path, path_type = self.consume_path(hint)
+                typed_paths[path] = path_type
+        if typed_paths:
+            yield f"typed_paths={typed_paths!r}"
+        if skip_paths:
+            yield f"skip_paths={skip_paths!r}"
+        if skip_regexps:
+            yield f"skip_regexps={skip_regexps!r}"
+
+    def consume_path(self, s):
+        """Split a path hint into its path and the type following it, if any.
+
+        A path is one identifier, quoted unless it is a plain name: clickhouse
+        joins the keys of a nested path with dots and renders it as one.
+        """
+        if s.startswith("`"):
+            end = self.consume_quoted(s, 0)
+            path = s[1 : end - 1].replace("\\\\", "\\").replace("\\`", "`")
+            return path, s[end + 1 :]
+        path, _, path_type = s.partition(" ")
+        return path, path_type
 
     def merge_params(self, *params):
         return ", ".join(filter(None, params))

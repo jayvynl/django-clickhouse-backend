@@ -213,6 +213,14 @@ All [date lookup](https://docs.djangoproject.com/en/5.1/ref/models/querysets/#da
 
 Both Nullable and LowCardinality are supported by DateTime. But LowCardinality is not supported by DateTime64.
 
+**Note** on ClickHouse 26.1 to at least 26.7, `Min()` and `Max()` over a DateTime64
+return a wrong row for values before 1970, once the query has run often enough to be
+JIT compiled (three times by default): ClickHouse compares the value as unsigned
+there, so one before the epoch comes out as the largest, reported as
+[ClickHouse#113942](https://github.com/ClickHouse/ClickHouse/issues/113942). Set
+`compile_aggregate_expressions` to `0` in the `settings` of the database `OPTIONS`
+if this affects you.
+
 Clickhouse support integer or float when assign a DateTime or DateTime64 column. This feature is also implemented by clickhouse backend.
 
 Float value is treated as unix timestamp in DateTime and DateTime64.
@@ -639,36 +647,22 @@ MapModel.objects.annotate(
 
 ### JSON
 
-**Note:** Object('json') type [is not production-ready and is now deprecated](https://clickhouse.com/docs/en/sql-reference/data-types/object-data-type).
-
 Field importing path: `clickhouse_backend.models.JSONField`.
 
-Neither Nullable nor LowCardinality is supported.
+Maps to the [JSON](https://clickhouse.com/docs/sql-reference/data-types/newjson) type,
+which was added in ClickHouse [24.8](https://github.com/ClickHouse/ClickHouse/blob/31081d9f05014003321333553bb3e657eb3da168/docs/changelogs/v24.8.1.2684-lts.md?plain=1#L27)
+and is production ready since ClickHouse [25.3](https://github.com/ClickHouse/ClickHouse/blob/31081d9f05014003321333553bb3e657eb3da168/docs/changelogs/v25.3.1.2703-lts.md?plain=1#L25).
+On 24.8 to 25.2 it is experimental and requires `allow_experimental_json_type = 1` in
+the database settings.
 
-When query from the database, JSONField get dict or list.
+LowCardinality is not supported, clickhouse allows it on numbers, strings, `Date`
+and `DateTime` only. Nullable is supported, `null=True` stores `None` as SQL NULL.
 
-The JSON data type is an experimental feature. To use it, set `allow_experimental_object_type = 1` in the database settings.
-
-**Note:** From [ClickHouse 24.8 LTS](https://clickhouse.com/blog/clickhouse-release-24-08), set `allow_experimental_json_type = 1` to use JSON type.
-
-For example:
-
-```python
-DATABASES = {
-    'default': {
-        'ENGINE': 'clickhouse_backend.backend',
-        'OPTIONS': {
-            'settings': {
-                'allow_experimental_object_type': 1,
-            }
-        }
-    }
-}
-```
-
-#### Lookups
-
-Currently only key lookup is supported.
+The value must be an object, a JSON column cannot hold an array or a scalar at its
+root. A root `null` is the one clickhouse does not reject: it is stored as an empty
+object, so `None` saved into a field which is not nullable reads back as `{}`. A key
+whose value is `null` is dropped in the same way, it cannot be told apart from a key
+which is absent.
 
 ```python
 from clickhouse_backend import models
@@ -680,18 +674,65 @@ v = {'a': [1, 2, 3], 'b': [{'c': 1}, {'d': 2}], 'c': {'d': 'e'}}
 instance = JSONModel.objects.create(json=v)
 instance.refresh_from_db()
 instance.json
-# {'a': [1, 2, 3], 'b': [{'c': 1, 'd': 0}, {'c': 0, 'd': 2}], 'c': {'d': 'e'}}
+# {'a': [1, 2, 3], 'b': [{'c': 1}, {'d': 2}], 'c': {'d': 'e'}}
 ```
 
-**Note** JSONField value may change after saved to database. This is because clickhouse internally store [JSON](https://clickhouse.com/docs/en/sql-reference/data-types/json)
-as [Tuple](https://clickhouse.com/docs/en/sql-reference/data-types/tuple) and [Array](https://clickhouse.com/docs/en/sql-reference/data-types/array).
-[Clickhouse try best to store JSON in a uniform schema](https://clickhouse.com/docs/en/integrations/data-formats/json#handling-data-changes).
-Sometimes when you insert a JSON value that is not compatible with existing schema, clickhouse will fail.
+**Note** a value comes back the way clickhouse stored it: keys of an object are
+sorted, a key containing a dot becomes nested (`{'a.b': 1}` reads back as
+`{'a': {'b': 1}}`) and a number is read back in the type clickhouse printed it in
+(`1.0` reads back as `1`).
 
+`QuerySet.update()` and `Model.save()` of an existing row require ClickHouse 25.6.3,
+which allowed `ALTER TABLE ... UPDATE` on a column holding dynamic sub-columns. It was
+released in [25.7](https://github.com/ClickHouse/ClickHouse/blob/31081d9f05014003321333553bb3e657eb3da168/docs/changelogs/v25.7.1.3997-stable.md?plain=1#L114) and
+backported to 25.6.3.
+
+#### Hints
+
+The [hints](https://clickhouse.com/docs/sql-reference/data-types/newjson) of the JSON
+type are field arguments, and are rendered into the column type in this order:
+
+```python
+class JSONModel(models.ClickhouseModel):
+    json = models.JSONField(
+        max_dynamic_types=8,
+        max_dynamic_paths=64,
+        typed_paths={'a.b': 'UInt32'},
+        skip_paths=['a.c'],
+        skip_regexps=[r'tmp[0-9]'],
+    )
+# JSON(max_dynamic_types=8, max_dynamic_paths=64, `a.b` UInt32, SKIP `a.c`, SKIP REGEXP 'tmp[0-9]')
+```
+
+A `SKIP REGEXP` has to match a whole path, `tmp[0-9]` skips `tmp1` but not `a.tmp1`.
+
+**Note** a hint only applies to a value clickhouse parses itself, and clickhouse-driver
+writes a JSON column over the native protocol instead. So a value saved through django
+usually keeps a path that `skip_paths` or `skip_regexps` names, while the same value
+inserted as JSON text by anything else loses it; only the `max_dynamic_*` storage limits
+apply either way. An insert holding a database default or an expression is the
+exception: django renders its values as SQL, which clickhouse parses, so the hints do
+apply to the rows of that insert. A typed path has no wire support at all, so `typed_paths` is only usable on
+a table django does not write to, which the field reports as a warning unless the model
+sets `managed = False`. Reading always works, a value is read as JSON text.
+
+#### Lookups
+
+`exact`, `in`, `has_key`, `has_keys` and `has_any_keys` are supported on the field
+itself, and on a key path together with `gt`, `gte`, `lt`, `lte`, `isnull` and the
+text lookups (`icontains`, `istartswith`, `iexact`, `regex`, ...).
+
+`contains` and `contained_by` are not supported, clickhouse has no containment
+operator, the same as on sqlite and oracle.
+
+**Note** a key whose value is `null` does not exist for `has_key`, because
+clickhouse does not store it.
 
 ##### key
 
-Get the value of specific key.
+Get the value of a specific key. An integer is an index into an array, except at
+the root of the value, which is always an object. A key which is absent from the
+value is NULL.
 
 ```python
 JSONModel.objects.values('json__a')
@@ -702,12 +743,26 @@ JSONModel.objects.values('json__c__d')
 # <QuerySet [{'json__c__d': 'e'}]>
 JSONModel.objects.values('json__c')
 # <QuerySet [{'json__c': {'d': 'e'}}]>
+JSONModel.objects.values('json__z')
+# <QuerySet [{'json__z': None}]>
 
-JSONModel.objects.filter(json__c={'any_key': 'e'}).exists()
+JSONModel.objects.filter(json__c={'d': 'e'}).exists()
 # True
-JSONModel.objects.filter(json__c=('e',)).exists()
+JSONModel.objects.filter(json__a=[1, 2, 3]).exists()
+# True
+JSONModel.objects.filter(json__c__d='e').exists()
 # True
 ```
 
-Note the strange behaviors of the last two examples. That's because clickhouse store python dict as [named tuple](https://clickhouse.com/docs/en/sql-reference/data-types/tuple#addressing-tuple-elements),
-named tuples are just normal tuples when compared, the `name` is not taken into account.
+A value is compared in its JSON type, so `filter(json__a='[1, 2, 3]')` does not match
+`{'a': [1, 2, 3]}`.
+
+`gt`, `gte`, `lt` and `lte` compare a key path in the clickhouse type matching the
+python type of the value compared with: `Int64` for `int`, `Float64` for `float`,
+`String` for `str` and `Bool` for `bool`. Rows where the path holds a value which
+does not convert to that type are left out.
+
+```python
+JSONModel.objects.filter(json__b__0__c__gt=0).exists()
+# True
+```

@@ -88,5 +88,5 @@ class Tests(TestCase):
 
     def test_get_database_version(self):
         new_connection = connection.copy()
-        new_connection.ch_version = "22.9.3.18"
+        new_connection.ch_version = (22, 9, 3, 18)
         self.assertEqual(new_connection.get_database_version(), (22, 9, 3, 18))

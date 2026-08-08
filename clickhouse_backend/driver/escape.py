@@ -1,9 +1,8 @@
-from datetime import date, datetime, time, timezone
+from datetime import datetime, timezone
 from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
 from itertools import chain
 from typing import Dict, Sequence, Union
-from uuid import UUID
 
 from clickhouse_driver.util import escape
 
@@ -39,25 +38,19 @@ def escape_binary(item: bytes, context):
 
 
 def escape_param(item, context):
-    if item is None:
-        return "NULL"
+    """Escape the types clickhouse-driver escapes differently, or not at all.
 
-    elif isinstance(item, datetime):
+    A collection is escaped here rather than left to clickhouse-driver, which
+    would escape the elements with its own escape_param and lose these branches.
+    """
+    if isinstance(item, datetime):
         return escape_datetime(item, context)
-
-    elif isinstance(item, date):
-        return "'%s'" % item.strftime("%Y-%m-%d")
-
-    elif isinstance(item, time):
-        return "'%s'" % item.strftime("%H:%M:%S")
-
-    elif isinstance(item, str):
-        return "'%s'" % "".join(escape.escape_chars_map.get(c, c) for c in item)
 
     elif isinstance(item, list):
         return "[%s]" % ",".join(str(escape_param(x, context)) for x in item)
 
     elif isinstance(item, tuple):
+        # clickhouse-driver renders a one element tuple as (x), which is just x.
         return "tuple(%s)" % ",".join(str(escape_param(x, context)) for x in item)
 
     elif isinstance(item, dict):
@@ -68,23 +61,13 @@ def escape_param(item, context):
     elif isinstance(item, Enum):
         return escape_param(item.value, context)
 
-    elif isinstance(item, (UUID, IPv4Address, IPv6Address)):
+    elif isinstance(item, (IPv4Address, IPv6Address)):
         return "'%s'" % str(item)
 
     elif isinstance(item, types.Binary):
         return escape_binary(item, context)
 
-    elif isinstance(item, types.JSON):
-        value = item.value
-        if isinstance(value, list):
-            return escape_param([types.JSON(v) for v in value], context)
-        elif isinstance(value, dict):
-            return escape_param(tuple(types.JSON(v) for v in value.values()), context)
-        else:
-            return escape_param(value, context)
-
-    else:
-        return item
+    return escape.escape_param(item, context)
 
 
 def escape_params(params: Params, context: Dict) -> Params:

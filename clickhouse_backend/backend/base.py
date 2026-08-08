@@ -34,7 +34,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "BigAutoField": "Int64",
         "IPAddressField": "IPv4",
         "GenericIPAddressField": "IPv6",
-        "JSONField": "Object('json')",
+        "JSONField": "JSON",
         "BinaryField": "String",
         "CharField": "FixedString(%(max_length)s)",
         "DateField": "Date32",
@@ -272,14 +272,11 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     @cached_property
     def ch_version(self):
+        """Version tuple, e.g. (22, 9, 3, 18) for server version "22.9.3.18"."""
         with self.temporary_connection() as cursor:
             cursor.execute("SELECT version()")
             row = cursor.fetchone()
-        return row[0]
+        return tuple(map(int, row[0].split(".")))
 
     def get_database_version(self):
-        """
-        Return a tuple of the database's version.
-        E.g. for ch_version "22.9.3.18", return (22, 9, 3, 18).
-        """
-        return tuple(map(int, self.ch_version.split(".")))
+        return self.ch_version

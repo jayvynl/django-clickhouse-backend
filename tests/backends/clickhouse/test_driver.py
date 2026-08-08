@@ -2,11 +2,44 @@ import socket
 from unittest import mock
 
 from django.db import connection
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from clickhouse_backend.driver import connect
+from clickhouse_backend.driver.client import Client
 
 from .. import models
+
+
+class ClientSettingsTests(SimpleTestCase):
+    def test_defaults(self):
+        settings = Client(host="localhost").settings
+        self.assertIs(settings["use_client_time_zone"], True)
+        # A JSON value is read through toJSONString(), which renders an Int64 as
+        # a string before ClickHouse 25.8 without this.
+        # https://github.com/ClickHouse/ClickHouse/blob/31081d9f05014003321333553bb3e657eb3da168/docs/changelogs/v25.8.1.5101-lts.md?plain=1#L11
+        self.assertEqual(settings["output_format_json_quote_64bit_integers"], 0)
+
+    def test_given_settings_win(self):
+        given = {
+            "use_client_time_zone": False,
+            "output_format_json_quote_64bit_integers": 1,
+            "mutations_sync": 2,
+        }
+        settings = Client(host="localhost", settings=given).settings
+        self.assertIs(settings["use_client_time_zone"], False)
+        self.assertEqual(settings["output_format_json_quote_64bit_integers"], 1)
+        self.assertEqual(settings["mutations_sync"], 2)
+        # The given dict is left alone: DatabaseWrapper.get_new_connection
+        # compares connection parameters to decide whether it can share a
+        # connection, and a mutation here made every thread open its own.
+        self.assertEqual(
+            given,
+            {
+                "use_client_time_zone": False,
+                "output_format_json_quote_64bit_integers": 1,
+                "mutations_sync": 2,
+            },
+        )
 
 
 class Tests(TestCase):
