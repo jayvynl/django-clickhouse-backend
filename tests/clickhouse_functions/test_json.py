@@ -1,12 +1,19 @@
 import utils
 from functools import partial
+from unittest import skipUnless
 
 from django.db import DatabaseError, NotSupportedError, connection
 from django.db.models import F, Value
-from django.db.models.fields.json import KeyTransform
+from django.db.models.fields.json import KeyTextTransform, KeyTransform
+from django.db.models.functions import JSONObject
 from django.test import TestCase
 
-from clickhouse_backend import models
+from clickhouse_backend import compat, models
+
+try:
+    from django.db.models.functions import JSONArray
+except ImportError:
+    JSONArray = None
 
 json_model = partial(utils.json_model, "clickhouse_functions")
 
@@ -159,3 +166,64 @@ class JsonFunctionTests(TestCase):
             self.assertTrue(
                 qs.annotate(longer=F("length") + Value(1)).filter(longer=3).exists()
             )
+
+    def test_json_object(self):
+        # django's own JSONObject(), which has no clickhouse function of its own.
+        with json_model() as JSONModel:
+            JSONModel.objects.create(json={"a": [1, 2], "c": {"d": "e"}})
+            qs = JSONModel.objects.all()
+
+            self.assertEqual(
+                qs.values_list(JSONObject(a=1, b=Value("x"), n=None), flat=True)[0],
+                # A key whose value is null does not exist, clickhouse drops it.
+                {"a": 1, "b": "x"},
+            )
+            self.assertEqual(qs.values_list(JSONObject(), flat=True)[0], {})
+            # Nested, and reading the column and a path of it back into a value.
+            self.assertEqual(
+                qs.values_list(
+                    JSONObject(
+                        o=JSONObject(b=1),
+                        p=F("json__c"),
+                        w=F("json"),
+                        t=KeyTextTransform("d", "json__c"),
+                    ),
+                    flat=True,
+                )[0],
+                {
+                    "o": {"b": 1},
+                    "p": {"d": "e"},
+                    "w": {"a": [1, 2], "c": {"d": "e"}},
+                    # A text transform reads the string a path holds, not its text.
+                    "t": "e",
+                },
+            )
+
+            # It builds a JSON value, comparable with the column and with a path.
+            self.assertTrue(qs.filter(json__c=JSONObject(d=Value("e"))).exists())
+            self.assertTrue(qs.filter(json__c__in=[JSONObject(d=Value("e"))]).exists())
+            self.assertTrue(
+                qs.filter(json=JSONObject(a=F("json__a"), c=F("json__c"))).exists()
+            )
+
+            o = JSONModel.objects.create(json=JSONObject(z=9))
+            self.assertEqual(JSONModel.objects.get(id=o.id).json, {"z": 9})
+
+    @skipUnless(compat.dj_ge52, "JSONArray was added in django 5.2.")
+    def test_json_array(self):
+        with json_model() as JSONModel:
+            JSONModel.objects.create(json={"a": [1, 2]})
+            qs = JSONModel.objects.all()
+
+            self.assertEqual(
+                qs.values_list(JSONArray(1, Value("x"), None), flat=True)[0],
+                # An array keeps a null, as it does on the backends django
+                # supports; only a key of an object cannot hold one.
+                [1, "x", None],
+            )
+            self.assertEqual(qs.values_list(JSONArray(), flat=True)[0], [])
+            self.assertEqual(
+                qs.values_list(JSONArray(JSONObject(b=1), F("json__a")), flat=True)[0],
+                [{"b": 1}, [1, 2]],
+            )
+            self.assertTrue(qs.filter(json__a=JSONArray(1, 2)).exists())

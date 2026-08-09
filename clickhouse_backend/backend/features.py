@@ -120,12 +120,12 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     has_json_operators = False
     # Does the backend support __contains and __contained_by lookups for
     # a JSONField?
-    supports_json_field_contains = False
+    supports_json_field_contains = True
     # Does value__d__contains={'f': 'g'} (without a list around the dict) match
     # {'d': [{'f': 'g'}]}?
-    json_key_contains_list_matching_requires_list = False
+    json_key_contains_list_matching_requires_list = True
     # Does the backend support JSONObject() database function?
-    has_json_object_function = False
+    # A cached property below, JSONObject() builds a value of the JSON type.
 
     # Does the backend support column collations?
     supports_collation_on_charfield = False
@@ -171,6 +171,10 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         return self.connection.get_database_version() >= (24, 8)
 
     @cached_property
+    def has_json_object_function(self):
+        return self.supports_json_field
+
+    @cached_property
     def django_test_skips(self):
         skips = {}
         version = self.connection.get_database_version()
@@ -210,7 +214,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
                         "clickhouse_fields.test_jsonfield.JsonFieldTests.test_encoder_decoder",
                         "clickhouse_fields.test_jsonfield.JsonFieldTests.test_raw_query",
                         "clickhouse_fields.test_jsonfield.JsonFieldTests.test_field_lookups",
-                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_unsupported_lookups",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_contains",
+                        "clickhouse_fields.test_jsonfield.JsonFieldTests.test_contained_by",
                         "clickhouse_fields.test_jsonfield.JsonFieldTests.test_has_key",
                         "expressions_window.tests.WindowFunctionTests.test_key_transform",
                         "clickhouse_functions.test_json.JsonFunctionTests.test_paths",
@@ -221,6 +226,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
                         "clickhouse_functions.test_json.JsonFunctionTests.test_dynamic_type_of_an_expression",
                         "clickhouse_functions.test_json.JsonFunctionTests.test_string_functions",
                         "clickhouse_functions.test_json.JsonFunctionTests.test_output_fields",
+                        "clickhouse_functions.test_json.JsonFunctionTests.test_json_object",
+                        "clickhouse_functions.test_json.JsonFunctionTests.test_json_array",
                         "inspectdb.tests.JsonInspectDBTests.test_json",
                         "inspectdb.tests.JsonInspectDBTests.test_nullable",
                         "inspectdb.tests.JsonInspectDBTests.test_hints",

@@ -90,6 +90,10 @@ class JSONField(FieldMixin, json.JSONField):
         An INSERT keeps the bare placeholder: its values travel natively, and
         clickhouse-driver only recognizes an insert query ending with VALUES.
         """
+        if hasattr(value, "as_sql"):
+            # Django 6.1 reads a placeholder before compiling an expression,
+            # below that it compiles the expression first and never asks.
+            return compiler.compile(value)
         if isinstance(compiler, SQLInsertCompiler):
             return "%s", [value]
         return JSON_PARAM, [value]

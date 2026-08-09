@@ -718,12 +718,10 @@ sets `managed = False`. Reading always works, a value is read as JSON text.
 
 #### Lookups
 
-`exact`, `in`, `has_key`, `has_keys` and `has_any_keys` are supported on the field
-itself, and on a key path together with `gt`, `gte`, `lt`, `lte`, `isnull` and the
-text lookups (`icontains`, `istartswith`, `iexact`, `regex`, ...).
-
-`contains` and `contained_by` are not supported, clickhouse has no containment
-operator, the same as on sqlite and oracle.
+`exact`, `in`, `contains`, `contained_by`, `has_key`, `has_keys` and `has_any_keys`
+are supported on the field itself, and on a key path together with `gt`, `gte`,
+`lt`, `lte`, `isnull` and the text lookups (`icontains`, `istartswith`, `iexact`,
+`regex`, ...).
 
 **Note** a key whose value is `null` does not exist for `has_key`, because
 clickhouse does not store it.
@@ -731,14 +729,16 @@ clickhouse does not store it.
 ##### key
 
 Get the value of a specific key. An integer is an index into an array, except at
-the root of the value, which is always an object. A key which is absent from the
-value is NULL.
+the root of the value, which is always an object. A negative index counts from the
+end, as it does on postgres. A key which is absent from the value is NULL.
 
 ```python
 JSONModel.objects.values('json__a')
 # <QuerySet [{'json__a': [1, 2, 3]}]>
 JSONModel.objects.values('json__b__0__c')
 # <QuerySet [{'json__b__0__c': 1}]>
+JSONModel.objects.values('json__a__-1')
+# <QuerySet [{'json__a__-1': 3}]>
 JSONModel.objects.values('json__c__d')
 # <QuerySet [{'json__c__d': 'e'}]>
 JSONModel.objects.values('json__c')
@@ -766,3 +766,52 @@ does not convert to that type are left out.
 JSONModel.objects.filter(json__b__0__c__gt=0).exists()
 # True
 ```
+
+##### contains and contained_by
+
+`contains` matches a value which holds every key and every element of the value
+given, `contained_by` a value every key and element of which the value given holds.
+Both have the semantics of the postgres operators django names them after, and the
+value must be a literal rather than an expression.
+
+```python
+JSONModel.objects.filter(json__contains={'c': {'d': 'e'}}).exists()
+# True
+JSONModel.objects.filter(json__a__contains=[3, 1]).exists()
+# True
+JSONModel.objects.filter(json__b__contains=[{'c': 1}]).exists()
+# True
+JSONModel.objects.filter(json__c__contained_by={'d': 'e', 'f': 'g'}).exists()
+# True
+```
+
+The one difference to postgres: an object matches inside an array only when it is
+wrapped in a list, `filter(json__b__contains=[{'c': 1}])` matches
+`{'b': [{'c': 1}]}` while `filter(json__b__contains={'c': 1})` does not. A primitive
+value does match an array holding it, `filter(json__a__contains=3)`, as postgres
+allows at the top level.
+
+Only an object of the value descends through the sub-column accessors. An array is
+compared against the JSON text of the path holding it, which reads the whole path
+rather than the sub-column of a key below it.
+
+#### Functions
+
+[`JSONObject`](https://docs.djangoproject.com/en/5.2/ref/models/database-functions/#jsonobject)
+and [`JSONArray`](https://docs.djangoproject.com/en/5.2/ref/models/database-functions/#jsonarray)
+(django 5.2 and later) build a JSON value out of their arguments. Each argument is
+rendered as its JSON text, so a key path or a whole column can be nested into one.
+
+```python
+from django.db.models import F, Value
+from django.db.models.functions import JSONObject
+
+JSONModel.objects.values(o=JSONObject(x=1, c=F('json__c')))
+# <QuerySet [{'o': {'c': {'d': 'e'}, 'x': 1}}]>
+JSONModel.objects.filter(json__c=JSONObject(d=Value('e'))).exists()
+# True
+```
+
+A key whose value is `null` is dropped, as it is in a value saved into the field.
+An array keeps its nulls, and cannot be the root of a JSON column, so `JSONArray()`
+is only usable as an expression.

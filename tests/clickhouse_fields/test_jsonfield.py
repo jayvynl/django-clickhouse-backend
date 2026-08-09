@@ -264,17 +264,103 @@ class JsonFieldTests(TestCase):
                 1,
             )
 
-    def test_unsupported_lookups(self):
-        # Clickhouse has no containment operator, django refuses these itself
-        # through the supports_json_field_contains feature, as it does for
-        # sqlite and oracle.
-        for lookup in ["contains", "contained_by"]:
-            with self.subTest(lookup=lookup), json_model() as JSONModel:
-                with self.assertRaisesMessage(
-                    NotSupportedError,
-                    "%s lookup is not supported on this database backend." % lookup,
-                ):
-                    JSONModel.objects.filter(**{"json__%s" % lookup: {"a": 1}}).count()
+    def test_contains(self):
+        with json_model() as JSONModel:
+            v = {"a": [1, 2, 3], "b": {"c": 1, "d": 2}, "e": [{"f": 1, "g": 2}]}
+            JSONModel.objects.create(json=v)
+            JSONModel.objects.create(json={"a": 9})
+
+            for value, count in [
+                (v, 1),
+                ({}, 2),  # Every value is an object.
+                ({"b": {"c": 1}}, 1),  # A nested object is contained.
+                ({"b": {"c": 1, "z": 1}}, 0),
+                ({"b": {"c": 2}}, 0),
+                ({"a": [3, 1]}, 1),  # An array holds the elements in any order.
+                ({"a": [1, 4]}, 0),
+                ({"a": []}, 1),
+                ({"a": {}}, 0),  # An array is not an object.
+                ({"e": [{"f": 1}]}, 1),  # An object inside an array.
+                ({"e": [{"f": 2}]}, 0),
+                ({"a": 1}, 0),  # Only the top level looks inside an array.
+                ({"z": 1}, 0),
+            ]:
+                with self.subTest(value=value):
+                    self.assertEqual(
+                        JSONModel.objects.filter(json__contains=value).count(), count
+                    )
+                    self.assertEqual(
+                        JSONModel.objects.exclude(json__contains=value).count(),
+                        2 - count,
+                    )
+
+            # On a key path, where postgres makes its one exception: an array
+            # contains a primitive value of its own.
+            for lookup, value, count in [
+                ("json__a__contains", 2, 1),
+                ("json__a__contains", 9, 1),  # The value itself, not an array.
+                ("json__a__contains", 4, 0),
+                ("json__a__contains", [2, 3], 1),
+                ("json__b__contains", {"c": 1}, 1),
+                ("json__e__contains", [{"f": 1}], 1),
+                ("json__e__contains", {"f": 1}, 0),
+                ("json__b__c__contains", 1, 1),
+                ("json__z__contains", 1, 0),
+            ]:
+                with self.subTest(lookup=lookup, value=value):
+                    self.assertEqual(
+                        JSONModel.objects.filter(**{lookup: value}).count(), count
+                    )
+
+            with self.assertRaisesMessage(
+                NotSupportedError,
+                "contains lookup only supports a literal value on this database backend.",
+            ):
+                JSONModel.objects.filter(json__contains=F("json")).count()
+
+    def test_contained_by(self):
+        with json_model() as JSONModel:
+            v = {"a": [1, 2], "b": {"c": 1}}
+            JSONModel.objects.create(json=v)
+            JSONModel.objects.create(json={})
+
+            for value, count in [
+                (v, 2),
+                ({}, 1),  # Only an empty object is contained by an empty one.
+                ({"a": [1, 2, 3], "b": {"c": 1, "d": 2}, "z": 9}, 2),
+                ({"a": [1, 2, 3], "b": {"c": 2}}, 1),
+                ({"a": [1], "b": {"c": 1}}, 1),
+                ({"a": 1, "b": {"c": 1}}, 1),
+            ]:
+                with self.subTest(value=value):
+                    self.assertEqual(
+                        JSONModel.objects.filter(json__contained_by=value).count(),
+                        count,
+                    )
+                    self.assertEqual(
+                        JSONModel.objects.exclude(json__contained_by=value).count(),
+                        2 - count,
+                    )
+
+            for lookup, value, count in [
+                ("json__a__contained_by", [1, 2, 3], 1),
+                ("json__a__contained_by", [1, 3], 0),
+                ("json__b__contained_by", {"c": 1, "d": 2}, 1),
+                ("json__b__contained_by", {"d": 2}, 0),
+                ("json__b__c__contained_by", [1, 2], 1),  # A primitive of an array.
+                ("json__b__c__contained_by", 1, 1),
+                ("json__z__contained_by", {"a": 1}, 0),
+            ]:
+                with self.subTest(lookup=lookup, value=value):
+                    self.assertEqual(
+                        JSONModel.objects.filter(**{lookup: value}).count(), count
+                    )
+
+            with self.assertRaisesMessage(
+                NotSupportedError,
+                "contained_by lookup only supports a literal value on this database backend.",
+            ):
+                JSONModel.objects.filter(json__contained_by=F("json")).count()
 
     def test_value_expression(self):
         with json_model() as JSONModel:
@@ -329,6 +415,10 @@ class JsonFieldTests(TestCase):
             self.assertEqual(qs.values("json__c")[0], {"json__c": {"d": "e"}})
             # A path ending at an array index has no sub-object accessor.
             self.assertEqual(qs.values("json__a__0")[0], {"json__a__0": 1})
+            # A negative index counts from the end, as it does on postgres.
+            self.assertEqual(qs.values("json__a__-1")[0], {"json__a__-1": 3})
+            self.assertEqual(qs.values("json__b__-1__c")[0], {"json__b__-1__c": 2})
+            self.assertEqual(qs.values("json__a__-9")[0], {"json__a__-9": None})
             # A text transform of a key which follows an array index.
             self.assertEqual(
                 qs.annotate(
@@ -453,3 +543,8 @@ class JsonFieldTests(TestCase):
             self.assertEqual(
                 JSONModel.objects.filter(json__a__gt=F("json__a")).count(), 0
             )
+
+            # A path is compared with a JSON value by reading it as text too.
+            value = Value({"d": "e"}, models.JSONField())
+            self.assertEqual(JSONModel.objects.filter(json__c=value).count(), 1)
+            self.assertEqual(JSONModel.objects.filter(json__c__in=[value]).count(), 1)
