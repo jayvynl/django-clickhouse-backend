@@ -160,7 +160,7 @@ if __name__ == "__main__":
     TestRunner = get_runner(settings)
     test_runner = TestRunner(
         verbosity=options.verbosity,
-        noinput=options.interactive,
+        interactive=options.interactive,
         failfast=options.failfast,
         keepdb=options.keepdb,
         debug_sql=options.debug_sql,

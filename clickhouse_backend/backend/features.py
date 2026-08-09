@@ -125,7 +125,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     # {'d': [{'f': 'g'}]}?
     json_key_contains_list_matching_requires_list = True
     # Does the backend support JSONObject() database function?
-    # A cached property below, JSONObject() builds a value of the JSON type.
+    has_json_object_function = True
 
     # Does the backend support column collations?
     supports_collation_on_charfield = False
@@ -169,10 +169,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     @cached_property
     def supports_json_field(self):
         return self.connection.get_database_version() >= (24, 8)
-
-    @cached_property
-    def has_json_object_function(self):
-        return self.supports_json_field
 
     @cached_property
     def django_test_skips(self):
