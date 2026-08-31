@@ -3,6 +3,7 @@ from django.test import TestCase
 
 from clickhouse_backend.models import (
     anyLast,
+    groupUniqArray,
     uniq,
     uniqCombined,
     uniqCombined64,
@@ -277,3 +278,44 @@ class AggregatesTestCase(TestCase):
         )
 
         self.assertQuerysetEqual(result, self.expected_result_any_last, transform=dict)
+
+    def test_groupUniqArray(self):
+        # Collects the distinct shows each user has watched. Many rows per user
+        # collapse to the unique set; the order of each array is not guaranteed.
+        result = {
+            row["uid"]: set(row["shows"])
+            for row in WatchSeries.objects.values("uid").annotate(
+                shows=groupUniqArray("show")
+            )
+        }
+
+        expected_result = {
+            "alice": {"Game of Thrones", "Bridgerton"},
+            "bob": {"Game of Thrones", "Bridgerton"},
+            "carol": {"Bridgerton"},
+            "dan": {"Bridgerton"},
+            "erin": {"Game of Thrones", "Bridgerton"},
+        }
+
+        self.assertEqual(result, expected_result)
+
+    def test_groupUniqArray_output_field(self):
+        # The output field is an ArrayField, so array transforms such as ``len``
+        # resolve against the annotation.
+        result = (
+            WatchSeries.objects.values("uid")
+            .annotate(shows=groupUniqArray("show"))
+            .annotate(num_shows=F("shows__len"))
+            .values("uid", "num_shows")
+            .order_by("uid")
+        )
+
+        expected_result = [
+            {"uid": "alice", "num_shows": 2},
+            {"uid": "bob", "num_shows": 2},
+            {"uid": "carol", "num_shows": 1},
+            {"uid": "dan", "num_shows": 1},
+            {"uid": "erin", "num_shows": 2},
+        ]
+
+        self.assertQuerysetEqual(result, expected_result, transform=dict)
