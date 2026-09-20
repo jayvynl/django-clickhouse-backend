@@ -92,3 +92,24 @@ class ReplicatedReplacingMergeTreeWithZooReplica(models.ClickhouseModel):
             order_by="id",
         )
         cluster = "cluster"
+
+
+class SkippingIndex(models.ClickhouseModel):
+    trace_id = models.StringField()
+
+    class Meta:
+        engine = models.MergeTree(order_by="id")
+        indexes = [
+            models.Index(
+                fields=["trace_id"],
+                name="trace_id_idx",
+                type=models.BloomFilter(0.001),
+                granularity=1,
+            ),
+            models.Index(
+                models.sipHash64("trace_id"),
+                name="trace_id_hash_idx",
+                type=models.Set(100),
+                granularity=4,
+            ),
+        ]

@@ -3,8 +3,17 @@ import re
 from django.db import connection
 from django.db.models import F
 from django.test import TestCase
+from django.test.utils import isolate_apps
 
-from clickhouse_backend.models import MergeTree, farmFingerprint64
+from clickhouse_backend.models import (
+    ClickhouseModel,
+    Index,
+    MergeTree,
+    MinMax,
+    StringField,
+    farmFingerprint64,
+    sipHash64,
+)
 from clickhouse_backend.utils.timezone import get_timezone
 
 from . import models
@@ -136,3 +145,34 @@ class TestEngineSettings(TestCase):
             engine_full = cursor.fetchone()[0]
         for k, v in opts.engine.settings.items():
             self.assertTrue(f"{k} = {v}" in engine_full)
+
+
+class TestIndexCheck(TestCase):
+    """Django 6.0 moved the index system checks into Index.check(), #185."""
+
+    def test_valid(self):
+        self.assertEqual(models.SkippingIndex.check(databases=["default"]), [])
+
+    @isolate_apps("clickhouse_table_engine")
+    def test_errors(self):
+        def index(name, *expressions, **kwargs):
+            return Index(
+                *expressions, name=name, type=MinMax(), granularity=1, **kwargs
+            )
+
+        class Model(ClickhouseModel):
+            trace_id = StringField()
+
+            class Meta:
+                engine = MergeTree(order_by="id")
+                indexes = [
+                    index("_trace_id_idx", fields=["trace_id"]),
+                    index("x" * (Index.max_name_length + 1), "trace_id"),
+                    index("missing_idx", fields=["missing"]),
+                    index("missing_hash_idx", sipHash64("missing")),
+                ]
+
+        self.assertEqual(
+            sorted(error.id for error in Model.check(databases=["default"])),
+            ["models.E012", "models.E012", "models.E033", "models.E034"],
+        )
