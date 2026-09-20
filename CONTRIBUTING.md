@@ -95,6 +95,8 @@ tox
 ### Other
 
 - Don't forget writing [Changelog](CHANGELOG.md), under the `### Unreleased` heading.
+  Never open a version heading yourself, not even for a fix that looks like a
+  patch release: the release decides the version and renames the heading.
 - When documentation describes something new, annotate it with
   `> *New in version NEXT:*` or `> *Changed in version NEXT:*`. The release fills
   `NEXT` in, so a pull request never has to guess the version it lands in.
