@@ -1,3 +1,9 @@
+### 2.0.1
+
+#### Fixes
+
+- #185 `Index` gains the `check()` method django 6.0 moved the index system checks into, so `manage.py check` no longer raises `AttributeError` for a `ClickhouseModel` declaring `Meta.indexes`. Django 6.1 runs the checks against every database by default, which made the crash unconditional. The method also reports a name starting with an underscore or a digit (`models.E033`), a name longer than 30 characters (`models.E034`) and a nonexistent field (`models.E012`), like django does for its own `Index`.
+
 ### 2.0.0
 
 #### Breaking

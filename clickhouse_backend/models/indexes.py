@@ -1,3 +1,4 @@
+from django.core import checks
 from django.db.models.expressions import ExpressionList, F, Func
 from django.db.models.indexes import IndexExpression, names_digest, split_identifier
 from django.db.models.sql import Query
@@ -64,6 +65,39 @@ class Index:
     @property
     def contains_expressions(self):
         return bool(self.expressions)
+
+    def check(self, model, connection):
+        """The checks django ran in Model._check_indexes() before 6.0."""
+        errors = []
+        if self.name[0] == "_" or self.name[0].isdigit():
+            errors.append(
+                checks.Error(
+                    "The index name '%s' cannot start with an underscore "
+                    "or a number." % self.name,
+                    obj=model,
+                    id="models.E033",
+                )
+            )
+        if len(self.name) > self.max_name_length:
+            errors.append(
+                checks.Error(
+                    "The index name '%s' cannot be longer than %d "
+                    "characters." % (self.name, self.max_name_length),
+                    obj=model,
+                    id="models.E034",
+                )
+            )
+        references = {
+            ref[0]
+            for expression in self.expressions
+            for ref in model._get_expr_references(expression)
+        }
+        errors.extend(
+            model._check_local_fields(
+                {*(field for field, _ in self.fields_orders), *references}, "indexes"
+            )
+        )
+        return errors
 
     def index_sql(self, model, schema_editor):
         return self.create_sql(model, schema_editor, inline=True)
