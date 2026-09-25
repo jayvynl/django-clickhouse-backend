@@ -22,11 +22,8 @@ def escape_datetime(item: datetime, context):
     if item.tzinfo is None:
         return item.timestamp()
 
-    item = item.astimezone(timezone.utc)
-    if item.microsecond == 0:
-        return "'%s'" % item.strftime("%Y-%m-%d %H:%M:%S")
-    else:
-        return "'%s'" % item.strftime("%Y-%m-%d %H:%M:%S.%f")
+    item = item.astimezone(timezone.utc).replace(tzinfo=None)
+    return "'%s'" % item.isoformat(sep=" ")
 
 
 def escape_binary(item: bytes, context):

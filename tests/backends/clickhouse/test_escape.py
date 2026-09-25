@@ -23,6 +23,12 @@ class EscapeParamTests(SimpleTestCase):
             escape_param(aware.replace(microsecond=0), {}), "'2024-01-02 03:04:05'"
         )
 
+    def test_datetime_aware_non_utc(self):
+        tz = datetime.timezone(datetime.timedelta(hours=5))
+        aware = datetime.datetime(2024, 1, 2, 3, 4, 5, 678901, tzinfo=tz)
+        # 2024-01-02 03:04:05+05:00 == 2024-01-01 22:04:05 UTC
+        self.assertEqual(escape_param(aware, {}), "'2024-01-01 22:04:05.678901'")
+
     def test_collections(self):
         self.assertEqual(escape_param([1, "a"], {}), "[1,'a']")
         # A one element tuple is tuple(x), clickhouse-driver renders (x), which
